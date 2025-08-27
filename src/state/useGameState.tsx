@@ -77,6 +77,9 @@ export function useGameState() {
   // Units
   const [units, setUnits] = useState<Unit[]>([])
   const [mergePick, setMergePick] = useState<string[]>([])
+  
+  // Global day tracker
+  const [day, setDay] = useState<number>(1)
 
   const addLog = (s: string) =>
     setLog((l) => [`${new Date().toLocaleString()} — ${s}`, ...l])
@@ -84,9 +87,9 @@ export function useGameState() {
   const hasStable = useMemo(()=>buildings.some(b => b.type === 'STABLE'), [buildings])
 
   useEffect(() => {
-    const save = { wallet, inv, buildings, units, barracks, barracksLevel, recruits, batches }
+    const save = { wallet, inv, buildings, units, barracks, barracksLevel, recruits, batches, day, }
     localStorage.setItem('warlord_save', JSON.stringify(save))
-  }, [wallet, inv, buildings, units, barracks, barracksLevel, recruits, batches])
+  }, [wallet, inv, buildings, units, barracks, barracksLevel, recruits, batches, day])
 
   function loadSave() {
     const raw = localStorage.getItem('warlord_save')
@@ -101,6 +104,7 @@ export function useGameState() {
       setBarracksLevel(s.barracksLevel ?? 1)
       setRecruits(s.recruits ?? { count: 0, avgXP: 0 })
       setBatches(s.batches ?? [])
+      setDay(s.day ?? 1)
       addLog('Loaded save.')
     } catch {
       addLog('Failed to load save.')
@@ -116,7 +120,9 @@ export function useGameState() {
     setBarracksLevel(1)
     setRecruits({ count: 0, avgXP: 0 })
     setBatches([])
+    setDay(1)
     setLog([])
+    
   }
 
   // --------- Market ----------
@@ -178,6 +184,7 @@ export function useGameState() {
     let walletDelta = 0
     const notes: string[] = []
     const ninv = structuredClone(inv)
+   
 
     // Training XP (first N training units)
     setUnits(us=>{
@@ -285,9 +292,13 @@ export function useGameState() {
     })
 
     setInv(ninv)
+
+    const nextDay = day + 1
+    setDay(nextDay)
+
     setWallet((w) => {
       const nw = w + walletDelta
-      addLog(`Daily tick: ${notes.join(' | ')} | Wallet Δ ${fmtCopper(walletDelta)}`)
+      addLog(`Day ${nextDay} — ${notes.join(' | ')} | Wallet Δ ${fmtCopper(walletDelta)}`)
       return nw
     })
   }
@@ -557,7 +568,7 @@ export function useGameState() {
 
   return {
     // state
-    wallet, inv, buildings, units, mergePick, log,
+    day, wallet, inv, buildings, units, mergePick, log,
     barracks, barracksLevel, recruits, hasStable, batches,
   
     // helpers

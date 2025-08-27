@@ -22,7 +22,7 @@ export default function App() {
   
   const {
     // state
-    wallet, inv, buildings, units, mergePick, log,
+    day, wallet, inv, buildings, units, mergePick, log,
     // helpers
     fmtCopper: fmtFromState,
     BuildingCostCopper, BuildingOutputChoices, FocusOptions,
@@ -45,6 +45,10 @@ export default function App() {
       <div className="flex gap-2 items-center">
         <h1 className="text-3xl font-bold">Warlord</h1>
         <div className="ml-auto flex gap-2">
+          <div className="ml-4 flex items-center gap-3">
+            <span className="text-lg">Day:</span>
+            <span className="px-2 py-1 bg-gray-100 rounded font-mono">{day}</span>
+          </div>
           <button className="px-3 py-2 border rounded" onClick={loadSave}>Load</button>
           <button className="px-3 py-2 border rounded" onClick={resetAll}>Reset</button>
           <button className="px-3 py-2 bg-black text-white rounded" onClick={runDailyTick}>Run Day ▶</button>
