@@ -46,7 +46,7 @@ export default function BarracksTab({ state }: { state: any }) {
           </div>
 
           <h3 className="font-semibold">Recruit</h3>
-          <RecruitForm onRecruit={(t:number, q:number)=>recruit(t,q)} />
+          <RecruitForm onRecruit={(qty) => recruit(qty)} />
 
           <div className="border rounded p-2">
             <div className="font-semibold mb-2">Queue LIGHT Training (recruits → light)</div>

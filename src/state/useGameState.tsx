@@ -414,11 +414,12 @@ export function useGameState() {
   }
 
   // Legacy actions you already use in UI:
-  function recruit(_unused: any, qty: number){
-    if (qty<=0) return
+  function recruit(qty: number){
+    if (qty <= 0) return
     setRecruits(r => ({ ...r, count: r.count + qty }))
-    addLog(`Recruited ${qty} untyped recruits.`)
+    addLog(`Recruited ${qty} untrained recruits.`)
   }
+  
   function trainTo(t: SoldierType, n: number){ queueLightTraining(t, n) } // alias for UI
   function convertCav(from: SoldierType, to: 'LIGHT_CAV'|'HEAVY_CAV'|'HORSE_ARCHER', planOrQty: any) {
     // keep compatibility with existing UI ConvertCavForm:

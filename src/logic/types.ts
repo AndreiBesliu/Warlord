@@ -74,6 +74,7 @@ export type Building = {
   fractionalBuffer: number;
 };
 
+export type BuildingType = Building['type'];
 export type BarracksPool = Record<SoldierType, Record<Rank, { r: Rank; count: number; avgXP: number }>>;
 export type RecruitPool = { count: number; avgXP: number };
 
