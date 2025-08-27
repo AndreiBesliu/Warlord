@@ -561,3 +561,5 @@ export function useGameState() {
   }
   
 }
+
+export type GameStateShape = ReturnType<typeof useGameState>

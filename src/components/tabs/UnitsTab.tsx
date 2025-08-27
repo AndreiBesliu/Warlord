@@ -2,14 +2,14 @@ import React from 'react'
 import Card from '../common/Card'
 import MissingEquipment from '../units/MissingEquipment'
 import SplitMergeControls from '../units/SplitMergeControls'
+import type { GameStateShape } from '../../state/useGameState'
 
-export default function UnitsTab({ state }: { state: any }) {
+export default function UnitsTab({ state }: { state: GameStateShape }) {
   const {
-    units, mergePick,
-    computeReady,
+    units, mergePick, computeReady,
     doSplit, togglePickForMerge, doMergeIfReady, toggleTraining
   } = state
-
+  
   return (
     <Card title="Units">
       <div className="mb-2 flex items-center gap-2 text-sm">

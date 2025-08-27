@@ -2,8 +2,9 @@ import React from 'react'
 import Card from '../common/Card'
 import MarketPanel from '../common/MarketPanel'
 import { WeaponPriceCopper, ArmorPriceCopper, HorsePriceCopper } from '../../logic/items'
+import type { GameStateShape } from '../../state/useGameState'
 
-export default function MarketTab({ state }: { state: any }) {
+export default function MarketTab({ state }: { state: GameStateShape }) {
   const { inv, hasStable, buy, sell } = state
 
   return (

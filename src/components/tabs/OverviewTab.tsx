@@ -1,8 +1,9 @@
 import React from 'react'
 import Card from '../common/Card'
 import InvSummary from '../common/InvSummary'
+import type { GameStateShape } from '../../state/useGameState'
 
-export default function OverviewTab({ state }: { state: any }) {
+export default function OverviewTab({ state }: { state: GameStateShape }) {
   const { buildings, fmtCopper, wallet, inv, addTestUnit } = state
   const buildingsArr = buildings ?? []
 

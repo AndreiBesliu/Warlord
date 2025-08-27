@@ -1,19 +1,8 @@
 import React from 'react'
 import Card from '../common/Card'
 import { type Building } from '../../logic/types'
-
-type Props = {
-  state: {
-    buildings: Building[]
-    fmtCopper: (c: number) => string
-    BuildingCostCopper: Record<string, number>
-    BuildingOutputChoices: Record<string, { options: string[] }>
-    FocusOptions: readonly (0|20|40|60|80|100)[]   // ← add readonly here
-    buyBuilding: (t: Building['type']) => void
-    setBuildingFocus: (id: string, pct: number) => void
-    setBuildingOutput: (id: string, item: string) => void
-  }
-}
+import type { GameStateShape } from '../../state/useGameState'
+type Props = { state: GameStateShape }
 
 export default function BuildingsTab({ state }: Props) {
   const {
@@ -21,7 +10,7 @@ export default function BuildingsTab({ state }: Props) {
     fmtCopper,
     BuildingCostCopper,
     BuildingOutputChoices,
-    FocusOptions,
+    FocusOptions,          // note: if this is readonly, it's fine
     buyBuilding,
     setBuildingFocus,
     setBuildingOutput,

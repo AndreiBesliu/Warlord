@@ -1,8 +1,10 @@
 import React from 'react'
 import Card from '../common/Card'
+import type { GameStateShape } from '../../state/useGameState'
 
-export default function LogTab({ state }: { state: any }) {
+export default function LogTab({ state }: { state: GameStateShape }) {
   const { log } = state
+  
   return (
     <Card title="Activity Log">
       <div className="space-y-1 text-sm">
