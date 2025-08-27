@@ -17,17 +17,14 @@ export const BuildingCostCopper: Record<BuildingType, number> = {
 export const FocusOptions = [100, 80, 60, 40, 20, 0] as const
 
 // What each building can produce (and whether it’s weapons/armor)
-export const BuildingOutputChoices: Record<
-  BuildingType,
-  { kind: 'WEAPON' | 'ARMOR' | null; options: string[] }
-> = {
-  BLACKSMITH: { kind: 'WEAPON', options: ['HALBERD', 'SPEAR', 'SWORD'] },
-  ARMORY:     { kind: 'ARMOR',  options: ['HEAVY_ARMOR', 'HORSE_ARMOR'] },
-  WOODWORKER: { kind: 'WEAPON', options: ['BOW', 'SHIELD'] }, // SHIELD uses armor price
-  TAILOR:     { kind: 'ARMOR',  options: ['LIGHT_ARMOR'] },
-  STABLE:     { kind: null,     options: [] },
-  MARKET:     { kind: null,     options: [] },
-  BARRACKS:   { kind: null,     options: [] },
+export const BuildingOutputChoices: Record<string, { options: string[] }> = {
+  BLACKSMITH: { options: ['HALBERD', 'SPEAR', 'SWORD'] }, // all weapons except bows
+  ARMORY:     { options: ['HEAVY_ARMOR', 'HORSE_ARMOR'] },
+  WOODWORKER: { options: ['BOW', 'SHIELD'] },
+  TAILOR:     { options: ['LIGHT_ARMOR'] },
+  STABLE:     { options: [] },
+  MARKET:     { options: [] },
+  BARRACKS:   { options: [] },
 }
 
 /**
@@ -37,24 +34,32 @@ export const BuildingOutputChoices: Record<
  * - Foregone coin is converted into items at **70%** of their market value.
  * - We return (coinGain, items to add, new fractional buffer).
  */
-export function passiveIncomeAndProduction(params: {
+export function passiveIncomeAndProduction(args: {
   costCopper: number
-  focusCoinPct: number
+  focusCoinPct: (typeof FocusOptions)[number] // 0..100 in the set
   outputItem: string
   fractionalBuffer: number
-}) {
-  const { costCopper, focusCoinPct, outputItem, fractionalBuffer } = params
+}): { coinGain: number; items: number; newBuffer: number } {
+  const { costCopper, focusCoinPct, outputItem, fractionalBuffer } = args
 
-  const Cout = 0.10 * costCopper // base output/day (copper)
-  const coinGain = Math.floor(Cout * (focusCoinPct / 100))
+  // No passive income for zero-cost buildings (Market, Barracks) or missing costs
+  if (!costCopper) return { coinGain: 0, items: 0, newBuffer: fractionalBuffer }
 
-  const foregone = Cout - coinGain
-  const productionBudget = 0.70 * foregone
+  const basePerDay = 0.10 * costCopper
+  const coinGain = Math.round(basePerDay * (focusCoinPct / 100))
 
-  const itemVal = itemValueCopper(outputItem)
-  const itemsFloat = itemVal > 0 ? productionBudget / itemVal + fractionalBuffer : 0
-  const items = Math.floor(itemsFloat)
-  const newBuffer = itemsFloat - items
+  const remainderValue = basePerDay - coinGain
+  const mv = itemValueCopper(outputItem) || 0
+
+  if (remainderValue <= 0 || mv <= 0) {
+    return { coinGain, items: 0, newBuffer: fractionalBuffer }
+  }
+
+  // Convert remainder coin value into items at 70% of market value
+  const itemsFloat = remainderValue / (0.7 * mv)
+  const total = fractionalBuffer + itemsFloat
+  const items = Math.floor(total)
+  const newBuffer = total - items
 
   return { coinGain, items, newBuffer }
 }

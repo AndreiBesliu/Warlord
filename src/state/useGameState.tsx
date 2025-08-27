@@ -62,7 +62,7 @@ export function useGameState() {
   }
   
   // Economy / buildings
-  const [wallet, setWallet] = useState(5 * GOLD)
+  const [wallet, setWallet] = useState(10 * GOLD)
   const [inv, setInv] = useState(makeEmptyInventories())
   // initial state:
   const [buildings, setBuildings] = useState<Building[]>(defaultBuildings())
@@ -93,7 +93,7 @@ export function useGameState() {
     if (!raw) { addLog('No save found.'); return }
     try {
       const s = JSON.parse(raw)
-      setWallet(s.wallet ?? 5 * GOLD)
+      setWallet(s.wallet ?? 10 * GOLD)
       setInv(s.inv ?? makeEmptyInventories())
       setBuildings(s.buildings ?? defaultBuildings())          // <- guard
       setUnits(s.units ?? [])
@@ -108,7 +108,7 @@ export function useGameState() {
   }
 
   function resetAll() {
-    setWallet(5 * GOLD)
+    setWallet(10 * GOLD)
     setInv(makeEmptyInventories())
     setBuildings(defaultBuildings())  
     setUnits([])
@@ -196,28 +196,38 @@ export function useGameState() {
     })
 
     // Building income/production
-    setBuildings((bs) => {
-      const out = bs.map((b) => ({ ...b }))
-      for (const b of out) {
-        if (['STABLE', 'MARKET', 'BARRACKS'].includes(b.type)) continue
-        const cost = BuildingCostCopper[b.type]
-        const { coinGain, items, newBuffer } = passiveIncomeAndProduction({
-          costCopper: cost,
-          focusCoinPct: b.focusCoinPct,
-          outputItem: b.outputItem ?? BuildingOutputChoices[b.type].options[0],
-          fractionalBuffer: b.fractionalBuffer
-        })
-        walletDelta += coinGain
-        b.fractionalBuffer = newBuffer
-        const item = b.outputItem ?? BuildingOutputChoices[b.type].options[0]
-        if ((WeaponTypes as readonly string[]).includes(item as any)) ninv.weapons[item] = (ninv.weapons[item] ?? 0) + items
-        else if ((ArmorTypes as readonly string[]).includes(item as any)) ninv.armors[item] = (ninv.armors[item] ?? 0) + items
-        notes.push(`${b.type} → +${items} ${item}, +${fmtCopper(coinGain)}`)
+    const updatedBuildings = buildings.map((b) => {
+      const row = { ...b }
+  
+      // Skip non-income buildings
+      if (['STABLE', 'MARKET', 'BARRACKS'].includes(row.type)) return row
+  
+      const cost = BuildingCostCopper[row.type] || 0
+      const { coinGain, items, newBuffer } = passiveIncomeAndProduction({
+        costCopper: cost,
+        focusCoinPct: row.focusCoinPct,
+        outputItem: row.outputItem ?? BuildingOutputChoices[row.type].options[0],
+        fractionalBuffer: row.fractionalBuffer ?? 0,
+      })
+  
+      walletDelta += coinGain
+      row.fractionalBuffer = newBuffer
+  
+      const item = row.outputItem ?? BuildingOutputChoices[row.type].options[0]
+      if ((WeaponTypes as readonly string[]).includes(item as any)) {
+        ninv.weapons[item] = (ninv.weapons[item] ?? 0) + items
+      } else if ((ArmorTypes as readonly string[]).includes(item as any)) {
+        ninv.armors[item] = (ninv.armors[item] ?? 0) + items
       }
-      return out
+  
+      notes.push(`${row.type} → +${items} ${item}, +${fmtCopper(coinGain)}`)
+      return row
     })
-
-    // Stable: breeding + upkeep
+  
+    // --- apply the computed results to state ---
+    setBuildings(updatedBuildings)
+  
+    // Stable: breeding & upkeep (once per day if you have a STABLE)
     if (hasStable) {
       const breedL = Math.floor(0.01 * (ninv.horses.LIGHT_HORSE.active || 0))
       const breedH = Math.floor(0.01 * (ninv.horses.HEAVY_HORSE.active || 0))
@@ -275,7 +285,11 @@ export function useGameState() {
     })
 
     setInv(ninv)
-    setWallet((w) => { const nw = w + walletDelta; addLog(`Daily tick: ${notes.join(' | ')} | Wallet Δ ${fmtCopper(walletDelta)}`); return nw })
+    setWallet((w) => {
+      const nw = w + walletDelta
+      addLog(`Daily tick: ${notes.join(' | ')} | Wallet Δ ${fmtCopper(walletDelta)}`)
+      return nw
+    })
   }
 
   // --------- Barracks: queue batches ----------
