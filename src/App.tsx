@@ -6,6 +6,7 @@ import MarketPanel from './components/common/MarketPanel'
 import MissingEquipment from './components/units/MissingEquipment'
 import SplitMergeControls from './components/units/SplitMergeControls'
 import BuildingsTab from './components/tabs/BuildingsTab'
+import MarketTab from './components/tabs/MarketTab'
 
 import BarracksTab from './components/tabs/BarracksTab'
 import { useGameState } from './state/useGameState'
@@ -150,21 +151,8 @@ export default function App() {
         </Card>
       )}
 
-      {tab === 'market' && (
-        <Card title="Market">
-          <div className="grid md:grid-cols-3 gap-4">
-            <MarketPanel title="Weapons" kind="WEAPON"
-              options={Object.keys(WeaponPriceCopper).map(k=>({k, price:(WeaponPriceCopper as any)[k]}))}
-              have={(k)=>inv.weapons[k] ?? 0} onBuy={buy} onSell={sell}/>
-            <MarketPanel title="Armor" kind="ARMOR"
-              options={Object.keys(ArmorPriceCopper).map(k=>({k, price:(ArmorPriceCopper as any)[k]}))}
-              have={(k)=>inv.armors[k] ?? 0} onBuy={buy} onSell={sell}/>
-            <MarketPanel title="Horses" kind="HORSE"
-              options={Object.keys(HorsePriceCopper).map(k=>({k, price:(HorsePriceCopper as any)[k]}))}
-              have={(k)=>inv.horses[k]?.active ?? 0} onBuy={buy} onSell={sell}/>
-          </div>
-        </Card>
-      )}
+      {tab === 'market' && <MarketTab state={state} />}
+
 
       {tab === 'log' && (
         <Card title="Activity Log">
