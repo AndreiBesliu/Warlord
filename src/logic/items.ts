@@ -12,7 +12,7 @@ export const WeaponPriceCopper: Record<Weapon, number> = {
 export const ArmorPriceCopper: Record<Armor, number> = {
   SHIELD:      1 * SILVER,
   HEAVY_ARMOR: 10 * GOLD,
-  LIGHT_ARMOR: 10 * SILVER,
+  LIGHT_ARMOR: 3 * SILVER,
   HORSE_ARMOR: 8 * GOLD,
 }
 

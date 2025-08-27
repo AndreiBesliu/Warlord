@@ -11,6 +11,7 @@ import { BuildingCostCopper, BuildingOutputChoices, FocusOptions, passiveIncomeA
 import { computeReady, splitUnit, mergeUnits, trainingGainPerDay } from '../logic/units'
 import { trainRecruitsInto, convertToCavalry } from '../logic/training'
 import { batchDurationDays, batchSlots, newBatchId, deductByRank, addByRank, sumPlan } from '../logic/batches'
+import { demandFor, ensureEquipOrBuy } from '../logic/equipment'
 
 function makeEmptyInventories() {
   return {
@@ -453,42 +454,56 @@ export function useGameState() {
     else if (to === 'HORSE_ARCHER') queueHorseArcherConversion(sumPlan(planOrQty) || planOrQty)
   }
 
-  function createUnitFromBarracks(type: SoldierType, take: Partial<Record<Rank, number>>){
+  function createUnitFromBarracks(type: SoldierType, take: Partial<Record<Rank, number>>, opts?: { autoBuy?: boolean }) {
+    const autoBuy = !!opts?.autoBuy
+  
     setBarracks(prev=>{
       const pool = structuredClone(prev)
       const buckets: Unit['buckets'] = []
       let total = 0
-      for (const r of Ranks){
+  
+      for (const r of Ranks) {
         const want = take[r] || 0
-        if (want>0){
-          if (pool[type][r].count < want){ addLog(`Not enough ${r} in barracks.`); return prev }
+        if (want>0) {
+          if (pool[type][r].count < want) { addLog(`Not enough ${r} in barracks.`); return prev }
           const avg = pool[type][r].avgXP
           pool[type][r].count -= want
           buckets.push({ r, count: want, avgXP: avg })
           total += want
         }
       }
-      if (total===0){ addLog('Select at least one soldier.'); return prev }
-
+      if (total === 0) { addLog('Select at least one soldier.'); return prev }
+  
+      // Compute equipment demand for this unit and try to satisfy it
+      const need = demandFor(type, total)
+      const invClone = structuredClone(inv)
+      const res = ensureEquipOrBuy(invClone, wallet, need, autoBuy)
+      if (!res.ok) {
+        addLog(`Not enough equipment for ${type}. Missing: ` +
+          `${Object.entries(res.missing!.weapons||{}).map(([k,v])=>`${v} ${k}`).join(', ')} ` +
+          `${Object.entries(res.missing!.armors||{}).map(([k,v])=>`${v} ${k}`).join(', ')} ` +
+          `${Object.entries(res.missing!.horses||{}).map(([k,v])=>`${v} ${k}`).join(', ')}`
+        )
+        return prev
+      }
+  
+      // Commit inventory + wallet updates
+      setInv(invClone)
+      if (res.spent>0) setWallet(w=>w - res.spent)
+      addLog(`Equipped ${total} ${type} ${res.spent>0 ? `(auto-bought gear for ${fmtCopper(res.spent)})` : ''}`)
+  
       const totalCount = buckets.reduce((a,b)=>a+b.count,0)
       const wx = buckets.reduce((a,b)=>a+b.count*b.avgXP,0)
       const avgXP = totalCount? Math.floor(wx/totalCount) : 0
-
+  
       const unit: Unit = {
         id: `U_${Math.random().toString(36).slice(2,7)}`,
         type,
         buckets,
         avgXP,
         training: false,
-        equip: { weapons:{}, armors:{}, horses:{} },
-        loadout:
-          type.startsWith('LIGHT_INF') ? { kind: type as any, weapon: (type.includes('SWORD')?'SWORD':type.includes('SPEAR')?'SPEAR':'HALBERD'), shield:true, lightArmor:true }
-        : type.startsWith('HEAVY_INF') ? { kind: type as any, weapon: (type.includes('SWORD')?'SWORD':type.includes('SPEAR')?'SPEAR':'HALBERD'), shield:true, heavyArmor:true }
-        : type === 'LIGHT_ARCHER'      ? { kind: 'LIGHT_ARCHER', weapon:'BOW', lightArmor:true, shield:false }
-        : type === 'HEAVY_ARCHER'      ? { kind: 'HEAVY_ARCHER', weapon:'BOW', heavyArmor:true, shield:false }
-        : type === 'LIGHT_CAV'         ? { kind: 'LIGHT_CAV', weapon:'SPEAR', lightArmor:true }
-        : type === 'HEAVY_CAV'         ? { kind: 'HEAVY_CAV', weapon:'HALBERD', heavyArmor:true, horseArmor:true }
-        :                                 { kind: 'HORSE_ARCHER', weapon:'BOW', lightArmor:true }
+        equip: { weapons:{}, armors:{}, horses:{} }, // you can track per-unit issued gear later if you want
+        loadout: { kind: type } as any
       }
       setUnits(us=>[unit, ...us])
       addLog(`Created ${unit.id} (${type}) size ${total}, avgXP ${avgXP}.`)
