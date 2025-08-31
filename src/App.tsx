@@ -25,13 +25,12 @@ export default function App() {
     day, wallet, inv, buildings, units, mergePick, log,
     // helpers
     fmtCopper: fmtFromState,
-    BuildingCostCopper, BuildingOutputChoices, FocusOptions,
-    WeaponTypes, ArmorTypes, HorseTypes,
-    computeReady,
+    BuildingCostCopper, BuildingOutputChoices, 
+    FocusOptions, computeReady,
     // actions
     loadSave, resetAll, runDailyTick,
-    buy, sell, buyBuilding, setBuildingFocus, setBuildingOutput,
-    addTestUnit, doSplit, togglePickForMerge, doMergeIfReady, toggleTraining,
+    buyBuilding, setBuildingFocus, setBuildingOutput,
+    doSplit, togglePickForMerge, doMergeIfReady, toggleTraining,
   } = state
   
   const fmtCopper = fmtFromState || fmtCopperUtil

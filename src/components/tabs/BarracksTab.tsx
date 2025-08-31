@@ -1,16 +1,15 @@
 import React, { useState } from 'react'
 import Card from '../common/Card'
 import RecruitForm from '../barracks/RecruitForm'
-import TrainRow from '../barracks/TrainRow'
-import ConvertCavForm from '../barracks/ConvertCavForm'
-import { SoldierTypes, Ranks, type SoldierType } from '../../logic/types'
+import { type SoldierType, } from '../../logic/types'
+import type { GameStateShape } from '../../state/useGameState'
 
-export default function BarracksTab({ state }: { state: any }) {
-  const {
-    recruits, barracks, barracksLevel, barracksUpgradeCost, upgradeBarracks, fmtCopper,
-    recruit, queueLightTraining, queueHeavyConversion, queueLightCavConversion, queueHorseArcherConversion,
-    batches, batchSlots, batchDurationDays
-  } = state
+export default function BarracksTab({ state }: { state: GameStateShape }) {
+   const {
+     recruits, barracks, barracksLevel, barracksUpgradeCost, upgradeBarracks, fmtCopper,
+     recruit, queueLightTraining, queueHeavyConversion, queueLightCavConversion, queueHorseArcherConversion,
+     batches, batchSlots, batchDurationDays
+   } = state
 
   const [lightType, setLightType] = useState<SoldierType>('LIGHT_INF_SPEAR')
   const [lightQty, setLightQty]   = useState(20)
@@ -25,13 +24,13 @@ export default function BarracksTab({ state }: { state: any }) {
     barracksLevel >= 5 ? 'Max'
     : hasCostFn ? fmtCopper(barracksUpgradeCost(barracksLevel))
     : 'N/A'
-    
+  
   return (
     <Card title="Barracks">
       <div className="text-sm mb-2">
         Slots: {batches.length}/{batchSlots(barracksLevel)} • Batch duration: {batchDurationDays(barracksLevel)} days
       </div>
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-1 gap-4">
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <div className="text-sm">Level: {barracksLevel}</div>
@@ -70,6 +69,35 @@ export default function BarracksTab({ state }: { state: any }) {
             </div>
           </div>
 
+        </div>
+
+        <div className="grid md:grid-cols-1 gap-4">
+
+          <div className="border rounded p-2">
+            <div className="font-semibold mb-2">Queue LIGHT CAV Conversion</div>
+            <div className="flex gap-2 items-end">
+              <div className="flex flex-col">
+                <label className="text-sm">From</label>
+                <select className="border rounded px-2 py-1" value={lcSrc} onChange={e=>setLcSrc(e.target.value as SoldierType)}>
+                  {(['LIGHT_INF_SWORD','LIGHT_INF_SPEAR','LIGHT_INF_HALBERD'] as SoldierType[])
+                    .map(t=><option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm">Qty (≤50)</label>
+                <input className="border rounded px-2 py-1 w-24" type="number" min={1} max={50}
+                      value={lcQty} onChange={e=>setLcQty(Math.max(1, Math.min(50, parseInt(e.target.value||'1'))))}/>
+              </div>
+              <button className="px-3 py-1 border rounded" onClick={()=>queueLightCavConversion(lcSrc, lcQty)}>
+                Queue
+              </button>
+            </div>
+            <div className="text-xs text-gray-500 mt-2">Consumes Light Horses now.</div>
+          </div>
+
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
           <div className="border rounded p-2">
             <div className="font-semibold mb-2">Queue HEAVY CAV Conversion (ADV+)</div>
             <div className="flex gap-2 items-end">
@@ -85,7 +113,7 @@ export default function BarracksTab({ state }: { state: any }) {
                 <input className="border rounded px-2 py-1 w-24" type="number" min={1} max={50}
                       value={heavyQty} onChange={e=>setHeavyQty(Math.max(1, Math.min(50, parseInt(e.target.value||'1'))))}/>
               </div>
-              <button className="px-3 py-1 border rounded" onClick={()=>state.queueHeavyConversion(heavySrc, heavyQty)}>
+              <button className="px-3 py-1 border rounded" onClick={()=>queueHeavyConversion(heavySrc, heavyQty)}>
                 Queue
               </button>
             </div>
@@ -96,29 +124,6 @@ export default function BarracksTab({ state }: { state: any }) {
               Sources: <b>LIGHT_CAV</b> or <b>HEAVY_INF_*</b>.
             </div>
 
-          </div>
-
-
-          <div className="border rounded p-2">
-            <div className="font-semibold mb-2">Queue LIGHT CAV Conversion</div>
-            <div className="flex gap-2 items-end">
-              <div className="flex flex-col">
-                <label className="text-sm">From</label>
-                <select className="border rounded px-2 py-1" value={lcSrc} onChange={e=>setLcSrc(e.target.value as SoldierType)}>
-                  {(['LIGHT_INF_SWORD','LIGHT_INF_SPEAR','LIGHT_INF_HALBERD'] as SoldierType[])
-                    .map(t=><option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div className="flex flex-col">
-                <label className="text-sm">Qty (≤50)</label>
-                <input className="border rounded px-2 py-1 w-24" type="number" min={1} max={50}
-                       value={lcQty} onChange={e=>setLcQty(Math.max(1, Math.min(50, parseInt(e.target.value||'1'))))}/>
-              </div>
-              <button className="px-3 py-1 border rounded" onClick={()=>queueLightCavConversion(lcSrc, lcQty)}>
-                Queue
-              </button>
-            </div>
-            <div className="text-xs text-gray-500 mt-2">Consumes Light Horses now.</div>
           </div>
 
           <div className="border rounded p-2">
@@ -135,7 +140,9 @@ export default function BarracksTab({ state }: { state: any }) {
             </div>
             <div className="text-xs text-gray-500 mt-2">Consumes Light Horses now.</div>
           </div>
+        </div>
 
+        <div className="grid md:grid-cols-2 gap-4">
           <h3 className="font-semibold">Active Batches</h3>
           <div className="space-y-2">
             {state.batches.length===0 && <div className="text-sm text-gray-500">None</div>}
@@ -151,30 +158,6 @@ export default function BarracksTab({ state }: { state: any }) {
           </div>
         </div>
 
-        <div className="space-y-3">
-          <h3 className="font-semibold">Pools</h3>
-          // inside the Pools map:
-          {(['LIGHT_INF_SWORD','LIGHT_INF_SPEAR','LIGHT_INF_HALBERD',
-            'HEAVY_INF_SWORD','HEAVY_INF_SPEAR','HEAVY_INF_HALBERD',
-            'LIGHT_ARCHER','HEAVY_ARCHER','LIGHT_CAV','HEAVY_CAV','HORSE_ARCHER'] as SoldierType[])
-            .map(t=>{
-              const row = state.barracks[t] || {};
-              return (
-                <div key={t} className="border rounded p-2">
-                  <div className="font-semibold mb-1">{t}</div>
-                  <div className="grid grid-cols-5 gap-2 text-sm">
-                    {['NOVICE','TRAINED','ADVANCED','VETERAN','ELITE'].map((r)=>(
-                      <div key={r} className="flex flex-col">
-                        <span className="text-xs text-gray-500">{r}</span>
-                        <span className="font-mono">{row[r as any]?.count ?? 0}</span>
-                        <span className="text-[10px] text-gray-400">avgXP {row[r as any]?.avgXP ?? 0}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-          })}
-        </div>
       </div>
     </Card>
   )

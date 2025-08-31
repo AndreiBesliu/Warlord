@@ -4,11 +4,11 @@ import InvSummary from '../common/InvSummary'
 import type { GameStateShape } from '../../state/useGameState'
 
 export default function OverviewTab({ state }: { state: GameStateShape }) {
-  const { buildings, fmtCopper, wallet, inv, addTestUnit } = state
+  const { buildings, fmtCopper, wallet, inv } = state
   const buildingsArr = buildings ?? []
 
   return (
-    <div className="grid md:grid-cols-3 gap-4">
+    <div className="grid md:grid-cols-2 gap-4">
       <Card title="Buildings">
         <ul className="text-sm list-disc ml-4">
           {buildingsArr.map((b: any) => (
@@ -22,16 +22,12 @@ export default function OverviewTab({ state }: { state: GameStateShape }) {
         </div>
       </Card>
 
-      <Card title="Inventories">
+      <Card title="Inventory">
         <div className="mb-2 text-sm">Wallet: <span className="font-mono">{fmtCopper(wallet)}</span></div>
         <InvSummary inv={inv} />
       </Card>
 
-      <Card title="Quick Actions">
-        <button className="px-3 py-2 border rounded" onClick={addTestUnit}>
-          + Add test unit
-        </button>
-      </Card>
+      
     </div>
   )
 }

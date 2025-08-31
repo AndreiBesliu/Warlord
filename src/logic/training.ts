@@ -1,109 +1,151 @@
 // src/logic/training.ts
-import {
-    Ranks, Rank, SoldierType, TrainingDiscipline, BarracksPool, RecruitPool,
-    Inventories, Horse, Armor, SoldierTypes
-  } from './types'
-  
-  /** Train untyped recruits into a typed LIGHT or HEAVY infantry/archer pool.
-   *  - resultType: one of the LIGHT_* or HEAVY_* types
-   *  - qty recruits taken from recruitPool (NOVICE rank, avgXP 0)
-   *  - If HEAVY_* selected, caller should have already ensured heavy armor exists (and consumes it outside or here).
-   */
-  export function trainRecruitsInto(
-    recruitPool: RecruitPool,
-    barracks: BarracksPool,
-    resultType: SoldierType,
-    qty: number
-  ): { recruitPool: RecruitPool; barracks: BarracksPool } {
-    if (qty<=0) return { recruitPool, barracks }
-    if (!recruitPool.count || recruitPool.count < qty) return { recruitPool, barracks }
-  
-    // Only allow LIGHT_* or HEAVY_* infantry/archer targets (not cavalry)
-    if (![
-      'LIGHT_INF_SWORD','LIGHT_INF_SPEAR','LIGHT_INF_HALBERD',
-      'HEAVY_INF_SWORD','HEAVY_INF_SPEAR','HEAVY_INF_HALBERD',
-      'LIGHT_ARCHER','HEAVY_ARCHER'
-    ].includes(resultType)) {
-      throw new Error('Invalid training target: ' + resultType)
-    }
-  
-    const np = { ...recruitPool, count: recruitPool.count - qty }
-    const bp = structuredClone(barracks)
-    bp[resultType].NOVICE.count += qty
-    // avgXP stays 0 for NOVICE
-    return { recruitPool: np, barracks: bp }
+import type { Rank, SoldierType } from './types'
+import { enqueueBatch, canEnqueue } from './batches'
+
+type Ctx = {
+  econ: {
+    hasStable: boolean
+    inv: any
+    wallet: number
+    setInv: (fn: (prev: any) => any) => void
+    setWallet: (fn: (w: number) => number) => void
   }
-  
-  /** Convert infantry/archers to cavalry.
-   *  - LIGHT_CAV from any LIGHT_INF_* (1 light horse per soldier)
-   *  - HEAVY_CAV from any HEAVY_INF_* (1 heavy horse + 1 horse armor per soldier)
-   *  - HORSE_ARCHER from LIGHT_ARCHER of rank >= ADVANCED (1 light horse per soldier)
-   *  Depletes source pools and increments target pools at same rank counts.
-   *  Consumes horses/horse armor from inventory.
-   */
-  export function convertToCavalry(
-    barracks: BarracksPool,
-    inv: Inventories,
-    fromType: SoldierType,
-    toType: 'LIGHT_CAV' | 'HEAVY_CAV' | 'HORSE_ARCHER',
-    qtyByRank: Partial<Record<Rank, number>>
-  ): { barracks: BarracksPool; inv: Inventories } {
-    const bp = structuredClone(barracks)
-    const ni = structuredClone(inv)
-  
-    const takeRanks: Rank[] = ['NOVICE','TRAINED','ADVANCED','VETERAN','ELITE']
-    const sumQty = (r: Rank) => Math.max(0, qtyByRank[r] || 0)
-  
-    // Check source and constraints
-    if (toType === 'LIGHT_CAV') {
-      if (!fromType.startsWith('LIGHT_INF_')) throw new Error('LIGHT_CAV must convert from LIGHT_INF_*')
-      const need = takeRanks.reduce((a,r)=>a+sumQty(r),0)
-      if ((ni.horses.LIGHT_HORSE?.active || 0) < need) throw new Error('Not enough LIGHT_HORSE')
-      // move by rank
-      takeRanks.forEach(r=>{
-        const q = sumQty(r)
-        if (q>0){
-          if (bp[fromType][r].count < q) throw new Error(`Not enough ${fromType} ${r}`)
-          bp[fromType][r].count -= q
-          bp['LIGHT_CAV'][r].count += q
-        }
-      })
-      ni.horses.LIGHT_HORSE.active -= need
-    }
-    else if (toType === 'HEAVY_CAV') {
-      if (!fromType.startsWith('HEAVY_INF_')) throw new Error('HEAVY_CAV must convert from HEAVY_INF_*')
-      const need = takeRanks.reduce((a,r)=>a+sumQty(r),0)
-      if ((ni.horses.HEAVY_HORSE?.active || 0) < need) throw new Error('Not enough HEAVY_HORSE')
-      if ((ni.armors.HORSE_ARMOR || 0) < need) throw new Error('Not enough HORSE_ARMOR')
-      takeRanks.forEach(r=>{
-        const q = sumQty(r)
-        if (q>0){
-          if (bp[fromType][r].count < q) throw new Error(`Not enough ${fromType} ${r}`)
-          bp[fromType][r].count -= q
-          bp['HEAVY_CAV'][r].count += q
-        }
-      })
-      ni.horses.HEAVY_HORSE.active -= need
-      ni.armors.HORSE_ARMOR -= need
-    }
-    else if (toType === 'HORSE_ARCHER') {
-      if (fromType !== 'LIGHT_ARCHER') throw new Error('HORSE_ARCHER converts from LIGHT_ARCHER')
-      // restriction: only ranks >= ADVANCED
-      const allowed: Rank[] = ['ADVANCED','VETERAN','ELITE']
-      const need = allowed.reduce((a,r)=>a+sumQty(r),0)
-      if ((ni.horses.LIGHT_HORSE?.active || 0) < need) throw new Error('Not enough LIGHT_HORSE')
-      allowed.forEach(r=>{
-        const q = sumQty(r)
-        if (q>0){
-          if (bp[fromType][r].count < q) throw new Error(`Not enough ${fromType} ${r}`)
-          bp[fromType][r].count -= q
-          bp['HORSE_ARCHER'][r].count += q
-        }
-      })
-      ni.horses.LIGHT_HORSE.active -= need
-      // NOTE: lower ranks in qtyByRank (Novice/Trained) are ignored by rule
-    }
-  
-    return { barracks: bp, inv: ni }
+  barr: {
+    barracksLevel: number
+    batches: any[]
+    setBatches: (fn: (prev: any[]) => any[]) => void
+    recruits: { count: number; avgXP: number }
+    setRecruits: (fn: (prev: { count: number; avgXP: number }) => { count: number; avgXP: number }) => void
+    barracks: any
+    setBarracks: (fn: (prev: any) => any) => void
   }
-  
+  addLog: (s: string) => void
+}
+
+// helpers
+const ADV_PLUS: Rank[] = ['ADVANCED','VETERAN','ELITE']
+const LIGHT_INF: SoldierType[] = ['LIGHT_INF_SWORD','LIGHT_INF_SPEAR','LIGHT_INF_HALBERD'] as any
+const HEAVY_INF: SoldierType[] = ['HEAVY_INF_SWORD','HEAVY_INF_SPEAR','HEAVY_INF_HALBERD'] as any
+
+function assertQty(qty: number) {
+  const n = Math.max(1, Math.min(50, Math.floor(qty || 0)))
+  return n
+}
+
+function requireSlot(ctx: Ctx) {
+  if (!canEnqueue(ctx.barr.batches, ctx.barr.barracksLevel)) {
+    ctx.addLog('Training queue full.')
+    return false
+  }
+  return true
+}
+
+export interface EconSlice {
+  inv: {
+    weapons: Record<string, number>
+    armors: Record<string, number>
+    horses: Record<'LIGHT_HORSE'|'HEAVY_HORSE', { active: number; inactive: number }>
+  }
+  setInv: (updater: (prev: EconSlice['inv']) => EconSlice['inv']) => void
+  wallet: number
+  setWallet: (updater: (prev: number) => number) => void
+}
+
+export interface BarracksSlice {
+  recruits: { count: number; avgXP: number }
+  setRecruits: (updater: (prev: BarracksSlice['recruits']) => BarracksSlice['recruits']) => void
+  barracks: any
+  setBarracks: (updater: (prev: any) => any) => void
+  batches: any[]
+  setBatches: (updater: (prev: any[]) => any[]) => void
+  barracksLevel: number
+}
+
+// recruits (untyped) -> light troop type
+export function queueLightTraining(ctx: Ctx, target: SoldierType, qty: number) {
+  const n = assertQty(qty)
+  if (!requireSlot(ctx)) return
+  if (!target.startsWith('LIGHT_')) {
+    ctx.addLog('Only LIGHT_* training is allowed for recruits.')
+    return
+  }
+  if (ctx.barr.recruits.count < n) {
+    ctx.addLog('Not enough untyped recruits.')
+    return
+  }
+  ctx.barr.setRecruits(prev => ({ ...prev, count: prev.count - n }))
+  ctx.barr.setBatches(prev =>
+    enqueueBatch(prev, { level: ctx.barr.barracksLevel, kind: 'LIGHT_TRAIN', target, qty: n })
+  )
+  ctx.addLog(`Queued LIGHT training: ${n} → ${target}.`)
+}
+
+// light inf -> light cav (consumes light horses immediately)
+export function queueLightCavConversion(ctx: Ctx, fromType: SoldierType, qty: number) {
+  const n = assertQty(qty)
+  if (!requireSlot(ctx)) return
+  if (!fromType.startsWith('LIGHT_INF')) {
+    ctx.addLog('Light Cavalry converts from LIGHT_INF_* only.')
+    return
+  }
+  // consume horses now if you want immediate reservation
+  ctx.econ.setInv(prev => {
+    const inv = structuredClone(prev)
+    const have = inv.horses.LIGHT_HORSE?.active ?? 0
+    if (have < n) { ctx.addLog('Not enough Light Horses.'); return prev }
+    inv.horses.LIGHT_HORSE.active -= n
+    return inv
+  })
+  ctx.barr.setBatches(prev =>
+    enqueueBatch(prev, { level: ctx.barr.barracksLevel, kind: 'LIGHT_CAV', fromType, qty: n })
+  )
+  ctx.addLog(`Queued LIGHT_CAV conversion: ${n} from ${fromType}.`)
+}
+
+// heavy cav: from LIGHT_CAV (ADV+) or HEAVY_INF_* (ADV+)
+// reserves heavy horse + horse armor immediately; if from LIGHT_CAV also heavy armor
+export function queueHeavyConversion(ctx: Ctx, fromType: SoldierType, qty: number) {
+  const n = assertQty(qty)
+  if (!requireSlot(ctx)) return
+  const fromLightCav = fromType === 'LIGHT_CAV'
+  const fromHeavyInf = fromType.startsWith('HEAVY_INF')
+  if (!fromLightCav && !fromHeavyInf) {
+    ctx.addLog('Heavy Cavalry converts from LIGHT_CAV or HEAVY_INF_*.'); return
+  }
+  // reserve horses/armor up-front
+  ctx.econ.setInv(prev => {
+    const inv = structuredClone(prev)
+    const hh = inv.horses.HEAVY_HORSE?.active ?? 0
+    const ha = inv.armors.HORSE_ARMOR ?? 0
+    if (hh < n || ha < n) { ctx.addLog('Need Heavy Horses and Horse Armor.'); return prev }
+    if (fromLightCav) {
+      const heavyArmor = inv.armors.HEAVY_ARMOR ?? 0
+      if (heavyArmor < n) { ctx.addLog('Need Heavy Armor to convert LIGHT_CAV → HEAVY_CAV.'); return prev }
+      inv.armors.HEAVY_ARMOR -= n
+    }
+    inv.horses.HEAVY_HORSE.active -= n
+    inv.armors.HORSE_ARMOR -= n
+    return inv
+  })
+  ctx.barr.setBatches(prev =>
+    enqueueBatch(prev, { level: ctx.barr.barracksLevel, kind: 'HEAVY_CAV', fromType, qty: n })
+  )
+  ctx.addLog(`Queued HEAVY_CAV conversion: ${n} from ${fromType} (ADV+).`)
+}
+
+// horse archers: from LIGHT_ARCHER (ADV+) with light horses now
+export function queueHorseArcherConversion(ctx: Ctx, qty: number) {
+  const n = assertQty(qty)
+  if (!requireSlot(ctx)) return
+  ctx.econ.setInv(prev => {
+    const inv = structuredClone(prev)
+    const have = inv.horses.LIGHT_HORSE?.active ?? 0
+    if (have < n) { ctx.addLog('Not enough Light Horses.'); return prev }
+    inv.horses.LIGHT_HORSE.active -= n
+    return inv
+  })
+  ctx.barr.setBatches(prev =>
+    enqueueBatch(prev, { level: ctx.barr.barracksLevel, kind: 'HORSE_ARCHER', fromType: 'LIGHT_ARCHER', qty: n })
+  )
+  ctx.addLog(`Queued HORSE_ARCHER conversion: ${n} (ADV+ from LIGHT_ARCHER).`)
+}
