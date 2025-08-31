@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import Card from './components/common/Card'
 import InvSummary from './components/common/InvSummary'
 import MarketPanel from './components/common/MarketPanel'
@@ -20,7 +20,67 @@ import { fmtCopper as fmtCopperUtil } from './logic/types'
 export default function App() {
   const state = useGameState()
   
-  const {
+  // ---- auto day-tick every 5 minutes ----
+  const TICK_MS = 5 * 60 * 1000; // 5 min
+
+  // persisted auto/pause and next-tick target
+  const [autoTick, setAutoTick] = useState<boolean>(() => {
+    const v = localStorage.getItem('autoTick');
+    return v ? v === 'true' : true; // default ON
+  });
+  const [nextTickAt, setNextTickAt] = useState<number>(() => {
+    const v = localStorage.getItem('nextTickAt');
+    // start a new 5-min window if missing or in the past
+    const n = v ? parseInt(v, 10) : 0;
+    return Number.isFinite(n) && n > Date.now() ? n : Date.now() + TICK_MS;
+  });
+  const [remaining, setRemaining] = useState<number>(nextTickAt - Date.now());
+
+  // keep localStorage in sync
+  useEffect(() => {
+    localStorage.setItem('autoTick', String(autoTick));
+  }, [autoTick]);
+  useEffect(() => {
+    localStorage.setItem('nextTickAt', String(nextTickAt));
+  }, [nextTickAt]);
+
+  // 1s heartbeat to update countdown and fire daily ticks
+  useEffect(() => {
+    if (!autoTick) return;
+    const id = setInterval(() => {
+      const now = Date.now();
+      const left = nextTickAt - now;
+      if (left <= 0) {
+        // fire a tick and schedule the next window
+        state.runDailyTick();
+        const next = now + TICK_MS;
+        setNextTickAt(next);
+        setRemaining(next - now);
+      } else {
+        setRemaining(left);
+      }
+    }, 1000);
+
+    return () => clearInterval(id);
+  }, [autoTick, nextTickAt, state]);
+
+  // manual “run now” also resets the 5-min window
+  function runDayNow() {
+    state.runDailyTick();
+    const next = Date.now() + TICK_MS;
+    setNextTickAt(next);
+    setRemaining(next - Date.now());
+  }
+
+  // util for header display
+  function mmss(ms: number) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${r.toString().padStart(2, '0')}`;
+  }
+
+    const {
     // state
     day, wallet, inv, buildings, units, mergePick, log,
     // helpers
@@ -50,7 +110,24 @@ export default function App() {
           </div>
           <button className="px-3 py-2 border rounded" onClick={loadSave}>Load</button>
           <button className="px-3 py-2 border rounded" onClick={resetAll}>Reset</button>
-          <button className="px-3 py-2 bg-black text-white rounded" onClick={runDailyTick}>Run Day ▶</button>
+          <div className="ml-auto flex gap-2 items-center">
+            <div className="text-sm text-gray-600">
+              Next day in <span className="font-mono">{mmss(remaining)}</span>
+            </div>
+            <button
+              className="px-3 py-2 border rounded"
+              onClick={() => setAutoTick(a => !a)}
+            >
+              {autoTick ? 'Pause Auto' : 'Resume Auto'}
+            </button>
+            <button
+              className="px-3 py-2 bg-black text-white rounded"
+              onClick={runDayNow}
+            >
+              Run Day ▶
+            </button>
+        </div>
+
         </div>
       </div>
 
