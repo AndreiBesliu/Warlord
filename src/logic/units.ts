@@ -1,8 +1,11 @@
 // src/logic/units.ts
-import {
-  Bucket, Rank, RankIndex, Unit, UnitLoadout, SoldierType,
-  Weapon, Armor, Horse
-} from './types'
+import { Rank, RankIndex, Unit, SoldierType, WeaponTypes, ArmorTypes, HorseTypes } from './types'
+
+type UnitLoadout = Unit['loadout'];
+type Weapon = typeof WeaponTypes[number];
+type Armor  = typeof ArmorTypes[number];
+type Horse  = typeof HorseTypes[number];
+type Bucket = { r: Rank; count: number; avgXP: number };
 
 export const defaultLoadout = (t: SoldierType): UnitLoadout => {
   switch (t) {

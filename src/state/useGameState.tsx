@@ -16,6 +16,7 @@ import { queueLightTraining as qLight, queueLightCavConversion as qLC,
 import { useEconomy } from './useEconomy'
 import { useUnits } from './useUnits'
 import useBarracks, { emptyBarracks } from './useBarracks' 
+import { computeReady, mergeUnits, splitUnit } from '../logic/units'
 
 function defaultBuildings(): Building[] {
   return [
@@ -30,6 +31,10 @@ export function useGameState() {
   const [day, setDay] = useState(1)
   const [log, setLog] = useState<string[]>([])
   const addLog = (s:string)=> setLog(l => [`${new Date().toLocaleString()} — ${s}`, ...l])
+
+
+  const [units, setUnits] = useState<Unit[]>([])
+  const [mergePick, setMergePick] = useState<string[]>([])
 
   // slices
   const econ = useEconomy(10 * GOLD, defaultBuildings)
@@ -80,8 +85,8 @@ export function useGameState() {
     unit.setUnits([])
   }
  
-  type HorseKey = 'LIGHT_HORSE' | 'HEAVY_HORSE'
-  const isHorseKey = (x: string): x is HorseKey => x === 'LIGHT_HORSE' || x === 'HEAVY_HORSE'
+  // type HorseKey = 'LIGHT_HORSE' | 'HEAVY_HORSE'
+  // const isHorseKey = (x: string): x is HorseKey => x === 'LIGHT_HORSE' || x === 'HEAVY_HORSE'
 
   function buy(kind: 'WEAPON'|'ARMOR'|'HORSE', subtype: string, qty: number) {
     if (qty <= 0 || !Number.isFinite(qty)) return
@@ -149,25 +154,28 @@ export function useGameState() {
   function upgradeBarracks() {
     if (barr.barracksLevel >= 5) return
     const cost = barr.barracksUpgradeCost(barr.barracksLevel)
-    if (!isFinite(cost)) return
-    if (econ.wallet < cost) { addLog(`Not enough funds to upgrade. Need ${fmtCopper(cost)}.`); return }
+    if (!Number.isFinite(cost)) return
+    if (econ.wallet < cost) {
+      addLog(`Not enough funds to upgrade. Need ${fmtCopper(cost)}.`)
+      return
+    }
     econ.setWallet(w => w - cost)
-    barr.setBarracksLevel(l => l + 1)
-    barr.setBarracksLevel(l => {
-      const next = l + 1
+    barr.setBarracksLevel(prev => {
+      const next = Math.min(prev + 1, 5)
       addLog(`Upgraded Barracks to L${next}.`)
       return next
     })
   }
   
+  
   function toggleTraining(unitId: string) {
-    unit.setUnits(us => {
+    setUnits(us => {
       const used = us.filter(u => u.training).length
-      const slots = barr.barracksLevel
+      const slots = barr.barracksLevel // or wherever your barracks level lives
       return us.map(u => {
         if (u.id !== unitId) return u
         if (!u.training) {
-          if (used >= slots) { addLog(`Training queue full: ${used}/${slots}.`) ; return u }
+          if (used >= slots) { addLog(`Training queue full: ${used}/${slots}.`); return u }
           return { ...u, training: true }
         }
         return { ...u, training: false }
@@ -175,6 +183,43 @@ export function useGameState() {
 
     })
 
+  }
+
+  function doSplit(unitId: string, count: number) {
+    setUnits(us => {
+      const i = us.findIndex(x => x.id === unitId)
+      if (i === -1) return us
+      const u = us[i]
+      const size = u.buckets.reduce((a, b) => a + b.count, 0)
+      if (count <= 0 || count >= size) return us
+      const { taken, remaining } = splitUnit(u, count)
+      const copy = [...us]
+      copy.splice(i, 1, remaining)
+      copy.unshift(taken)
+      return copy
+    })
+  }
+
+  function togglePickForMerge(unitId: string) {
+    setMergePick(prev => {
+      if (prev.includes(unitId)) return prev.filter(id => id !== unitId)
+      if (prev.length >= 2) return [prev[1], unitId]
+      return [...prev, unitId]
+    })
+  }
+  
+  function doMergeIfReady() {
+    setUnits(us => {
+      if (mergePick.length !== 2) return us
+      const [aId, bId] = mergePick
+      const a = us.find(x => x.id === aId)
+      const b = us.find(x => x.id === bId)
+      if (!a || !b || a.type !== b.type) return us
+      const merged = mergeUnits(a, b)
+      const filtered = us.filter(x => x.id !== aId && x.id !== bId)
+      setMergePick([])
+      return [merged, ...filtered]
+    })
   }
 
   function queueLightTraining(target: SoldierType, qty: number) {
@@ -311,7 +356,7 @@ export function useGameState() {
     addLog(`Replenished ${total} → ${u.id} (${type}) ${res.spent>0 ? `(auto-bought ${fmtCopper(res.spent)})` : '(used stock)'}. +XP bonus ${xpBonus}. New size ${totalCount}, avgXP ${newAvgXP}.`)
   }
 
-  const [recruits, setRecruits] = useState<RecruitPool>({ count: 0, avgXP: 0 })
+  // const [recruits, setRecruits] = useState<RecruitPool>({ count: 0, avgXP: 0 })
 
   function recruit(qty: number) {
     const n = Math.max(1, Math.floor(qty || 0))
@@ -330,7 +375,7 @@ export function useGameState() {
     setWallet: econ.setWallet, setInv: econ.setInv, setBuildings: econ.setBuildings,
     BuildingCostCopper, BuildingOutputChoices, FocusOptions,
     buy, sell, buyBuilding, setBuildingFocus, setBuildingOutput,
-  
+
     // barracks (state)
     recruits: barr.recruits,
     barracks: barr.barracks,
@@ -338,8 +383,9 @@ export function useGameState() {
     batches: barr.batches,
     batchSlots,
     batchDurationDays: (lvl: number) => batchDurationDays(lvl),
-  
+
     // barracks actions (wrappers)
+    barracksUpgradeCost: (lvl: number) => barr.barracksUpgradeCost(lvl), 
     recruit,
     upgradeBarracks: () => {
       if (barr.barracksLevel >= 5) return
@@ -354,8 +400,18 @@ export function useGameState() {
     queueLightCavConversion,  // implement like above
     queueHeavyConversion,     // implement like above
     queueHorseArcherConversion, // implement like above
-  
+
+    // units
+    units: unit.units,
+    mergePick,
+    computeReady,
+    doSplit,
+    togglePickForMerge,
+    doMergeIfReady,
+    toggleTraining,
     // units slice passthroughs you had before…
+    createUnitFromBarracks,   // <-- add this
+    replenishUnit,            // <-- and this
   }
   
   

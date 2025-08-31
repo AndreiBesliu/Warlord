@@ -4,87 +4,49 @@ import MissingEquipment from '../units/MissingEquipment'
 import SplitMergeControls from '../units/SplitMergeControls'
 import type { GameStateShape } from '../../state/useGameState'
 import CreateUnitForm from '../barracks/CreateUnitForm'
-import { Ranks, SoldierTypes } from '../../logic/types'
+import { Ranks, SoldierTypes, type Unit } from '../../logic/types'
 import ReplenishForm from '../units/ReplenishForm'
 
 export default function UnitsTab({ state }: { state: GameStateShape }) {
   const {
-    units, mergePick, computeReady,
-    doSplit, togglePickForMerge, doMergeIfReady, toggleTraining,
-    barracks, inv, createUnitFromBarracks, replenishUnit
-  } = state
+    units = [],
+    mergePick = [],
+    computeReady,
+    doSplit,
+    togglePickForMerge,
+    doMergeIfReady,
+    toggleTraining,
+  } = state as any
 
-  function availableTypesFromPools(pools: any) {
-    // returns array like [{ type:'LIGHT_INF_SPEAR', ranks:[{r:'NOVICE',count,avgXP}, ...]}]
-    return (SoldierTypes as string[])
-      .map(t => {
-        const rows = Ranks
-          .map(r => ({ r, ...pools?.[t]?.[r] }))
-          .filter(x => (x?.count ?? 0) > 0)
-        return rows.length ? { type: t, ranks: rows } : null
-      })
-      .filter(Boolean) as { type:string; ranks:{r:string; count:number; avgXP:number}[] }[]
-  }
- 
+  const safeComputeReady = (computeReady ?? ((_u: Unit) => 0)) as (u: Unit)=>number
+  const safeDoSplit = (doSplit ?? (()=>{})) as (id: string, n: number)=>void
+  const safeTogglePick = (togglePickForMerge ?? (()=>{})) as (id: string)=>void
+  const safeDoMerge = (doMergeIfReady ?? (()=>{})) as ()=>void
+  const safeToggleTraining = (toggleTraining ?? (()=>{})) as (id: string)=>void
+
   return (
-    
     <Card title="Units">
-       <div className="border rounded p-3 bg-white">
-          <div className="space-y-3">
-            <h3 className="font-semibold">Available Pools</h3>
-            {availableTypesFromPools(barracks).length === 0 && (
-              <div className="text-sm text-gray-500">No trained soldiers available. Train batches in Barracks.</div>
-            )}
-            {availableTypesFromPools(barracks).map(row => (
-              <div key={row.type} className="border rounded p-2">
-                <div className="font-semibold mb-1">{row.type}</div>
-                <div className="grid grid-cols-5 gap-2 text-sm">
-                  {row.ranks.map(r => (
-                    <div key={r.r} className="flex flex-col">
-                      <span className="text-xs text-gray-500">{r.r}</span>
-                      <span className="font-mono">{r.count}</span>
-                      <span className="text-[10px] text-gray-400">avgXP {r.avgXP}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="font-semibold">Create Unit from Pools</h3>
-            <CreateUnitForm
-              barracks={barracks}
-              inv={inv}
-              onCreate={(type, plan, opts) => createUnitFromBarracks(type, plan, opts)}
-            />
-            <div className="text-xs text-gray-500">
-              Tip: Enable <b>Auto-buy</b> to automatically purchase missing gear at market value.
-            </div>
-          </div>
-        </div>
-
       <div className="mb-2 flex items-center gap-2 text-sm">
         <span>Merge picks:</span>
         <span className="px-2 py-0.5 bg-gray-100 rounded">
-          {mergePick.join(' , ') || 'none'}
+          {Array.isArray(mergePick) && mergePick.length ? mergePick.join(' , ') : 'none'}
         </span>
         <button
           className="px-3 py-1 border rounded disabled:opacity-50"
-          disabled={mergePick.length !== 2}
-          onClick={doMergeIfReady}
+          disabled={!Array.isArray(mergePick) || mergePick.length !== 2}
+          onClick={safeDoMerge}
         >
           Merge selected
         </button>
       </div>
 
-      {(!units || units.length === 0) && (
-        <div className="text-sm text-gray-500">No units yet. Add a test unit from Overview.</div>
+      {(!Array.isArray(units) || units.length === 0) && (
+        <div className="text-sm text-gray-500">No units yet.</div>
       )}
 
       <div className="space-y-3">
-        {units?.map((u: any) => {
-          const size = u.buckets.reduce((a: number, b: any) => a + b.count, 0)
+        {Array.isArray(units) && units.map((u: Unit) => {
+          const size = u.buckets.reduce((a, b) => a + b.count, 0)
           return (
             <div key={u.id} className="border rounded p-3 bg-white">
               <div className="flex items-center gap-2">
@@ -94,7 +56,7 @@ export default function UnitsTab({ state }: { state: GameStateShape }) {
               </div>
 
               <div className="grid grid-cols-5 gap-2 mt-2 text-sm">
-                {u.buckets.map((b: any) => (
+                {u.buckets.map((b) => (
                   <div key={b.r} className="p-2 bg-gray-50 rounded">
                     <div className="text-xs text-gray-500">{b.r}</div>
                     <div className="font-mono">{b.count}</div>
@@ -104,38 +66,30 @@ export default function UnitsTab({ state }: { state: GameStateShape }) {
               </div>
 
               <div className="mt-2 text-sm">
-                Ready: <span className="font-semibold">{computeReady(u)}</span> / {size}
+                Ready: <span className="font-semibold">{safeComputeReady(u)}</span> / {size}
               </div>
-              
+
               <MissingEquipment unit={u} />
 
               <div className="mt-2 flex items-center gap-2">
                 <label className="text-sm">Training</label>
-                <input type="checkbox" checked={u.training} onChange={()=>toggleTraining(u.id)} />
+                <input
+                  type="checkbox"
+                  checked={!!u.training}
+                  onChange={() => safeToggleTraining(u.id)}
+                />
               </div>
 
               <SplitMergeControls
                 size={size}
-                onSplit={(n) => doSplit(u.id, n)}
-                selectedForMerge={mergePick.includes(u.id)}
-                onToggleMergeSelect={() => togglePickForMerge(u.id)}
+                onSplit={(n) => safeDoSplit(u.id, n)}
+                selectedForMerge={Array.isArray(mergePick) && mergePick.includes(u.id)}
+                onToggleMergeSelect={() => safeTogglePick(u.id)}
               />
-
-              <div className="mt-2">
-                <ReplenishForm
-                  unitId={u.id}
-                  unitType={u.type}
-                  pool={barracks}
-                  inv={inv}
-                  onReplenish={(plan, opts) => replenishUnit(u.id, plan, opts)}
-                />
-              </div>
-
             </div>
           )
         })}
       </div>
     </Card>
-    
   )
 }
