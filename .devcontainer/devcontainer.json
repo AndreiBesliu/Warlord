@@ -1,0 +1,15 @@
+{
+  "name": "Warlord (Node)",
+  "image": "mcr.microsoft.com/vscode/devcontainers/typescript-node:0-18",
+  "forwardPorts": [5173],
+  "postCreateCommand": "npm ci",
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  }
+}
