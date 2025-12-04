@@ -51,6 +51,11 @@ export const WeaponTypes = ['HALBERD','SPEAR','SWORD','BOW'] as const;
 export const ArmorTypes  = ['SHIELD','HEAVY_ARMOR','LIGHT_ARMOR','HORSE_ARMOR'] as const;
 export const HorseTypes  = ['LIGHT_HORSE','HEAVY_HORSE'] as const;
 
+// Export concrete union types derived from the const arrays:
+export type Weapon = typeof WeaponTypes[number];
+export type Armor  = typeof ArmorTypes[number];
+export type Horse  = typeof HorseTypes[number];
+
 export type UnitBucket = { r: Rank; count: number; avgXP: number };
 export type Unit = {
   id: string;
