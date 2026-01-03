@@ -15,6 +15,7 @@ import {
     fromType?: SoldierType      // e.g., 'LIGHT_CAV' or 'HEAVY_INF_*' for heavy cav
     qty: number                 // 1..50
     daysRemaining: number
+    takeByRank?: RankCount      // if conversion, what ranks were consumed
   }
 
 // Rules: L1 = 2 slots, +1 slot per level, cap 5
@@ -42,7 +43,8 @@ export function enqueueBatch(
     target: draft.target,
     fromType: draft.fromType,
     qty: draft.qty,
-    daysRemaining
+    daysRemaining,
+    takeByRank: draft.takeByRank
   }
   return [next, ...current]
 }
@@ -53,7 +55,7 @@ export function canEnqueue(current: TrainingBatch[], level: number) {
 
 export function buildBatch(
   level: number,
-  payload: { kind: BatchKind; target: SoldierType; qty: number; fromType?: SoldierType }
+  payload: { kind: BatchKind; target: SoldierType; qty: number; fromType?: SoldierType; takeByRank?: RankCount }
 ): TrainingBatch {
   return {
     id: newBatchId(),
@@ -62,6 +64,7 @@ export function buildBatch(
     fromType: payload.fromType,
     qty: payload.qty,
     daysRemaining: batchDurationDays(level),
+    takeByRank: payload.takeByRank
   }
 }
 

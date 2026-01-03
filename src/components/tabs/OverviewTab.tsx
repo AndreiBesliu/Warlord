@@ -2,6 +2,8 @@ import React from 'react'
 import Card from '../common/Card'
 import InvSummary from '../common/InvSummary'
 import type { GameStateShape } from '../../state/useGameState'
+import GameIcon from '../common/GameIcon'
+import MoneyDisplay from '../common/MoneyDisplay'
 
 export default function OverviewTab({ state }: { state: GameStateShape }) {
   const { buildings, fmtCopper, wallet, inv } = state
@@ -23,11 +25,25 @@ export default function OverviewTab({ state }: { state: GameStateShape }) {
       </Card>
 
       <Card title="Inventory">
-        <div className="mb-2 text-sm">Wallet: <span className="font-mono">{fmtCopper(wallet)}</span></div>
+        <div className="mb-2 text-sm flex items-center gap-2">
+          <span>Wallet:</span>
+          <MoneyDisplay amount={wallet} />
+        </div>
         <InvSummary inv={inv} />
       </Card>
 
-      
+      {/* Temporary Icon Test Area */}
+      <Card title="Icon Debug">
+        <div className="flex flex-wrap gap-4">
+          {(['sword', 'spear', 'halberd', 'bow', 'heavy_armor', 'light_armor', 'horse_armor', 'light_horse', 'heavy_horse', 'gold', 'silver', 'copper'] as const).map(name => (
+            <div key={name} className="flex flex-col items-center">
+              <GameIcon name={name} size={32} />
+              <span className="text-[10px] text-gray-400 mt-1">{name}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+
     </div>
   )
 }

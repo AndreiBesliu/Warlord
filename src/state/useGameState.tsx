@@ -9,20 +9,29 @@ import { makeEmptyInventories, isHorseKey, type HorseKey } from '../logic/helper
 import { demandFor, ensureEquipOrBuy } from '../logic/equipment'
 import { itemValueCopper } from '../logic/items'  // if you use buy/sell here
 import { batchSlots, batchDurationDays, newBatchId, enqueueBatch } from '../logic/batches' // or from your batches helper
-import { queueLightTraining as qLight, queueLightCavConversion as qLC, 
-          queueHeavyConversion as qHC, queueHorseArcherConversion as qHA } from '../logic/training'
-          
+import {
+  queueLightTraining as qLight, queueLightCavConversion as qLC,
+  queueHeavyConversion as qHC, queueHorseArcherConversion as qHA
+} from '../logic/training'
+
 //state
 import { useEconomy } from './useEconomy'
 import { useUnits } from './useUnits'
-import useBarracks, { emptyBarracks } from './useBarracks' 
+import useBarracks, { emptyBarracks } from './useBarracks'
 import { computeReady, mergeUnits, splitUnit } from '../logic/units'
+import { Registry } from '../logic/registry'
+import { loadSampleMod } from '../mods/sampleMod';
+
+// Initialize registry with core data
+Registry.init();
+// Load mods (in a real app, this would be dynamic)
+loadSampleMod();
 
 function defaultBuildings(): Building[] {
   return [
     { id: 'barracks', type: 'BARRACKS', focusCoinPct: 100, fractionalBuffer: 0 },
-    { id: 'wood1',   type: 'WOODWORKER', focusCoinPct: 60, outputItem: 'BOW', fractionalBuffer: 0 },
-    { id: 'market',  type: 'MARKET', focusCoinPct: 100, fractionalBuffer: 0 },
+    { id: 'wood1', type: 'WOODWORKER', focusCoinPct: 60, outputItem: 'BOW', fractionalBuffer: 0 },
+    { id: 'market', type: 'MARKET', focusCoinPct: 100, fractionalBuffer: 0 },
   ]
 }
 
@@ -30,7 +39,7 @@ export function useGameState() {
   // day + log
   const [day, setDay] = useState(1)
   const [log, setLog] = useState<string[]>([])
-  const addLog = (s:string)=> setLog(l => [`${new Date().toLocaleString()} — ${s}`, ...l])
+  const addLog = (s: string) => setLog(l => [`${new Date().toLocaleString()} — ${s}`, ...l])
 
 
   const [units, setUnits] = useState<Unit[]>([])
@@ -40,12 +49,12 @@ export function useGameState() {
   const econ = useEconomy(10 * GOLD, defaultBuildings)
   const barr = useBarracks()
   const unit = useUnits()
-  
+
   function hasFreeBatchSlot() {
     return barr.batches.length < batchSlots(barr.barracksLevel)
   }
- 
-  useEffect(()=>{
+
+  useEffect(() => {
     localStorage.setItem('warlord_save', JSON.stringify({
       day, log,
       wallet: econ.wallet, inv: econ.inv, buildings: econ.buildings,
@@ -55,18 +64,18 @@ export function useGameState() {
     }))
   }, [day, log, econ.wallet, econ.inv, econ.buildings, barr.barracks, barr.barracksLevel, barr.recruits, barr.batches, unit.units])
 
-  function loadSave(){
+  function loadSave() {
     const raw = localStorage.getItem('warlord_save')
     if (!raw) return addLog('No save found.')
     try {
       const s = JSON.parse(raw)
       setDay(s.day ?? 1); setLog(s.log ?? [])
-      econ.setWallet(s.wallet ?? 5*GOLD)
+      econ.setWallet(s.wallet ?? 5 * GOLD)
       econ.setInv(s.inv ?? econ.inv)
       econ.setBuildings(s.buildings ?? econ.buildings)
       barr.setBarracks(s.barracks ?? barr.barracks)
       barr.setBarracksLevel(s.barracksLevel ?? 1)
-      barr.setRecruits(s.recruits ?? {count:0,avgXP:0})
+      barr.setRecruits(s.recruits ?? { count: 0, avgXP: 0 })
       barr.setBatches(s.batches ?? [])
       unit.setUnits(s.units ?? [])
       addLog('Loaded save.')
@@ -84,11 +93,11 @@ export function useGameState() {
     barr.setBatches([])
     unit.setUnits([])
   }
- 
+
   // type HorseKey = 'LIGHT_HORSE' | 'HEAVY_HORSE'
   // const isHorseKey = (x: string): x is HorseKey => x === 'LIGHT_HORSE' || x === 'HEAVY_HORSE'
 
-  function buy(kind: 'WEAPON'|'ARMOR'|'HORSE', subtype: string, qty: number) {
+  function buy(kind: 'WEAPON' | 'ARMOR' | 'HORSE', subtype: string, qty: number) {
     if (qty <= 0 || !Number.isFinite(qty)) return
     if (kind === 'HORSE') {
       if (!econ.hasStable) { addLog('You need a STABLE to buy horses.'); return }
@@ -108,8 +117,8 @@ export function useGameState() {
     })
     addLog(`Bought ${qty} ${subtype} for ${fmtCopper(price)}.`)
   }
-    
-  function sell(kind: 'WEAPON'|'ARMOR'|'HORSE', subtype: string, qty: number) {
+
+  function sell(kind: 'WEAPON' | 'ARMOR' | 'HORSE', subtype: string, qty: number) {
     if (qty <= 0 || !Number.isFinite(qty)) return
     econ.setInv(prev => {
       const n = structuredClone(prev)
@@ -131,26 +140,26 @@ export function useGameState() {
       return n
     })
   }
-  
+
   function buyBuilding(type: Building['type']) {
     if (econ.buildings.some(b => b.type === type)) { addLog(`You already own a ${type}.`); return }
     const cost = BuildingCostCopper[type] || 0
     if (econ.wallet < cost) { addLog(`Not enough funds to buy ${type}. Need ${fmtCopper(cost)}.`); return }
-    const id = `${type.toLowerCase()}_${Math.random().toString(36).slice(2,8)}`
+    const id = `${type.toLowerCase()}_${Math.random().toString(36).slice(2, 8)}`
     const outputItem = BuildingOutputChoices[type].options[0]
     econ.setWallet(w => w - cost)
     econ.setBuildings(bs => [...bs, { id, type, focusCoinPct: 100, outputItem, fractionalBuffer: 0 }])
     addLog(`Bought ${type} for ${fmtCopper(cost)}.`)
   }
-  
+
   function setBuildingFocus(id: string, pct: number) {
     econ.setBuildings(bs => bs.map(b => b.id === id ? { ...b, focusCoinPct: pct as any } : b))
   }
-  
+
   function setBuildingOutput(id: string, item: string) {
     econ.setBuildings(bs => bs.map(b => b.id === id ? { ...b, outputItem: item } : b))
   }
-  
+
   function upgradeBarracks() {
     if (barr.barracksLevel >= 5) return
     const cost = barr.barracksUpgradeCost(barr.barracksLevel)
@@ -166,8 +175,8 @@ export function useGameState() {
       return next
     })
   }
-  
-  
+
+
   function toggleTraining(unitId: string) {
     setUnits(us => {
       const used = us.filter(u => u.training).length
@@ -207,7 +216,7 @@ export function useGameState() {
       return [...prev, unitId]
     })
   }
-  
+
   function doMergeIfReady() {
     setUnits(us => {
       if (mergePick.length !== 2) return us
@@ -234,23 +243,76 @@ export function useGameState() {
   function queueHorseArcherConversion(qty: number) {
     qHA({ econ, barr, addLog }, qty)
   }
-  
-  function runDailyTick(){
-    const notes:string[] = []
+
+  function runDailyTick() {
+    const notes: string[] = []
     const delta = econ.applyBuildingIncome(s => notes.push(s))
     const nextDay = day + 1
     setDay(nextDay)
     addLog(`Day ${nextDay} — ${notes.join(' | ')} | Wallet Δ ${fmtCopper(delta)}`)
     // Add: training batch progress here if you want (uses barr.batches etc)
+
+    // Process training batches
+    barr.setBatches(currentBatches => {
+      const kept: any[] = []
+      let finishedCount = 0
+
+      for (const b of currentBatches) {
+        // decrement days
+        const nextDays = b.daysRemaining - 1
+
+        if (nextDays > 0) {
+          kept.push({ ...b, daysRemaining: nextDays })
+        } else {
+          // Batch complete!
+          finishedCount++
+          const { kind, target, qty, fromType } = b
+
+          if (kind === 'LIGHT_TRAIN' && target) {
+            // Add soldiers
+            barr.setBarracks(prev => {
+              const pool = structuredClone(prev)
+              pool[target]['NOVICE'].count += qty // default to Rookie
+              return pool
+            })
+            addLog(`Training finished: ${qty} ${target} (ROOKIE).`)
+          } else if (kind === 'LIGHT_CAV' && fromType) {
+            // lightly trained -> light cav
+            barr.setBarracks(prev => {
+              const pool = structuredClone(prev)
+              pool['LIGHT_CAV']['NOVICE'].count += qty
+              return pool
+            })
+            addLog(`Conversion finished: ${qty} LIGHT_CAV.`)
+          } else if (kind === 'HEAVY_CAV') {
+            barr.setBarracks(prev => {
+              const pool = structuredClone(prev)
+              pool['HEAVY_CAV']['NOVICE'].count += qty
+              return pool
+            })
+            addLog(`Conversion finished: ${qty} HEAVY_CAV.`)
+          } else if (kind === 'HORSE_ARCHER') {
+            barr.setBarracks(prev => {
+              const pool = structuredClone(prev)
+              pool['HORSE_ARCHER']['NOVICE'].count += qty
+              return pool
+            })
+            addLog(`Conversion finished: ${qty} HORSE_ARCHER.`)
+          }
+        }
+      }
+
+      return kept
+    })
   }
-  
+
   function createUnitFromBarracks(
     type: SoldierType,
     take: Partial<Record<Rank, number>>,
     opts?: { autoBuy?: boolean }
   ) {
     const autoBuy = !!opts?.autoBuy
-  
+
     // 1) build buckets & check availability
     const pool = structuredClone(barr.barracks)
     const buckets: Unit['buckets'] = []
@@ -265,37 +327,37 @@ export function useGameState() {
       total += want
     }
     if (total === 0) { addLog('Select at least one soldier.'); return }
-  
+
     // 2) equipment check / auto-buy
     const need = demandFor(type, total)
     const invClone = structuredClone(econ.inv)
     const res = ensureEquipOrBuy(invClone, econ.wallet, need, autoBuy)
     if (!res.ok) { addLog('Not enough equipment. Enable auto-buy or adjust.'); return }
-  
+
     // 3) commit inventory + wallet + barracks pool
     econ.setInv(invClone)
     if (res.spent > 0) econ.setWallet(w => w - res.spent)
     barr.setBarracks(pool)
-  
+
     // 4) create unit
-    const totalCount = buckets.reduce((a,b)=>a+b.count,0)
-    const wx = buckets.reduce((a,b)=>a+b.count*b.avgXP,0)
+    const totalCount = buckets.reduce((a, b) => a + b.count, 0)
+    const wx = buckets.reduce((a, b) => a + b.count * b.avgXP, 0)
     const avgXP = totalCount ? Math.floor(wx / totalCount) : 0
-  
+
     const unitObj: Unit = {
-      id: `U_${Math.random().toString(36).slice(2,7)}`,
+      id: `U_${Math.random().toString(36).slice(2, 7)}`,
       type,
       buckets,
       avgXP,
       training: false,
-      equip: { weapons:{}, armors:{}, horses:{} },
+      equip: { weapons: {}, armors: {}, horses: {} },
       loadout: { kind: type } as any
     }
     unit.setUnits(us => [unitObj, ...us])
-  
-    addLog(`Equipped & created ${total} ${type} ${res.spent>0 ? `(auto-bought ${fmtCopper(res.spent)})` : '(used stock)'}. AvgXP ${avgXP}.`)
+
+    addLog(`Equipped & created ${total} ${type} ${res.spent > 0 ? `(auto-bought ${fmtCopper(res.spent)})` : '(used stock)'}. AvgXP ${avgXP}.`)
   }
-  
+
   function replenishUnit(
     unitId: string,
     plan: Partial<Record<Rank, number>>,
@@ -305,7 +367,7 @@ export function useGameState() {
     const u = unit.units.find(x => x.id === unitId)
     if (!u) { addLog('Replenish failed: unit not found.'); return }
     const type = u.type as SoldierType
-  
+
     // 1) check pool availability
     const pool = structuredClone(barr.barracks)
     let total = 0
@@ -317,18 +379,18 @@ export function useGameState() {
       total += want
     }
     if (total === 0) { addLog('Select at least one soldier to replenish.'); return }
-  
+
     // 2) equipment check / auto-buy
     const need = demandFor(type, total)
     const invClone = structuredClone(econ.inv)
     const res = ensureEquipOrBuy(invClone, econ.wallet, need, autoBuy)
     if (!res.ok) { addLog('Replenish blocked: missing gear.'); return }
-  
+
     // 3) commit inventory + wallet + barracks pool
     econ.setInv(invClone)
     if (res.spent > 0) econ.setWallet(w => w - res.spent)
     barr.setBarracks(pool)
-  
+
     // 4) add to unit with +10% avgXP bonus
     const xpBonus = Math.floor(u.avgXP * 0.10)
     const newBuckets: Unit['buckets'] = u.buckets.map(b => ({ ...b }))
@@ -346,14 +408,14 @@ export function useGameState() {
         newBuckets.push({ r, count: qty, avgXP: incomingAvgXP })
       }
     }
-  
-    const totalCount = newBuckets.reduce((a,b)=>a+b.count,0)
-    const wx = newBuckets.reduce((a,b)=>a+b.count*b.avgXP,0)
+
+    const totalCount = newBuckets.reduce((a, b) => a + b.count, 0)
+    const wx = newBuckets.reduce((a, b) => a + b.count * b.avgXP, 0)
     const newAvgXP = totalCount ? Math.floor(wx / totalCount) : 0
-  
+
     unit.setUnits(us => us.map(x => x.id === unitId ? { ...x, buckets: newBuckets, avgXP: newAvgXP } : x))
-  
-    addLog(`Replenished ${total} → ${u.id} (${type}) ${res.spent>0 ? `(auto-bought ${fmtCopper(res.spent)})` : '(used stock)'}. +XP bonus ${xpBonus}. New size ${totalCount}, avgXP ${newAvgXP}.`)
+
+    addLog(`Replenished ${total} → ${u.id} (${type}) ${res.spent > 0 ? `(auto-bought ${fmtCopper(res.spent)})` : '(used stock)'}. +XP bonus ${xpBonus}. New size ${totalCount}, avgXP ${newAvgXP}.`)
   }
 
   // const [recruits, setRecruits] = useState<RecruitPool>({ count: 0, avgXP: 0 })
@@ -364,12 +426,12 @@ export function useGameState() {
     addLog(`Recruited ${n} untyped recruits.`)
   }
 
-  
+
   // Re-export everything your tabs need (keep names the same as today)
   return {
     // core
     day, log, addLog, runDailyTick, loadSave, resetAll, fmtCopper,
-  
+
     // economy
     wallet: econ.wallet, inv: econ.inv, buildings: econ.buildings, hasStable: econ.hasStable,
     setWallet: econ.setWallet, setInv: econ.setInv, setBuildings: econ.setBuildings,
@@ -385,7 +447,7 @@ export function useGameState() {
     batchDurationDays: (lvl: number) => batchDurationDays(lvl),
 
     // barracks actions (wrappers)
-    barracksUpgradeCost: (lvl: number) => barr.barracksUpgradeCost(lvl), 
+    barracksUpgradeCost: (lvl: number) => barr.barracksUpgradeCost(lvl),
     recruit,
     upgradeBarracks: () => {
       if (barr.barracksLevel >= 5) return
@@ -395,7 +457,7 @@ export function useGameState() {
       barr.setBarracksLevel(l => l + 1)
       addLog(`Upgraded Barracks to L${barr.barracksLevel + 1}.`)
     },
-  
+
     queueLightTraining,
     queueLightCavConversion,  // implement like above
     queueHeavyConversion,     // implement like above
@@ -413,8 +475,8 @@ export function useGameState() {
     createUnitFromBarracks,   // <-- add this
     replenishUnit,            // <-- and this
   }
-  
-  
+
+
 }
 
 export type GameStateShape = ReturnType<typeof useGameState>

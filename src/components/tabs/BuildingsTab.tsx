@@ -2,6 +2,9 @@ import React from 'react'
 import Card from '../common/Card'
 import { type Building } from '../../logic/types'
 import type { GameStateShape } from '../../state/useGameState'
+import GameIcon from '../common/GameIcon'
+import { getIconForGameItem } from '../../logic/iconHelpers'
+import MoneyDisplay from '../common/MoneyDisplay'
 type Props = { state: GameStateShape }
 
 export default function BuildingsTab({ state }: Props) {
@@ -40,6 +43,7 @@ export default function BuildingsTab({ state }: Props) {
                 {(BuildingOutputChoices[b.type]?.options?.length ?? 0) > 0 && (
                   <div className="mt-2 flex items-center gap-2">
                     <label className="text-sm">Output</label>
+                    {b.outputItem && <GameIcon name={getIconForGameItem(b.outputItem)} size={20} />}
                     <select
                       className="border rounded px-2 py-1"
                       value={b.outputItem}
@@ -88,8 +92,8 @@ export default function BuildingsTab({ state }: Props) {
                 disabled={owns(t)}
               >
                 <div className="font-semibold">{t}</div>
-                <div className="text-xs text-gray-600">
-                  Cost: {fmtCopper(BuildingCostCopper[t])}
+                <div className="text-xs text-gray-600 flex items-center gap-1">
+                  Cost: <MoneyDisplay amount={BuildingCostCopper[t]} size={12} />
                 </div>
                 {owns(t) && (
                   <div className="text-[11px] text-green-700 mt-1">Owned</div>

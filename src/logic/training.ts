@@ -1,5 +1,6 @@
 // src/logic/training.ts
 import type { Rank, SoldierType } from './types'
+import { demandFor, ensureEquipOrBuy } from './equipment'
 import { enqueueBatch, canEnqueue } from './batches'
 
 type Ctx = {
@@ -23,9 +24,27 @@ type Ctx = {
 }
 
 // helpers
-const ADV_PLUS: Rank[] = ['ADVANCED','VETERAN','ELITE']
-const LIGHT_INF: SoldierType[] = ['LIGHT_INF_SWORD','LIGHT_INF_SPEAR','LIGHT_INF_HALBERD'] as any
-const HEAVY_INF: SoldierType[] = ['HEAVY_INF_SWORD','HEAVY_INF_SPEAR','HEAVY_INF_HALBERD'] as any
+const ADV_PLUS: Rank[] = ['ADVANCED', 'VETERAN', 'ELITE']
+const LIGHT_INF: SoldierType[] = ['LIGHT_INF_SWORD', 'LIGHT_INF_SPEAR', 'LIGHT_INF_HALBERD'] as any
+const HEAVY_INF: SoldierType[] = ['HEAVY_INF_SWORD', 'HEAVY_INF_SPEAR', 'HEAVY_INF_HALBERD'] as any
+
+
+import { type RankCount } from './batches'
+
+function tryTakeSoldiers(pool: any, type: string, ranks: Rank[], qty: number): RankCount | null {
+  let rem = qty
+  const used: RankCount = {}
+  for (const r of ranks) {
+    const have = pool[type][r]?.count ?? 0
+    const take = Math.min(have, rem)
+    if (take > 0) {
+      used[r] = take
+      rem -= take
+    }
+    if (rem <= 0) break
+  }
+  return rem === 0 ? used : null
+}
 
 function assertQty(qty: number) {
   const n = Math.max(1, Math.min(50, Math.floor(qty || 0)))
@@ -44,7 +63,7 @@ export interface EconSlice {
   inv: {
     weapons: Record<string, number>
     armors: Record<string, number>
-    horses: Record<'LIGHT_HORSE'|'HEAVY_HORSE', { active: number; inactive: number }>
+    horses: Record<'LIGHT_HORSE' | 'HEAVY_HORSE', { active: number; inactive: number }>
   }
   setInv: (updater: (prev: EconSlice['inv']) => EconSlice['inv']) => void
   wallet: number
@@ -73,11 +92,37 @@ export function queueLightTraining(ctx: Ctx, target: SoldierType, qty: number) {
     ctx.addLog('Not enough untyped recruits.')
     return
   }
+
+  // Check & Reserve Equipment
+  // We use ensureEquipOrBuy with autoBuy=false to just check invocation
+  const demand = demandFor(target, n)
+  // We must access current inventory to check
+  // Note: Since we are inside a function, we don't have direct access to 'inv' value unless we read it from state setter or if we pass it in. 
+  // However, `ctx.econ.inv` is available in the types above!
+  // Wait, the Ctx type: inv: any. Let's cast or assume structure.
+
+  const inv = ctx.econ.inv
+  const wallet = ctx.econ.wallet
+  const res = ensureEquipOrBuy(inv, wallet, demand, false) // false = no auto-buy here
+
+  if (!res.ok) {
+    ctx.addLog('Not enough equipment to train these troops.')
+    return
+  }
+
+  // All checks pass
+  // 1. Consume Recruits
   ctx.barr.setRecruits(prev => ({ ...prev, count: prev.count - n }))
+
+  // 2. Consume Equipment (commit the inventory change)
+  ctx.econ.setInv(() => res.inv) // ensureEquipOrBuy returns the *modified* inventory
+  if (res.spent > 0) ctx.econ.setWallet(() => res.wallet) // Should be 0 since autoBuy=false
+
+  // 3. Queue Batch
   ctx.barr.setBatches(prev =>
     enqueueBatch(prev, { level: ctx.barr.barracksLevel, kind: 'LIGHT_TRAIN', target, qty: n })
   )
-  ctx.addLog(`Queued LIGHT training: ${n} → ${target}.`)
+  ctx.addLog(`Queued LIGHT training: ${n} → ${target}. reserved equipment.`)
 }
 
 // light inf -> light cav (consumes light horses immediately)
@@ -88,16 +133,43 @@ export function queueLightCavConversion(ctx: Ctx, fromType: SoldierType, qty: nu
     ctx.addLog('Light Cavalry converts from LIGHT_INF_* only.')
     return
   }
-  // consume horses now if you want immediate reservation
-  ctx.econ.setInv(prev => {
-    const inv = structuredClone(prev)
-    const have = inv.horses.LIGHT_HORSE?.active ?? 0
-    if (have < n) { ctx.addLog('Not enough Light Horses.'); return prev }
-    inv.horses.LIGHT_HORSE.active -= n
-    return inv
+
+  // 1. Check Soldiers (NOVICE)
+  const take = tryTakeSoldiers(ctx.barr.barracks, fromType, ['NOVICE'], n)
+  if (!take) {
+    ctx.addLog(`Not enough NOVICE units of ${fromType}.`)
+    return
+  }
+
+  // 2. Check Horses
+  const inv = ctx.econ.inv
+  const haveHorses = inv.horses.LIGHT_HORSE?.active ?? 0
+  if (haveHorses < n) {
+    ctx.addLog('Not enough Light Horses.')
+    return
+  }
+
+  // Execute
+  ctx.barr.setBarracks(prev => {
+    const next = structuredClone(prev)
+    for (const r in take) next[fromType][r as Rank].count -= take[r as Rank]!
+    return next
   })
+
+  ctx.econ.setInv(prev => {
+    const next = structuredClone(prev)
+    next.horses.LIGHT_HORSE.active -= n
+    return next
+  })
+
   ctx.barr.setBatches(prev =>
-    enqueueBatch(prev, { level: ctx.barr.barracksLevel, kind: 'LIGHT_CAV', fromType, qty: n })
+    enqueueBatch(prev, {
+      level: ctx.barr.barracksLevel,
+      kind: 'LIGHT_CAV',
+      fromType,
+      qty: n,
+      takeByRank: take // record what we took
+    })
   )
   ctx.addLog(`Queued LIGHT_CAV conversion: ${n} from ${fromType}.`)
 }
@@ -107,28 +179,60 @@ export function queueLightCavConversion(ctx: Ctx, fromType: SoldierType, qty: nu
 export function queueHeavyConversion(ctx: Ctx, fromType: SoldierType, qty: number) {
   const n = assertQty(qty)
   if (!requireSlot(ctx)) return
+
   const fromLightCav = fromType === 'LIGHT_CAV'
   const fromHeavyInf = fromType.startsWith('HEAVY_INF')
   if (!fromLightCav && !fromHeavyInf) {
-    ctx.addLog('Heavy Cavalry converts from LIGHT_CAV or HEAVY_INF_*.'); return
+    ctx.addLog('Heavy Cavalry converts from LIGHT_CAV or HEAVY_INF_*.')
+    return
   }
-  // reserve horses/armor up-front
-  ctx.econ.setInv(prev => {
-    const inv = structuredClone(prev)
-    const hh = inv.horses.HEAVY_HORSE?.active ?? 0
-    const ha = inv.armors.HORSE_ARMOR ?? 0
-    if (hh < n || ha < n) { ctx.addLog('Need Heavy Horses and Horse Armor.'); return prev }
-    if (fromLightCav) {
-      const heavyArmor = inv.armors.HEAVY_ARMOR ?? 0
-      if (heavyArmor < n) { ctx.addLog('Need Heavy Armor to convert LIGHT_CAV → HEAVY_CAV.'); return prev }
-      inv.armors.HEAVY_ARMOR -= n
+
+  // 1. Check Soldiers (ADV+)
+  const take = tryTakeSoldiers(ctx.barr.barracks, fromType, ADV_PLUS, n)
+  if (!take) {
+    ctx.addLog(`Not enough ADVANCED+ units of ${fromType}.`)
+    return
+  }
+
+  // 2. Check Equipment
+  const inv = ctx.econ.inv
+  const hh = inv.horses.HEAVY_HORSE?.active ?? 0
+  const ha = inv.armors.HORSE_ARMOR ?? 0
+  if (hh < n || ha < n) {
+    ctx.addLog('Need Heavy Horses and Horse Armor.')
+    return
+  }
+  if (fromLightCav) {
+    const heavyArmor = inv.armors.HEAVY_ARMOR ?? 0
+    if (heavyArmor < n) {
+      ctx.addLog('Need Heavy Armor to convert LIGHT_CAV → HEAVY_CAV.')
+      return
     }
-    inv.horses.HEAVY_HORSE.active -= n
-    inv.armors.HORSE_ARMOR -= n
-    return inv
+  }
+
+  // Execute
+  ctx.barr.setBarracks(prev => {
+    const next = structuredClone(prev)
+    for (const r in take) next[fromType][r as Rank].count -= take[r as Rank]!
+    return next
   })
+
+  ctx.econ.setInv(prev => {
+    const next = structuredClone(prev)
+    next.horses.HEAVY_HORSE.active -= n
+    next.armors.HORSE_ARMOR -= n
+    if (fromLightCav) next.armors.HEAVY_ARMOR -= n
+    return next
+  })
+
   ctx.barr.setBatches(prev =>
-    enqueueBatch(prev, { level: ctx.barr.barracksLevel, kind: 'HEAVY_CAV', fromType, qty: n })
+    enqueueBatch(prev, {
+      level: ctx.barr.barracksLevel,
+      kind: 'HEAVY_CAV',
+      fromType,
+      qty: n,
+      takeByRank: take
+    })
   )
   ctx.addLog(`Queued HEAVY_CAV conversion: ${n} from ${fromType} (ADV+).`)
 }
@@ -137,15 +241,44 @@ export function queueHeavyConversion(ctx: Ctx, fromType: SoldierType, qty: numbe
 export function queueHorseArcherConversion(ctx: Ctx, qty: number) {
   const n = assertQty(qty)
   if (!requireSlot(ctx)) return
-  ctx.econ.setInv(prev => {
-    const inv = structuredClone(prev)
-    const have = inv.horses.LIGHT_HORSE?.active ?? 0
-    if (have < n) { ctx.addLog('Not enough Light Horses.'); return prev }
-    inv.horses.LIGHT_HORSE.active -= n
-    return inv
+
+  // 1. Check Soldiers
+  const fromType = 'LIGHT_ARCHER'
+  const take = tryTakeSoldiers(ctx.barr.barracks, fromType, ADV_PLUS, n)
+  if (!take) {
+    ctx.addLog('Not enough ADVANCED+ LIGHT_ARCHERs.')
+    return
+  }
+
+  // 2. Check Horses
+  const inv = ctx.econ.inv
+  const have = inv.horses.LIGHT_HORSE?.active ?? 0
+  if (have < n) {
+    ctx.addLog('Not enough Light Horses.')
+    return
+  }
+
+  // Execute
+  ctx.barr.setBarracks(prev => {
+    const next = structuredClone(prev)
+    for (const r in take) next[fromType][r as Rank].count -= take[r as Rank]!
+    return next
   })
+
+  ctx.econ.setInv(prev => {
+    const next = structuredClone(prev)
+    next.horses.LIGHT_HORSE.active -= n
+    return next
+  })
+
   ctx.barr.setBatches(prev =>
-    enqueueBatch(prev, { level: ctx.barr.barracksLevel, kind: 'HORSE_ARCHER', fromType: 'LIGHT_ARCHER', qty: n })
+    enqueueBatch(prev, {
+      level: ctx.barr.barracksLevel,
+      kind: 'HORSE_ARCHER',
+      fromType,
+      qty: n,
+      takeByRank: take
+    })
   )
   ctx.addLog(`Queued HORSE_ARCHER conversion: ${n} (ADV+ from LIGHT_ARCHER).`)
 }
