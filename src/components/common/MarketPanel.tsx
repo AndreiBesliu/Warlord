@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import GameIcon from './GameIcon'
 import MoneyDisplay from './MoneyDisplay'
-import { getIconForGameItem } from '../../logic/iconHelpers'
+import { getIconForGameItem, formatGameTooltip } from '../../logic/iconHelpers'
 
 export default function MarketPanel({
   title,
@@ -26,9 +26,9 @@ export default function MarketPanel({
         {options.map(({ k, price }) => {
           return (
             <div key={k} className="border rounded p-2 flex items-center gap-2">
-              <GameIcon name={getIconForGameItem(k)} size={32} />
+              <GameIcon name={getIconForGameItem(k) || 'sword'} size={32} />
               <div className="flex-1">
-                <div className="font-medium">{k}</div>
+                <div className="font-medium">{formatGameTooltip(k)}</div>
                 <div className="text-xs text-gray-600 flex items-center gap-2">
                   <span className="flex items-center gap-1">
                     Price: <MoneyDisplay amount={price} size={12} />

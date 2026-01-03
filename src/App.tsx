@@ -19,7 +19,7 @@ import { fmtCopper as fmtCopperUtil } from './logic/types'
 
 export default function App() {
   const state = useGameState()
-  
+
   // ---- auto day-tick every 5 minutes ----
   const TICK_MS = 5 * 60 * 1000; // 5 min
 
@@ -80,24 +80,24 @@ export default function App() {
     return `${m}:${r.toString().padStart(2, '0')}`;
   }
 
-    const {
+  const {
     // state
     day, wallet, inv, buildings, units, mergePick, log,
     // helpers
     fmtCopper: fmtFromState,
-    BuildingCostCopper, BuildingOutputChoices, 
+    BuildingCostCopper, BuildingOutputChoices,
     FocusOptions, computeReady,
     // actions
     loadSave, resetAll, runDailyTick,
     buyBuilding, setBuildingFocus, setBuildingOutput,
     doSplit, togglePickForMerge, doMergeIfReady, toggleTraining,
   } = state
-  
+
   const fmtCopper = fmtFromState || fmtCopperUtil
   const buildingsArr = buildings ?? []                   // <- safe fallback
   const owns = (t: string) => buildingsArr.some(b => b.type === t)
 
-  const [tab, setTab] = useState<'overview'|'buildings'|'barracks'|'units'|'market'|'log'>('overview')
+  const [tab, setTab] = useState<'overview' | 'buildings' | 'barracks' | 'units' | 'market' | 'log'>('overview')
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-4">
@@ -126,7 +126,7 @@ export default function App() {
             >
               Run Day ▶
             </button>
-        </div>
+          </div>
 
         </div>
       </div>
@@ -138,12 +138,12 @@ export default function App() {
 
       <nav className="flex flex-wrap gap-2">
         {[
-          ['overview','Overview'],
-          ['buildings','Buildings'],
-          ['barracks','Barracks'],
-          ['units','Units'],
-          ['market','Market'],
-          ['log','Log']
+          ['overview', 'Overview'],
+          ['buildings', 'Buildings'],
+          ['barracks', 'Barracks'],
+          ['units', 'Units'],
+          ['market', 'Market'],
+          ['log', 'Log']
         ].map(([k, label]) => (
           <button
             key={k}
@@ -157,7 +157,7 @@ export default function App() {
 
       {tab === 'overview' && <OverviewTab state={state} />}
 
-      {tab === 'buildings' && <BuildingsTab state={state} />}
+      {tab === 'buildings' && <BuildingsTab state={state} setTab={setTab} />}
 
       {tab === 'barracks' && <BarracksTab state={state} />}
 
@@ -166,7 +166,7 @@ export default function App() {
       {tab === 'market' && <MarketTab state={state} />}
 
       {tab === 'log' && <LogTab state={state} />}
-      
+
     </div>
   )
 }

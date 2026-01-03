@@ -1,6 +1,6 @@
 import { IconName } from '../components/common/GameIcon'
 
-export function getIconForGameItem(item: string): IconName {
+export function getIconForGameItem(item: string): IconName | undefined {
     if (item.includes('SWORD')) return 'sword'
     if (item.includes('SPEAR')) return 'spear'
     if (item.includes('HALBERD')) return 'halberd'
@@ -19,5 +19,14 @@ export function getIconForGameItem(item: string): IconName {
     if (item === 'silver') return 'silver'
     if (item === 'copper') return 'copper'
 
-    return 'sword' // default fallback
+    // Semantic mappings
+    if (item.match(/^foal/i)) return 'light_horse'
+    if (item.match(/^horse/i)) return 'heavy_horse'
+    if (item === 'Wallet') return 'gold'
+
+    return undefined
+}
+
+export function formatGameTooltip(text: string): string {
+    return text.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
 }

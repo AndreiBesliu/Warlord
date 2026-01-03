@@ -24,7 +24,7 @@ export default function InvSummary({
         {weapons.map(w => (
           <div key={w.id} className="border rounded m-1 p-2 bg-white flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <GameIcon name={getIconForGameItem(w.subtype)} size={24} />
+              <GameIcon name={getIconForGameItem(w.subtype) || 'sword'} size={24} />
               <span>{w.name}</span>
             </div>
             <span className="font-mono">{inv.weapons[w.subtype] ?? 0}</span>
@@ -36,7 +36,7 @@ export default function InvSummary({
         {armors.map(a => (
           <div key={a.id} className="border rounded m-1 p-2 bg-white flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <GameIcon name={getIconForGameItem(a.subtype)} size={24} />
+              <GameIcon name={getIconForGameItem(a.subtype) || 'sword'} size={24} />
               <span>{a.name}</span>
             </div>
             <span className="font-mono">{inv.armors[a.subtype] ?? 0}</span>
@@ -48,7 +48,7 @@ export default function InvSummary({
         {horses.map(h => (
           <div key={h.id} className="border rounded p-2 bg-white flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <GameIcon name={getIconForGameItem(h.subtype)} size={24} />
+              <GameIcon name={getIconForGameItem(h.subtype) || 'sword'} size={24} />
               <span>{h.name}</span>
             </div>
             <span className="font-mono">
