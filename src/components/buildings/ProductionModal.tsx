@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { type Building } from '../../logic/types'
 import { FocusOptions, passiveIncomeAndProduction, BuildingCostCopper, BuildingOutputChoices } from '../../logic/economy'
 import { itemValueCopper } from '../../logic/items'
+import { getIconForGameItem } from '../../logic/iconHelpers'
 import MoneyDisplay from '../common/MoneyDisplay'
 import GameIcon from '../common/GameIcon'
 // Import backgrounds
@@ -10,6 +11,8 @@ import bgWoodworker from '../../assets/interiors/woodworker.png'
 import bgBlacksmith from '../../assets/interiors/blacksmith.png'
 import bgArmory from '../../assets/interiors/armory.png'
 import bgTailor from '../../assets/interiors/tailor.png'
+
+import bgLumberMill from '../../assets/interiors/lumber_mill_interior.png'
 
 type Props = {
     building: Building
@@ -23,28 +26,40 @@ const InteriorMap: Record<string, string> = {
     BLACKSMITH: bgBlacksmith,
     ARMORY: bgArmory,
     TAILOR: bgTailor,
+    LUMBER_MILL: bgLumberMill, // New image
+    QUARRY: bgBlacksmith,
+    SMELTER: bgBlacksmith,
+    MINTER: bgTailor,
+    // ... others
+    IRON_MINE: bgBlacksmith,
+    COAL_MINE: bgBlacksmith,
+    COPPER_MINE: bgBlacksmith,
+    SILVER_MINE: bgBlacksmith,
+    STABLE: bgTailor,
+    MARKET: bgTailor,
 }
 
-// We need to place item icons interactively.
-// Since we generated generic backgrounds, we have to guess positions or just place them nicely floating.
-// Let's place them in a defined "Shelf Area" or scattered.
-// For now, let's auto-arrange them in a dedicated 'interaction zone' in the center-bottom or spread out.
-// Better: Defined absolute positions for specific types if we want to be fancy, but dynamic is safer for varying lists.
-// Let's use a "Showcase" layout overlaid on the room.
-
 export default function ProductionModal({ building, onClose, onSetOutput, onSetFocus }: Props) {
-    const bg = InteriorMap[building.type]
+    const bg = InteriorMap[building.type] || bgBlacksmith
     const options = BuildingOutputChoices[building.type]?.options || []
 
     // Calculate stats for preview
-    const cost = BuildingCostCopper[building.type] || 0
-    const basePerDay = 0.10 * cost
-    const coinGain = Math.round(basePerDay * (building.focusCoinPct / 100))
-    const remainderValue = basePerDay - coinGain
-    const mv = itemValueCopper(building.outputItem || options[0] || '') || 1
-    const items = (remainderValue > 0 && mv > 0)
-        ? (remainderValue / (0.7 * mv)).toFixed(1)
-        : '0'
+    let coinGain = 0
+    let items = '0'
+
+    if (building.type === 'LUMBER_MILL' && building.outputItem === 'WOOD') {
+        coinGain = 0
+        items = '10'
+    } else {
+        const cost = BuildingCostCopper[building.type] || 0
+        const basePerDay = 0.10 * cost
+        coinGain = Math.round(basePerDay * (building.focusCoinPct / 100))
+        const remainderValue = basePerDay - coinGain
+        const mv = itemValueCopper(building.outputItem || options[0] || '') || 1
+        items = (remainderValue > 0 && mv > 0)
+            ? (remainderValue / (0.7 * mv)).toFixed(1)
+            : '0'
+    }
 
     return createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
@@ -70,7 +85,7 @@ export default function ProductionModal({ building, onClose, onSetOutput, onSetF
 
                 {/* Title */}
                 <div className="absolute top-6 left-6 text-white drop-shadow-md">
-                    <h2 className="text-4xl font-serif font-bold tracking-wide text-amber-100">{building.type}</h2>
+                    <h2 className="text-4xl font-serif font-bold tracking-wide text-amber-100">{building.type.replace('_', ' ')}</h2>
                     <div className="text-amber-200/60 text-sm tracking-widest uppercase">Production Management</div>
                 </div>
 
@@ -95,15 +110,14 @@ export default function ProductionModal({ building, onClose, onSetOutput, onSetF
                     w-20 h-20 flex items-center justify-center rounded-xl border-2 shadow-xl bg-black/60
                     ${isSelected ? 'border-yellow-400 shadow-yellow-500/20' : 'border-white/10 border-dashed'}
                   `}>
-                                        {/* We use a large GameIcon. Assuming GameIcon accepts className for sizing or stick to size prop */}
-                                        <GameIcon name={opt.includes('SWORD') ? 'sword' : opt.includes('SPEAR') ? 'spear' : opt.includes('BOW') ? 'bow' : opt.includes('HALBERD') ? 'halberd' : opt.includes('SHIELD') ? 'shield' : opt.includes('HEAVY_ARMOR') ? 'heavy_armor' : opt.includes('LIGHT') ? 'light_armor' : 'sword'} size={48} />
+                                        <GameIcon name={getIconForGameItem(opt) || 'sword'} size={48} />
                                     </div>
 
                                     <span className={`
                      px-3 py-1 rounded bg-black/80 text-xs font-bold font-mono tracking-wider border
                      ${isSelected ? 'text-yellow-400 border-yellow-400/30' : 'text-gray-400 border-transparent'}
                   `}>
-                                        {opt}
+                                        {opt.replace(/_/g, ' ')}
                                     </span>
                                 </button>
                             )
@@ -124,7 +138,7 @@ export default function ProductionModal({ building, onClose, onSetOutput, onSetF
                                 </span>
                                 <span className="text-stone-500 font-serif italic text-sm">and</span>
                                 <span className="text-white font-bold text-xl drop-shadow-sm">
-                                    {items} {building.outputItem || 'Items'}
+                                    {items} {building.outputItem?.replace(/_/g, ' ') || 'Items'}
                                 </span>
                             </div>
                         </div>

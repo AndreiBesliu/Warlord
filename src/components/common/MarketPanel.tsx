@@ -13,10 +13,10 @@ export default function MarketPanel({
 }: {
   title: string
   options: { k: string; price: number }[]
-  kind: 'WEAPON' | 'ARMOR' | 'HORSE'
+  kind: 'WEAPON' | 'ARMOR' | 'HORSE' | 'RESOURCE'
   have: (k: string) => number
-  onBuy: (kind: 'WEAPON' | 'ARMOR' | 'HORSE', subtype: string, qty: number) => void
-  onSell: (kind: 'WEAPON' | 'ARMOR' | 'HORSE', subtype: string, qty: number) => void
+  onBuy: (kind: 'WEAPON' | 'ARMOR' | 'HORSE' | 'RESOURCE', subtype: string, qty: number) => void
+  onSell: (kind: 'WEAPON' | 'ARMOR' | 'HORSE' | 'RESOURCE', subtype: string, qty: number) => void
 }) {
   const [qty, setQty] = useState(10)
   return (

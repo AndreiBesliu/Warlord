@@ -1,10 +1,9 @@
-
 import { useEffect, useMemo, useState } from 'react'
 
 //logic
-import { GOLD, fmtCopper, Ranks, type Rank, type SoldierType, type Building } from '../logic/types'
+import { GOLD, fmtCopper, Ranks, type Rank, type SoldierType, type Building, type ResourceMap } from '../logic/types'
 import type { RecruitPool, Unit } from '../logic/types'
-import { BuildingOutputChoices, BuildingCostCopper, FocusOptions } from '../logic/economy'
+import { BuildingOutputChoices, BuildingCostCopper, FocusOptions, ResourceBuildingCosts } from '../logic/economy'
 import { makeEmptyInventories, isHorseKey, type HorseKey } from '../logic/helpers'
 import { demandFor, ensureEquipOrBuy } from '../logic/equipment'
 import { itemValueCopper } from '../logic/items'  // if you use buy/sell here
@@ -30,16 +29,22 @@ loadSampleMod();
 function defaultBuildings(): Building[] {
   return [
     { id: 'barracks', type: 'BARRACKS', focusCoinPct: 100, fractionalBuffer: 0 },
-    { id: 'wood1', type: 'WOODWORKER', focusCoinPct: 60, outputItem: 'BOW', fractionalBuffer: 0 },
+    // { id: 'wood1', type: 'WOODWORKER', focusCoinPct: 60, outputItem: 'BOW', fractionalBuffer: 0 },
     { id: 'market', type: 'MARKET', focusCoinPct: 100, fractionalBuffer: 0 },
   ]
+}
+
+const emptyResources: ResourceMap = {
+  WOOD: 100, STONE: 0,
+  IRON_ORE: 0, COAL: 0, COPPER_ORE: 0, SILVER_ORE: 0,
+  IRON_INGOT: 0, COPPER_INGOT: 0, SILVER_INGOT: 0
 }
 
 export function useGameState() {
   // day + log
   const [day, setDay] = useState(1)
   const [log, setLog] = useState<string[]>([])
-  const addLog = (s: string) => setLog(l => [`${new Date().toLocaleString()} — ${s}`, ...l])
+  const addLog = (s: string) => setLog(l => [`${new Date().toLocaleString()} — ${s} `, ...l])
 
 
   const [units, setUnits] = useState<Unit[]>([])
@@ -57,12 +62,12 @@ export function useGameState() {
   useEffect(() => {
     localStorage.setItem('warlord_save', JSON.stringify({
       day, log,
-      wallet: econ.wallet, inv: econ.inv, buildings: econ.buildings,
+      wallet: econ.wallet, inv: econ.inv, buildings: econ.buildings, resources: econ.resources,
       barracks: barr.barracks, barracksLevel: barr.barracksLevel,
       recruits: barr.recruits, batches: barr.batches,
       units: unit.units,
     }))
-  }, [day, log, econ.wallet, econ.inv, econ.buildings, barr.barracks, barr.barracksLevel, barr.recruits, barr.batches, unit.units])
+  }, [day, log, econ.wallet, econ.inv, econ.buildings, econ.resources, barr.barracks, barr.barracksLevel, barr.recruits, barr.batches, unit.units])
 
   function loadSave() {
     const raw = localStorage.getItem('warlord_save')
@@ -73,6 +78,7 @@ export function useGameState() {
       econ.setWallet(s.wallet ?? 5 * GOLD)
       econ.setInv(s.inv ?? econ.inv)
       econ.setBuildings(s.buildings ?? econ.buildings)
+      econ.setResources(s.resources ?? emptyResources)
       barr.setBarracks(s.barracks ?? barr.barracks)
       barr.setBarracksLevel(s.barracksLevel ?? 1)
       barr.setRecruits(s.recruits ?? { count: 0, avgXP: 0 })
@@ -87,6 +93,7 @@ export function useGameState() {
     econ.setWallet(10 * GOLD)
     econ.setInv(makeEmptyInventories())
     econ.setBuildings(defaultBuildings())
+    econ.setResources({ ...emptyResources })
     barr.setBarracks(emptyBarracks())
     barr.setBarracksLevel(1)
     barr.setRecruits({ count: 0, avgXP: 0 })
@@ -97,7 +104,7 @@ export function useGameState() {
   // type HorseKey = 'LIGHT_HORSE' | 'HEAVY_HORSE'
   // const isHorseKey = (x: string): x is HorseKey => x === 'LIGHT_HORSE' || x === 'HEAVY_HORSE'
 
-  function buy(kind: 'WEAPON' | 'ARMOR' | 'HORSE', subtype: string, qty: number) {
+  function buy(kind: 'WEAPON' | 'ARMOR' | 'HORSE' | 'RESOURCE', subtype: string, qty: number) {
     if (qty <= 0 || !Number.isFinite(qty)) return
     if (kind === 'HORSE') {
       if (!econ.hasStable) { addLog('You need a STABLE to buy horses.'); return }
@@ -108,48 +115,113 @@ export function useGameState() {
     if (econ.wallet < price) { addLog('Not enough funds.'); return }
 
     econ.setWallet(w => w - price)
-    econ.setInv(prev => {
-      const n = structuredClone(prev)
-      if (kind === 'WEAPON') n.weapons[subtype] = (n.weapons[subtype] ?? 0) + qty
-      else if (kind === 'ARMOR') n.armors[subtype] = (n.armors[subtype] ?? 0) + qty
-      else n.horses[subtype as HorseKey].active += qty
-      return n
-    })
+    if (kind === 'RESOURCE') {
+      econ.setResources(prev => {
+        const n = { ...prev }
+        n[subtype as keyof ResourceMap] = (n[subtype as keyof ResourceMap] || 0) + qty
+        return n
+      })
+    } else {
+      econ.setInv(prev => {
+        const n = structuredClone(prev)
+        if (kind === 'WEAPON') n.weapons[subtype] = (n.weapons[subtype] ?? 0) + qty
+        else if (kind === 'ARMOR') n.armors[subtype] = (n.armors[subtype] ?? 0) + qty
+        else n.horses[subtype as HorseKey].active += qty
+        return n
+      })
+    }
     addLog(`Bought ${qty} ${subtype} for ${fmtCopper(price)}.`)
   }
 
-  function sell(kind: 'WEAPON' | 'ARMOR' | 'HORSE', subtype: string, qty: number) {
+  function sell(kind: 'WEAPON' | 'ARMOR' | 'HORSE' | 'RESOURCE', subtype: string, qty: number) {
     if (qty <= 0 || !Number.isFinite(qty)) return
-    econ.setInv(prev => {
-      const n = structuredClone(prev)
-      let have = 0
-      if (kind === 'WEAPON') have = n.weapons[subtype] ?? 0
-      else if (kind === 'ARMOR') have = n.armors[subtype] ?? 0
-      else {
-        if (!isHorseKey(subtype)) { addLog('Invalid horse type.'); return prev }
-        have = n.horses[subtype].active
-      }
-      if (have < qty) { addLog('Not enough items to sell.'); return prev }
 
-      const price = itemValueCopper(subtype) * qty
-      if (kind === 'WEAPON') n.weapons[subtype] -= qty
-      else if (kind === 'ARMOR') n.armors[subtype] -= qty
-      else n.horses[subtype as HorseKey].active -= qty
-      econ.setWallet(w => w + price)
-      addLog(`Sold ${qty} ${subtype} for ${fmtCopper(price)}.`)
-      return n
-    })
+    if (kind === 'RESOURCE') {
+      econ.setResources(prev => {
+        const n = { ...prev }
+        const have = n[subtype as keyof ResourceMap] || 0
+        if (have < qty) { addLog('Not enough resources to sell.'); return prev } // This returns prev which sets state to same value, effectively no-op but safe.
+        // Actually setResources expects callback returning new state. If we fail, we effectively want to abort. 
+        // But we are inside existing callback? No, wait. 
+        // "sell" logic above uses setInv(prev => ...).
+        // Better to check BEFORE setting state if possible to avoid complex aborts inside.
+        // But "have" is inside state.
+        // Let's do the check inside and return prev if fail, but we also want to NOT add money.
+        // Complication: The original code for items checked inside setInv, but updated wallet OUTSIDE?
+        // No, original code:
+        //   if (have < qty) { addLog...; return prev }
+        //   ...
+        //   econ.setWallet(w => w + price)
+        //   return n
+        // Wait, the original code sets wallet INSIDE the setInv callback?
+        //   econ.setInv(prev => { ... econ.setWallet(...) ... }) 
+        // Yes, line 145 calls setWallet inside setInv callback. That is technically side-effect in render/update, but React usually handles it if triggered by event.
+        // Ideally should verify first.
+
+        n[subtype as keyof ResourceMap] -= qty
+        const price = itemValueCopper(subtype) * qty
+        econ.setWallet(w => w + price)
+        addLog(`Sold ${qty} ${subtype} for ${fmtCopper(price)}.`)
+        return n
+      })
+      /// Wait, I need to check if I can use the same pattern.
+      // Logic for resources:
+      // We check availability inside setResources.
+    } else {
+      econ.setInv(prev => {
+        const n = structuredClone(prev)
+        let have = 0
+        if (kind === 'WEAPON') have = n.weapons[subtype] ?? 0
+        else if (kind === 'ARMOR') have = n.armors[subtype] ?? 0
+        else {
+          if (!isHorseKey(subtype)) { addLog('Invalid horse type.'); return prev }
+          have = n.horses[subtype].active
+        }
+        if (have < qty) { addLog('Not enough items to sell.'); return prev }
+
+        const price = itemValueCopper(subtype) * qty
+        if (kind === 'WEAPON') n.weapons[subtype] -= qty
+        else if (kind === 'ARMOR') n.armors[subtype] -= qty
+        else n.horses[subtype as HorseKey].active -= qty
+        econ.setWallet(w => w + price)
+        addLog(`Sold ${qty} ${subtype} for ${fmtCopper(price)}.`)
+        return n
+      })
+    }
   }
 
   function buyBuilding(type: Building['type']) {
     if (econ.buildings.some(b => b.type === type)) { addLog(`You already own a ${type}.`); return }
     const cost = BuildingCostCopper[type] || 0
     if (econ.wallet < cost) { addLog(`Not enough funds to buy ${type}. Need ${fmtCopper(cost)}.`); return }
-    const id = `${type.toLowerCase()}_${Math.random().toString(36).slice(2, 8)}`
-    const outputItem = BuildingOutputChoices[type].options[0]
+
+    // Check Resources
+    const resCost = ResourceBuildingCosts[type] || {}
+    const missing: string[] = []
+    for (const [res, amt] of Object.entries(resCost)) {
+      if ((econ.resources[res as keyof ResourceMap] || 0) < amt) {
+        missing.push(`${amt} ${res} `)
+      }
+    }
+    if (missing.length > 0) {
+      addLog(`Not enough resources: need ${missing.join(', ')}.`)
+      return;
+    }
+
+    // Deduct
     econ.setWallet(w => w - cost)
+    econ.setResources(prev => {
+      const n = { ...prev }
+      for (const [res, amt] of Object.entries(resCost)) {
+        n[res as keyof ResourceMap] -= amt
+      }
+      return n
+    })
+
+    const id = `${type.toLowerCase()}_${Math.random().toString(36).slice(2, 8)} `
+    const outputItem = BuildingOutputChoices[type].options[0]
     econ.setBuildings(bs => [...bs, { id, type, focusCoinPct: 100, outputItem, fractionalBuffer: 0 }])
-    addLog(`Bought ${type} for ${fmtCopper(cost)}.`)
+    addLog(`Bought ${type} for ${fmtCopper(cost)} and resources.`)
   }
 
   function setBuildingFocus(id: string, pct: number) {
@@ -164,11 +236,38 @@ export function useGameState() {
     if (barr.barracksLevel >= 5) return
     const cost = barr.barracksUpgradeCost(barr.barracksLevel)
     if (!Number.isFinite(cost)) return
+
+    // Resource cost for upgrades (scale with level?)
+    // Basic scaling: (Level+1) * Base Cost
+    const baseRes = ResourceBuildingCosts['BARRACKS'] || {}
+    const scale = barr.barracksLevel
+    const missing: string[] = []
+
+    for (const [res, amt] of Object.entries(baseRes)) {
+      const required = amt * scale
+      if ((econ.resources[res as keyof ResourceMap] || 0) < required) {
+        missing.push(`${required} ${res} `)
+      }
+    }
+
     if (econ.wallet < cost) {
-      addLog(`Not enough funds to upgrade. Need ${fmtCopper(cost)}.`)
+      addLog(`Not enough funds to upgrade.Need ${fmtCopper(cost)}.`)
       return
     }
+    if (missing.length > 0) {
+      addLog(`Not enough resources: need ${missing.join(', ')}.`)
+      return
+    }
+
     econ.setWallet(w => w - cost)
+    econ.setResources(prev => {
+      const n = { ...prev }
+      for (const [res, amt] of Object.entries(baseRes)) {
+        n[res as keyof ResourceMap] -= (amt * scale)
+      }
+      return n
+    })
+
     barr.setBarracksLevel(prev => {
       const next = Math.min(prev + 1, 5)
       addLog(`Upgraded Barracks to L${next}.`)
@@ -434,8 +533,9 @@ export function useGameState() {
 
     // economy
     wallet: econ.wallet, inv: econ.inv, buildings: econ.buildings, hasStable: econ.hasStable,
+    resources: econ.resources, // Export resources
     setWallet: econ.setWallet, setInv: econ.setInv, setBuildings: econ.setBuildings,
-    BuildingCostCopper, BuildingOutputChoices, FocusOptions,
+    BuildingCostCopper, BuildingOutputChoices, FocusOptions, ResourceBuildingCosts,
     buy, sell, buyBuilding, setBuildingFocus, setBuildingOutput,
 
     // barracks (state)
@@ -449,14 +549,7 @@ export function useGameState() {
     // barracks actions (wrappers)
     barracksUpgradeCost: (lvl: number) => barr.barracksUpgradeCost(lvl),
     recruit,
-    upgradeBarracks: () => {
-      if (barr.barracksLevel >= 5) return
-      const cost = barr.barracksUpgradeCost(barr.barracksLevel)
-      if (econ.wallet < cost) { addLog(`Not enough funds: need ${fmtCopper(cost)}.`); return }
-      econ.setWallet(w => w - cost)
-      barr.setBarracksLevel(l => l + 1)
-      addLog(`Upgraded Barracks to L${barr.barracksLevel + 1}.`)
-    },
+    upgradeBarracks: upgradeBarracks,
 
     queueLightTraining,
     queueLightCavConversion,  // implement like above

@@ -15,7 +15,7 @@ export function fmtCopper(c: number) {
 }
 
 export type Rank = 'NOVICE' | 'TRAINED' | 'ADVANCED' | 'VETERAN' | 'ELITE';
-export const Ranks: Rank[] = ['NOVICE','TRAINED','ADVANCED','VETERAN','ELITE'];
+export const Ranks: Rank[] = ['NOVICE', 'TRAINED', 'ADVANCED', 'VETERAN', 'ELITE'];
 export const RankNumber: Record<Rank, number> = {
   NOVICE: 0,
   TRAINED: 1,
@@ -40,21 +40,21 @@ export type SoldierType =
   | 'HORSE_ARCHER';
 
 export const SoldierTypes: SoldierType[] = [
-  'LIGHT_INF_SWORD','LIGHT_INF_SPEAR','LIGHT_INF_HALBERD',
-  'HEAVY_INF_SWORD','HEAVY_INF_SPEAR','HEAVY_INF_HALBERD',
-  'LIGHT_ARCHER','HEAVY_ARCHER',
-  'LIGHT_CAV','HEAVY_CAV',
+  'LIGHT_INF_SWORD', 'LIGHT_INF_SPEAR', 'LIGHT_INF_HALBERD',
+  'HEAVY_INF_SWORD', 'HEAVY_INF_SPEAR', 'HEAVY_INF_HALBERD',
+  'LIGHT_ARCHER', 'HEAVY_ARCHER',
+  'LIGHT_CAV', 'HEAVY_CAV',
   'HORSE_ARCHER',
 ];
 
-export const WeaponTypes = ['HALBERD','SPEAR','SWORD','BOW'] as const;
-export const ArmorTypes  = ['SHIELD','HEAVY_ARMOR','LIGHT_ARMOR','HORSE_ARMOR'] as const;
-export const HorseTypes  = ['LIGHT_HORSE','HEAVY_HORSE'] as const;
+export const WeaponTypes = ['HALBERD', 'SPEAR', 'SWORD', 'BOW'] as const;
+export const ArmorTypes = ['SHIELD', 'HEAVY_ARMOR', 'LIGHT_ARMOR', 'HORSE_ARMOR'] as const;
+export const HorseTypes = ['LIGHT_HORSE', 'HEAVY_HORSE'] as const;
 
 // Export concrete union types derived from the const arrays:
 export type Weapon = typeof WeaponTypes[number];
-export type Armor  = typeof ArmorTypes[number];
-export type Horse  = typeof HorseTypes[number];
+export type Armor = typeof ArmorTypes[number];
+export type Horse = typeof HorseTypes[number];
 
 export type UnitBucket = { r: Rank; count: number; avgXP: number };
 export type Unit = {
@@ -73,11 +73,23 @@ export type Unit = {
 
 export type Building = {
   id: string;
-  type: 'BARRACKS'|'BLACKSMITH'|'ARMORY'|'WOODWORKER'|'TAILOR'|'STABLE'|'MARKET';
-  focusCoinPct: 0|20|40|60|80|100;
+  type: 'BARRACKS' | 'BLACKSMITH' | 'ARMORY' | 'WOODWORKER' | 'TAILOR' | 'STABLE' | 'MARKET' |
+  'LUMBER_MILL' | 'QUARRY' | 'IRON_MINE' | 'COAL_MINE' | 'COPPER_MINE' | 'SILVER_MINE' | 'SMELTER' | 'MINTER';
+  focusCoinPct: 0 | 20 | 40 | 60 | 80 | 100;
   outputItem?: string;
   fractionalBuffer: number;
 };
+
+export type ResourceType =
+  | 'WOOD' | 'STONE' | 'IRON_ORE' | 'COAL' | 'COPPER_ORE' | 'SILVER_ORE'
+  | 'IRON_INGOT' | 'COPPER_INGOT' | 'SILVER_INGOT';
+
+export const ResourceTypes: ResourceType[] = [
+  'WOOD', 'STONE', 'IRON_ORE', 'COAL', 'COPPER_ORE', 'SILVER_ORE',
+  'IRON_INGOT', 'COPPER_INGOT', 'SILVER_INGOT'
+];
+
+export type ResourceMap = Record<ResourceType, number>;
 
 export type BuildingType = Building['type'];
 export type BarracksPool = Record<SoldierType, Record<Rank, { r: Rank; count: number; avgXP: number }>>;
@@ -86,7 +98,7 @@ export type RecruitPool = { count: number; avgXP: number };
 export type Inventories = {
   weapons: Record<string, number>;
   armors: Record<string, number>;
-  horses: Record<'LIGHT_HORSE'|'HEAVY_HORSE', { active: number; inactive: number }>;
+  horses: Record<'LIGHT_HORSE' | 'HEAVY_HORSE', { active: number; inactive: number }>;
 };
 
 // helpers for type families

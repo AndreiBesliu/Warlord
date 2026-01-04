@@ -7,10 +7,10 @@ import stallWeaponBg from '../../assets/stall_weapon.png'
 import stallArmorBg from '../../assets/stall_armor.png'
 import stallStableBg from '../../assets/stall_stable.png'
 
-type MarketCategory = 'WEAPON' | 'ARMOR' | 'HORSE'
+type MarketCategory = 'WEAPON' | 'ARMOR' | 'HORSE' | 'RESOURCE'
 
 export default function MarketTab({ state }: { state: any }) {
-  const { inv, buy, sell, buildings } = state
+  const { inv, buy, sell, buildings, resources } = state
   const hasStable = buildings?.some((b: any) => b.type === 'STABLE')
   const [selectedCategory, setSelectedCategory] = useState<MarketCategory | null>(null)
 
@@ -18,6 +18,7 @@ export default function MarketTab({ state }: { state: any }) {
   const weapons = items.filter(i => i.type === 'WEAPON');
   const armors = items.filter(i => i.type === 'ARMOR');
   const horses = items.filter(i => i.type === 'HORSE');
+  const resourceItems = items.filter(i => i.type === 'RESOURCE');
 
   // Main Scene View
   if (!selectedCategory) {
@@ -33,10 +34,21 @@ export default function MarketTab({ state }: { state: any }) {
           {/* Overlay Gradient for depth */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
 
-          {/* Click Zones */}
-          {/* Weapon Smith (Left) */}
+          {/* Click Zones - Split into 4 */}
+          {/* Resources (Left) */}
           <div
-            className="absolute inset-y-0 left-0 w-[30%] hover:bg-white/10 cursor-pointer transition-colors duration-200 group/zone flex flex-col justify-end p-6"
+            className="absolute inset-y-0 left-0 w-[25%] hover:bg-white/10 cursor-pointer transition-colors duration-200 group/zone flex flex-col justify-end p-6"
+            onClick={() => setSelectedCategory('RESOURCE')}
+          >
+            <div className="bg-black/80 text-amber-100 px-3 py-1.5 rounded border border-amber-900/50 text-center opacity-0 group-hover/zone:opacity-100 transition-opacity transform translate-y-2 group-hover/zone:translate-y-0 duration-300">
+              <div className="font-serif font-bold text-lg">Trade Goods</div>
+              <div className="text-xs text-amber-200/70 font-mono">Wood, Stone, Ore</div>
+            </div>
+          </div>
+
+          {/* Weapon Smith (25-50) */}
+          <div
+            className="absolute inset-y-0 left-[25%] w-[25%] hover:bg-white/10 cursor-pointer transition-colors duration-200 group/zone flex flex-col justify-end p-6"
             onClick={() => setSelectedCategory('WEAPON')}
           >
             <div className="bg-black/80 text-amber-100 px-3 py-1.5 rounded border border-amber-900/50 text-center opacity-0 group-hover/zone:opacity-100 transition-opacity transform translate-y-2 group-hover/zone:translate-y-0 duration-300">
@@ -45,9 +57,9 @@ export default function MarketTab({ state }: { state: any }) {
             </div>
           </div>
 
-          {/* Armorer (Center) */}
+          {/* Armorer (50-75) */}
           <div
-            className="absolute inset-y-0 left-[30%] w-[35%] hover:bg-white/10 cursor-pointer transition-colors duration-200 group/zone flex flex-col justify-end p-6"
+            className="absolute inset-y-0 left-[50%] w-[25%] hover:bg-white/10 cursor-pointer transition-colors duration-200 group/zone flex flex-col justify-end p-6"
             onClick={() => setSelectedCategory('ARMOR')}
           >
             <div className="bg-black/80 text-amber-100 px-3 py-1.5 rounded border border-amber-900/50 text-center opacity-0 group-hover/zone:opacity-100 transition-opacity transform translate-y-2 group-hover/zone:translate-y-0 duration-300">
@@ -56,9 +68,9 @@ export default function MarketTab({ state }: { state: any }) {
             </div>
           </div>
 
-          {/* Stables (Right) */}
+          {/* Stables (Right 25%) */}
           <div
-            className="absolute inset-y-0 right-0 w-[35%] hover:bg-white/10 cursor-pointer transition-colors duration-200 group/zone flex flex-col justify-end p-6"
+            className="absolute inset-y-0 right-0 w-[25%] hover:bg-white/10 cursor-pointer transition-colors duration-200 group/zone flex flex-col justify-end p-6"
             onClick={() => {
               if (hasStable) setSelectedCategory('HORSE')
             }}
@@ -77,7 +89,7 @@ export default function MarketTab({ state }: { state: any }) {
   const close = () => setSelectedCategory(null)
 
   let panelProps: {
-    kind: 'WEAPON' | 'ARMOR' | 'HORSE',
+    kind: 'WEAPON' | 'ARMOR' | 'HORSE' | 'RESOURCE',
     title: string,
     options: typeof weapons,
     haveMap: any,
@@ -94,6 +106,9 @@ export default function MarketTab({ state }: { state: any }) {
     panelProps = { kind: 'ARMOR', title: 'Armorer', options: armors, haveMap: inv.armors, bg: stallArmorBg }
   } else if (selectedCategory === 'HORSE') {
     panelProps = { kind: 'HORSE', title: 'Royal Stables', options: horses, haveMap: inv.horses, bg: stallStableBg }
+  } else if (selectedCategory === 'RESOURCE') {
+    // Reuse a background or define a new one ideally
+    panelProps = { kind: 'RESOURCE', title: 'Trade Goods', options: resourceItems, haveMap: resources, bg: stallWeaponBg }
   }
 
   return (

@@ -11,12 +11,25 @@ import iconHorseArmor from '../../assets/game_icons/icon_horse_armor.png'
 import iconLightHorse from '../../assets/game_icons/icon_light_horse.png'
 import iconHeavyHorse from '../../assets/game_icons/icon_heavy_horse.png'
 
+import iconWood from '../../assets/game_icons/icon_wood.png'
+import iconStone from '../../assets/game_icons/icon_stone.png'
+import iconCoal from '../../assets/game_icons/icon_coal.png'
+import iconIronOre from '../../assets/game_icons/icon_iron_ore.png'
+import iconCopperOre from '../../assets/game_icons/icon_copper_ore.png'
+import iconSilverOre from '../../assets/game_icons/icon_silver_ore.png'
+import iconIronIngot from '../../assets/game_icons/icon_iron_ingot.png'
+import iconCopperIngot from '../../assets/game_icons/icon_copper_ingot.png'
+import iconSilverIngot from '../../assets/game_icons/icon_silver_ingot.png'
+
 export type IconName =
     | 'sword' | 'spear' | 'halberd'
     | 'bow' | 'heavy_armor' | 'light_armor'
     | 'horse_armor' | 'light_horse' | 'heavy_horse'
     | 'gold' | 'silver' | 'copper'
     | 'shield'
+    | 'wood' | 'stone' | 'coal'
+    | 'iron_ore' | 'copper_ore' | 'silver_ore'
+    | 'iron_ingot' | 'copper_ingot' | 'silver_ingot'
 
 interface GameIconProps {
     name: IconName
@@ -36,6 +49,16 @@ export default function GameIcon({ name, size = 32, className = '' }: GameIconPr
         'light_horse': iconLightHorse,
         'heavy_horse': iconHeavyHorse,
         'shield': shieldIcon,
+
+        'wood': iconWood,
+        'stone': iconStone,
+        'coal': iconCoal,
+        'iron_ore': iconIronOre,
+        'copper_ore': iconCopperOre,
+        'silver_ore': iconSilverOre,
+        'iron_ingot': iconIronIngot,
+        'copper_ingot': iconCopperIngot,
+        'silver_ingot': iconSilverIngot,
     }
 
     // Mapping for coins.png
@@ -52,7 +75,7 @@ export default function GameIcon({ name, size = 32, className = '' }: GameIconPr
             <img
                 src={iconMap[name]}
                 alt={titleText}
-                className={`inline-block shrink-0 object-contain mix-blend-multiply ${className}`}
+                className={`inline-block shrink-0 object-contain ${className}`}
                 style={{ width: size, height: size }}
                 title={titleText}
             />

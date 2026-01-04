@@ -6,6 +6,7 @@ import MarketPanel from './components/common/MarketPanel'
 import MissingEquipment from './components/units/MissingEquipment'
 import SplitMergeControls from './components/units/SplitMergeControls'
 import BuildingsTab from './components/tabs/BuildingsTab'
+import ResourcesTab from './components/tabs/ResourcesTab'
 import MarketTab from './components/tabs/MarketTab'
 import OverviewTab from './components/tabs/OverviewTab'
 import UnitsTab from './components/tabs/UnitsTab'
@@ -97,7 +98,7 @@ export default function App() {
   const buildingsArr = buildings ?? []                   // <- safe fallback
   const owns = (t: string) => buildingsArr.some(b => b.type === t)
 
-  const [tab, setTab] = useState<'overview' | 'buildings' | 'barracks' | 'units' | 'market' | 'log'>('overview')
+  const [tab, setTab] = useState<'overview' | 'resources' | 'buildings' | 'barracks' | 'units' | 'market' | 'log'>('overview')
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-4">
@@ -139,6 +140,7 @@ export default function App() {
       <nav className="flex flex-wrap gap-2">
         {[
           ['overview', 'Overview'],
+          ['resources', 'Resources'],
           ['buildings', 'Buildings'],
           ['barracks', 'Barracks'],
           ['units', 'Units'],
@@ -157,7 +159,9 @@ export default function App() {
 
       {tab === 'overview' && <OverviewTab state={state} />}
 
-      {tab === 'buildings' && <BuildingsTab state={state} setTab={setTab} />}
+      {tab === 'resources' && <ResourcesTab resources={state.resources} />}
+
+      {tab === 'buildings' && <BuildingsTab state={state} setTab={setTab as any} />}
 
       {tab === 'barracks' && <BarracksTab state={state} />}
 

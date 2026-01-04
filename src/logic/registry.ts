@@ -3,7 +3,7 @@ import { Unit, UnitBucket } from './types';
 // Generic definition for an Item (Weapon, Armor, Horse)
 export interface ItemDef {
     id: string;
-    type: 'WEAPON' | 'ARMOR' | 'HORSE';
+    type: 'WEAPON' | 'ARMOR' | 'HORSE' | 'RESOURCE';
     subtype: string; // e.g. 'SWORD', 'HEAVY_ARMOR', 'LIGHT_HORSE'
     name: string;
     price: number; // in copper
@@ -36,6 +36,17 @@ class GameRegistry {
         // --- Core Items ---
         const GOLD = 10000;
         const SILVER = 100;
+
+        // Resources
+        this.registerItem({ id: 'WOOD', type: 'RESOURCE', subtype: 'WOOD', name: 'Wood', price: 50 });
+        this.registerItem({ id: 'STONE', type: 'RESOURCE', subtype: 'STONE', name: 'Stone', price: 50 });
+        this.registerItem({ id: 'COAL', type: 'RESOURCE', subtype: 'COAL', name: 'Coal', price: 100 });
+        this.registerItem({ id: 'IRON_ORE', type: 'RESOURCE', subtype: 'IRON_ORE', name: 'Iron Ore', price: 100 });
+        this.registerItem({ id: 'COPPER_ORE', type: 'RESOURCE', subtype: 'COPPER_ORE', name: 'Copper Ore', price: 80 });
+        this.registerItem({ id: 'SILVER_ORE', type: 'RESOURCE', subtype: 'SILVER_ORE', name: 'Silver Ore', price: 200 });
+        this.registerItem({ id: 'IRON_INGOT', type: 'RESOURCE', subtype: 'IRON_INGOT', name: 'Iron Ingot', price: 300 });
+        this.registerItem({ id: 'COPPER_INGOT', type: 'RESOURCE', subtype: 'COPPER_INGOT', name: 'Copper Ingot', price: 250 });
+        this.registerItem({ id: 'SILVER_INGOT', type: 'RESOURCE', subtype: 'SILVER_INGOT', name: 'Silver Ingot', price: 600 });
 
         // Weapons
         this.registerItem({ id: 'HALBERD', type: 'WEAPON', subtype: 'HALBERD', name: 'Halberd', price: 12 * SILVER });

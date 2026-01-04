@@ -19,6 +19,17 @@ export function getIconForGameItem(item: string): IconName | undefined {
     if (item === 'silver') return 'silver'
     if (item === 'copper') return 'copper'
 
+    // Resources
+    if (item === 'WOOD') return 'wood'
+    if (item === 'STONE') return 'stone'
+    if (item === 'COAL') return 'coal'
+    if (item === 'IRON_ORE') return 'iron_ore'
+    if (item === 'COPPER_ORE') return 'copper_ore'
+    if (item === 'SILVER_ORE') return 'silver_ore'
+    if (item === 'IRON_INGOT') return 'iron_ingot'
+    if (item === 'COPPER_INGOT') return 'copper_ingot'
+    if (item === 'SILVER_INGOT') return 'silver_ingot'
+
     // Semantic mappings
     if (item.match(/^foal/i)) return 'light_horse'
     if (item.match(/^horse/i)) return 'heavy_horse'
