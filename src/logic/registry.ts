@@ -38,6 +38,7 @@ class GameRegistry {
         const SILVER = 100;
 
         // Resources
+        this.registerItem({ id: 'FOOD', type: 'RESOURCE', subtype: 'FOOD', name: 'Food', price: 50 });
         this.registerItem({ id: 'WOOD', type: 'RESOURCE', subtype: 'WOOD', name: 'Wood', price: 50 });
         this.registerItem({ id: 'STONE', type: 'RESOURCE', subtype: 'STONE', name: 'Stone', price: 50 });
         this.registerItem({ id: 'COAL', type: 'RESOURCE', subtype: 'COAL', name: 'Coal', price: 100 });
@@ -133,6 +134,12 @@ class GameRegistry {
 
     // --- Items ---
     registerItem(def: ItemDef) {
+        if (!def.id || !def.name || def.price == null) {
+            throw new Error(`Invalid item definition: ${JSON.stringify(def)}`);
+        }
+        if (this.items.has(def.id)) {
+            console.warn(`Registry: overwriting item "${def.id}"`);
+        }
         this.items.set(def.id, def);
     }
 
@@ -146,6 +153,12 @@ class GameRegistry {
 
     // --- Units ---
     registerUnit(def: UnitDef) {
+        if (!def.id || !def.name || !def.type) {
+            throw new Error(`Invalid unit definition: ${JSON.stringify(def)}`);
+        }
+        if (this.units.has(def.id)) {
+            console.warn(`Registry: overwriting unit "${def.id}"`);
+        }
         this.units.set(def.id, def);
     }
 

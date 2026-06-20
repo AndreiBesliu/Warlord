@@ -23,11 +23,7 @@ type Ctx = {
   addLog: (s: string) => void
 }
 
-// helpers
 const ADV_PLUS: Rank[] = ['ADVANCED', 'VETERAN', 'ELITE']
-const LIGHT_INF: SoldierType[] = ['LIGHT_INF_SWORD', 'LIGHT_INF_SPEAR', 'LIGHT_INF_HALBERD'] as any
-const HEAVY_INF: SoldierType[] = ['HEAVY_INF_SWORD', 'HEAVY_INF_SPEAR', 'HEAVY_INF_HALBERD'] as any
-
 
 import { type RankCount } from './batches'
 
@@ -47,8 +43,7 @@ function tryTakeSoldiers(pool: any, type: string, ranks: Rank[], qty: number): R
 }
 
 function assertQty(qty: number) {
-  const n = Math.max(1, Math.min(50, Math.floor(qty || 0)))
-  return n
+  return Math.max(1, Math.min(50, Math.floor(qty || 0)))
 }
 
 function requireSlot(ctx: Ctx) {
@@ -93,36 +88,21 @@ export function queueLightTraining(ctx: Ctx, target: SoldierType, qty: number) {
     return
   }
 
-  // Check & Reserve Equipment
-  // We use ensureEquipOrBuy with autoBuy=false to just check invocation
   const demand = demandFor(target, n)
-  // We must access current inventory to check
-  // Note: Since we are inside a function, we don't have direct access to 'inv' value unless we read it from state setter or if we pass it in. 
-  // However, `ctx.econ.inv` is available in the types above!
-  // Wait, the Ctx type: inv: any. Let's cast or assume structure.
-
-  const inv = ctx.econ.inv
-  const wallet = ctx.econ.wallet
-  const res = ensureEquipOrBuy(inv, wallet, demand, false) // false = no auto-buy here
-
+  const res = ensureEquipOrBuy(ctx.econ.inv, ctx.econ.wallet, demand, false)
   if (!res.ok) {
     ctx.addLog('Not enough equipment to train these troops.')
     return
   }
 
-  // All checks pass
-  // 1. Consume Recruits
+  // All checks passed — commit state changes
   ctx.barr.setRecruits(prev => ({ ...prev, count: prev.count - n }))
-
-  // 2. Consume Equipment (commit the inventory change)
-  ctx.econ.setInv(() => res.inv) // ensureEquipOrBuy returns the *modified* inventory
-  if (res.spent > 0) ctx.econ.setWallet(() => res.wallet) // Should be 0 since autoBuy=false
-
-  // 3. Queue Batch
+  ctx.econ.setInv(() => res.inv)
+  if (res.spent > 0) ctx.econ.setWallet(w => w - res.spent)
   ctx.barr.setBatches(prev =>
     enqueueBatch(prev, { level: ctx.barr.barracksLevel, kind: 'LIGHT_TRAIN', target, qty: n })
   )
-  ctx.addLog(`Queued LIGHT training: ${n} → ${target}. reserved equipment.`)
+  ctx.addLog(`Queued LIGHT training: ${n} → ${target}.`)
 }
 
 // light inf -> light cav (consumes light horses immediately)
@@ -134,48 +114,42 @@ export function queueLightCavConversion(ctx: Ctx, fromType: SoldierType, qty: nu
     return
   }
 
-  // 1. Check Soldiers (NOVICE)
   const take = tryTakeSoldiers(ctx.barr.barracks, fromType, ['NOVICE'], n)
   if (!take) {
     ctx.addLog(`Not enough NOVICE units of ${fromType}.`)
     return
   }
 
-  // 2. Check Horses
-  const inv = ctx.econ.inv
-  const haveHorses = inv.horses.LIGHT_HORSE?.active ?? 0
+  const haveHorses = ctx.econ.inv.horses.LIGHT_HORSE?.active ?? 0
   if (haveHorses < n) {
     ctx.addLog('Not enough Light Horses.')
     return
   }
 
-  // Execute
+  // All checks passed — commit state changes
   ctx.barr.setBarracks(prev => {
     const next = structuredClone(prev)
     for (const r in take) next[fromType][r as Rank].count -= take[r as Rank]!
     return next
   })
-
   ctx.econ.setInv(prev => {
     const next = structuredClone(prev)
     next.horses.LIGHT_HORSE.active -= n
     return next
   })
-
   ctx.barr.setBatches(prev =>
     enqueueBatch(prev, {
       level: ctx.barr.barracksLevel,
       kind: 'LIGHT_CAV',
       fromType,
       qty: n,
-      takeByRank: take // record what we took
+      takeByRank: take
     })
   )
   ctx.addLog(`Queued LIGHT_CAV conversion: ${n} from ${fromType}.`)
 }
 
 // heavy cav: from LIGHT_CAV (ADV+) or HEAVY_INF_* (ADV+)
-// reserves heavy horse + horse armor immediately; if from LIGHT_CAV also heavy armor
 export function queueHeavyConversion(ctx: Ctx, fromType: SoldierType, qty: number) {
   const n = assertQty(qty)
   if (!requireSlot(ctx)) return
@@ -187,14 +161,12 @@ export function queueHeavyConversion(ctx: Ctx, fromType: SoldierType, qty: numbe
     return
   }
 
-  // 1. Check Soldiers (ADV+)
   const take = tryTakeSoldiers(ctx.barr.barracks, fromType, ADV_PLUS, n)
   if (!take) {
     ctx.addLog(`Not enough ADVANCED+ units of ${fromType}.`)
     return
   }
 
-  // 2. Check Equipment
   const inv = ctx.econ.inv
   const hh = inv.horses.HEAVY_HORSE?.active ?? 0
   const ha = inv.armors.HORSE_ARMOR ?? 0
@@ -210,13 +182,12 @@ export function queueHeavyConversion(ctx: Ctx, fromType: SoldierType, qty: numbe
     }
   }
 
-  // Execute
+  // All checks passed — commit state changes
   ctx.barr.setBarracks(prev => {
     const next = structuredClone(prev)
     for (const r in take) next[fromType][r as Rank].count -= take[r as Rank]!
     return next
   })
-
   ctx.econ.setInv(prev => {
     const next = structuredClone(prev)
     next.horses.HEAVY_HORSE.active -= n
@@ -224,7 +195,6 @@ export function queueHeavyConversion(ctx: Ctx, fromType: SoldierType, qty: numbe
     if (fromLightCav) next.armors.HEAVY_ARMOR -= n
     return next
   })
-
   ctx.barr.setBatches(prev =>
     enqueueBatch(prev, {
       level: ctx.barr.barracksLevel,
@@ -237,12 +207,11 @@ export function queueHeavyConversion(ctx: Ctx, fromType: SoldierType, qty: numbe
   ctx.addLog(`Queued HEAVY_CAV conversion: ${n} from ${fromType} (ADV+).`)
 }
 
-// horse archers: from LIGHT_ARCHER (ADV+) with light horses now
+// horse archers: from LIGHT_ARCHER (ADV+) with light horses
 export function queueHorseArcherConversion(ctx: Ctx, qty: number) {
   const n = assertQty(qty)
   if (!requireSlot(ctx)) return
 
-  // 1. Check Soldiers
   const fromType = 'LIGHT_ARCHER'
   const take = tryTakeSoldiers(ctx.barr.barracks, fromType, ADV_PLUS, n)
   if (!take) {
@@ -250,27 +219,23 @@ export function queueHorseArcherConversion(ctx: Ctx, qty: number) {
     return
   }
 
-  // 2. Check Horses
-  const inv = ctx.econ.inv
-  const have = inv.horses.LIGHT_HORSE?.active ?? 0
+  const have = ctx.econ.inv.horses.LIGHT_HORSE?.active ?? 0
   if (have < n) {
     ctx.addLog('Not enough Light Horses.')
     return
   }
 
-  // Execute
+  // All checks passed — commit state changes
   ctx.barr.setBarracks(prev => {
     const next = structuredClone(prev)
     for (const r in take) next[fromType][r as Rank].count -= take[r as Rank]!
     return next
   })
-
   ctx.econ.setInv(prev => {
     const next = structuredClone(prev)
     next.horses.LIGHT_HORSE.active -= n
     return next
   })
-
   ctx.barr.setBatches(prev =>
     enqueueBatch(prev, {
       level: ctx.barr.barracksLevel,

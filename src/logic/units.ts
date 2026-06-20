@@ -1,17 +1,15 @@
 // src/logic/units.ts
-import { Rank, RankIndex, Unit, SoldierType, WeaponTypes, ArmorTypes, HorseTypes } from './types'
+import { Rank, RankIndex, Unit, SoldierType } from './types'
 
 import { Registry } from './registry';
 
 type UnitLoadout = Unit['loadout'];
 type Bucket = { r: Rank; count: number; avgXP: number };
 
-// Helper to get unit def or throw/warn
 function getDef(id: string) {
   const def = Registry.getUnit(id);
   if (!def) {
     console.warn(`Unit definition not found for ${id}`);
-    // return a dummy default?
     return {
       id, type: id, name: id,
       req: { weapons: {}, armors: {}, horses: {} },
@@ -55,53 +53,13 @@ export const requiredCountsFor = (u: Unit): {
     for (const [k, v] of Object.entries(baseReq.horses)) req.horses[k] = (v as number) * size;
   }
 
-  // Special dynamic handling for Cavalry loadouts if needed?
-  // Original logic had:
-  // case 'LIGHT_CAV': { const w = (u.loadout as any).weapon || 'SPEAR'; req.weapons[w]=size; ... }
-  // case 'HEAVY_CAV': { const w = (u.loadout as any).weapon || 'HALBERD'; req.weapons[w]=size; ... }
-
-  // If the unit has a variable weapon in loadout that overrides the default req?
-  // The Registry `req` is static. 
-  // If `u.loadout.weapon` differs from `def.req`, we might need logic here.
-  // For now, let's assume the Registry `req` covers the BASE. 
-  // If the unit uses a different weapon, we should probably inspect `u.loadout`.
-
-  // Let's replicate the "weapon from loadout" logic if present:
-  if (u.loadout && u.loadout.weapon) {
-    // If the Registry defined a weapon, we might want to override it?
-    // Or we assume `def.req` DOES NOT include the weapon if it's variable?
-    // In my Registry init, I put 'SPEAR': 1 for Light Cav.
-    // But if they switch to Sword?
-    // We should probably remove the "default" weapon from the result and add `u.loadout.weapon`.
-
-    // Actually, for minimal regression risk, let's trust the Registry `req` for FIXED items, 
-    // but if `u.loadout.weapon` is set, we use that INSTEAD of what?
-    // The original code hardcoded `req.weapons[w] = size`.
-
-    // I will modify this to:
-    // If `u.loadout.weapon` is present, it adds/overwrites that weapon requirement?
-    // But we don't know WHICH weapon to remove if we just add one.
-    // So the Registry `req` for Light Cav should probably NOT include the weapon if it is selectable.
-    // OR, we check if `def.req` has a weapon, and if `u.loadout.weapon` is different, we swap?
-
-    // For this pass, I will just use `def.req`. 
-    // If the user changes weapon in loadout, `requiredCountsFor` needs to reflect that.
-    // Existing logic writes `req.weapons[w]`.
-
-    // Dynamic fallback:
-    if (u.loadout.weapon) {
-      // Check if we already have a weapon requirement? 
-      // Implementing a "Swap" logic is generic:
-      // If `def.loadout.weapon` (default) != `u.loadout.weapon` (current),
-      // REMOVE default, ADD current.
-      const defWeapon = def.loadout?.weapon;
-      const curWeapon = u.loadout.weapon;
-      if (defWeapon && curWeapon && defWeapon !== curWeapon) {
-        // Remove defWeapon count
-        if (req.weapons[defWeapon]) delete req.weapons[defWeapon];
-        // Add curWeapon count
-        req.weapons[curWeapon] = size;
-      }
+  // If the unit's loadout specifies a different weapon than the registry default, swap the requirement.
+  if (u.loadout?.weapon) {
+    const defWeapon = def.loadout?.weapon;
+    const curWeapon = u.loadout.weapon;
+    if (defWeapon && curWeapon && defWeapon !== curWeapon) {
+      delete req.weapons[defWeapon];
+      req.weapons[curWeapon] = size;
     }
   }
 
@@ -112,11 +70,24 @@ export const computeReady = (u: Unit): number => {
   const size = u.buckets.reduce((a, b) => a + b.count, 0)
   const req = requiredCountsFor(u)
   const caps: number[] = []
-  for (const [w, n] of Object.entries(req.weapons)) caps.push(Math.floor(((u.equip.weapons[w as any] || 0) / ((n as number) || 1)) * size))
-  for (const [a, n] of Object.entries(req.armors)) caps.push(Math.floor(((u.equip.armors[a as any] || 0) / ((n as number) || 1)) * size))
-  for (const [h, n] of Object.entries(req.horses)) caps.push(Math.floor(((u.equip.horses[h as any] || 0) / ((n as number) || 1)) * size))
-  if (!caps.length) return 0
-  return Math.min(size, ...caps)
+  for (const [w, n] of Object.entries(req.weapons)) caps.push(Math.floor(((u.equip.weapons[w as any] || 0) / (n as number)) * size))
+  for (const [a, n] of Object.entries(req.armors)) caps.push(Math.floor(((u.equip.armors[a as any] || 0) / (n as number)) * size))
+  for (const [h, n] of Object.entries(req.horses)) caps.push(Math.floor(((u.equip.horses[h as any] || 0) / (n as number)) * size))
+  const equipped = caps.length ? Math.min(size, ...caps) : size
+  // Morale reduces effective combat strength: 50 morale = 75% effectiveness, 0 = 50%
+  const moraleFactor = 0.5 + 0.5 * ((u.morale ?? 100) / 100)
+  return Math.floor(equipped * moraleFactor)
+}
+
+// Call once per day tick; foodShortage=true dacă armata nu a primit hrană
+export function applyMoraleChange(u: Unit, upkeepPaid: boolean, foodShortage: boolean): Unit {
+  const current = u.morale ?? 100
+  let delta = 0
+  if (!upkeepPaid) delta -= 10
+  if (foodShortage) delta -= 15
+  if (upkeepPaid && !foodShortage) delta += 5  // recuperare lentă
+  const newMorale = Math.max(0, Math.min(100, current + delta))
+  return { ...u, morale: newMorale }
 }
 
 // ---- Missing equipment list ----
@@ -125,21 +96,32 @@ export function missingEquipmentList(u: Unit): string[] {
   const out: string[] = []
   for (const [w, need] of Object.entries(req.weapons)) {
     const have = u.equip.weapons[w] || 0
-    if ((need || 0) > have) out.push(`${w}: ${(need || 0) - have}`)
+    if ((need as number) > have) out.push(`${w}: ${(need as number) - have}`)
   }
   for (const [a, need] of Object.entries(req.armors)) {
     const have = u.equip.armors[a] || 0
-    if ((need || 0) > have) out.push(`${a}: ${(need || 0) - have}`)
+    if ((need as number) > have) out.push(`${a}: ${(need as number) - have}`)
   }
   for (const [h, need] of Object.entries(req.horses)) {
     const have = u.equip.horses[h] || 0
-    if ((need || 0) > have) out.push(`${h}: ${(need || 0) - have}`)
+    if ((need as number) > have) out.push(`${h}: ${(need as number) - have}`)
   }
   return out
 }
 
 // ---- Split / Merge ----
 function cloneBuckets(b: Bucket[]): Bucket[] { return b.map(x => ({ ...x })) }
+
+function splitScalarEquip(equip: Record<string, number>, ratio: number): Record<string, number> {
+  return Object.fromEntries(Object.entries(equip).map(([k, v]) => [k, Math.floor((v || 0) * ratio)]))
+}
+
+function subtractScalarEquip(
+  total: Record<string, number>,
+  taken: Record<string, number>
+): Record<string, number> {
+  return Object.fromEntries(Object.keys(total).map(k => [k, (total[k] || 0) - (taken[k] || 0)]))
+}
 function mergeBucketArrays(a: Bucket[], b: Bucket[]): Bucket[] {
   const map = new Map<Rank, { count: number, wx: number }>()
   const add = (arr: Bucket[]) => arr.forEach(({ r, count, avgXP }) => {
@@ -178,15 +160,31 @@ export function splitUnit(u: Unit, takeCount: number): { taken: Unit; remaining:
     diff -= move
   }
 
+  const takeWeapons = splitScalarEquip(u.equip.weapons, ratio)
+  const takeArmors = splitScalarEquip(u.equip.armors, ratio)
+  // horses are { active, inactive } objects — split only active, inactive stays with remaining
+  const takeHorses = Object.fromEntries(
+    Object.entries(u.equip.horses).map(([k, v]) => {
+      const active = Math.floor(((v as any).active || 0) * ratio)
+      return [k, { active, inactive: 0 }]
+    })
+  )
+  const remHorses = Object.fromEntries(
+    Object.entries(u.equip.horses).map(([k, v]) => {
+      const takenActive = (takeHorses[k] as any)?.active || 0
+      return [k, { active: ((v as any).active || 0) - takenActive, inactive: (v as any).inactive || 0 }]
+    })
+  )
+
   const takeEq = {
-    weapons: Object.fromEntries(Object.entries(u.equip.weapons).map(([k, v]) => [k, Math.floor((v || 0) * ratio)])) as any,
-    armors: Object.fromEntries(Object.entries(u.equip.armors).map(([k, v]) => [k, Math.floor((v || 0) * ratio)])) as any,
-    horses: Object.fromEntries(Object.entries(u.equip.horses).map(([k, v]) => [k, Math.floor((v || 0) * ratio)])) as any,
+    weapons: takeWeapons as any,
+    armors: takeArmors as any,
+    horses: takeHorses as any,
   }
   const remEq = {
-    weapons: Object.fromEntries(Object.entries(u.equip.weapons).map(([k, v]) => [k, (v || 0) - (takeEq.weapons[k] || 0)])) as any,
-    armors: Object.fromEntries(Object.entries(u.equip.armors).map(([k, v]) => [k, (v || 0) - (takeEq.armors[k] || 0)])) as any,
-    horses: Object.fromEntries(Object.entries(u.equip.horses).map(([k, v]) => [k, (v || 0) - (takeEq.horses[k] || 0)])) as any,
+    weapons: subtractScalarEquip(u.equip.weapons, takeWeapons) as any,
+    armors: subtractScalarEquip(u.equip.armors, takeArmors) as any,
+    horses: remHorses as any,
   }
 
   const taken: Unit = {
@@ -195,6 +193,7 @@ export function splitUnit(u: Unit, takeCount: number): { taken: Unit; remaining:
     buckets: takenBuckets,
     avgXP: computeUnitAvgXP(takenBuckets),
     training: false,
+    morale: u.morale ?? 100,
     equip: takeEq,
     loadout: u.loadout,
   }
@@ -209,12 +208,19 @@ export function splitUnit(u: Unit, takeCount: number): { taken: Unit; remaining:
 export function mergeUnits(a: Unit, b: Unit): Unit {
   if (a.type !== b.type) throw new Error('Cannot merge units of different types')
   const buckets = mergeBucketArrays(cloneBuckets(a.buckets), cloneBuckets(b.buckets))
+  const sizeA = a.buckets.reduce((s, x) => s + x.count, 0)
+  const sizeB = b.buckets.reduce((s, x) => s + x.count, 0)
+  const totalSize = sizeA + sizeB
+  const mergedMorale = totalSize > 0
+    ? Math.round(((a.morale ?? 100) * sizeA + (b.morale ?? 100) * sizeB) / totalSize)
+    : 100
   return {
     id: `U_${Math.random().toString(36).slice(2, 7)}`,
     type: a.type,
     buckets,
     avgXP: computeUnitAvgXP(buckets),
     training: false,
+    morale: mergedMorale,
     loadout: a.loadout,
     equip: {
       weapons: Object.fromEntries(Object.keys({ ...a.equip.weapons, ...b.equip.weapons })

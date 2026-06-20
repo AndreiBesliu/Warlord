@@ -14,11 +14,13 @@ import {
 } from '../logic/training'
 
 //state
+import { dailyUpkeepCopper, dailyFoodConsumption } from '../logic/economy'
 import { useEconomy } from './useEconomy'
 import { useUnits } from './useUnits'
 import useBarracks, { emptyBarracks } from './useBarracks'
-import { computeReady, mergeUnits, splitUnit } from '../logic/units'
+import { computeReady, mergeUnits, splitUnit, applyMoraleChange } from '../logic/units'
 import { Registry } from '../logic/registry'
+import { rollDailyEvent } from '../logic/events'
 import { loadSampleMod } from '../mods/sampleMod';
 
 // Initialize registry with core data
@@ -37,7 +39,8 @@ function defaultBuildings(): Building[] {
 const emptyResources: ResourceMap = {
   WOOD: 100, STONE: 0,
   IRON_ORE: 0, COAL: 0, COPPER_ORE: 0, SILVER_ORE: 0,
-  IRON_INGOT: 0, COPPER_INGOT: 0, SILVER_INGOT: 0
+  IRON_INGOT: 0, COPPER_INGOT: 0, SILVER_INGOT: 0,
+  FOOD: 50,
 }
 
 export function useGameState() {
@@ -67,7 +70,7 @@ export function useGameState() {
       recruits: barr.recruits, batches: barr.batches,
       units: unit.units,
     }))
-  }, [day, log, econ.wallet, econ.inv, econ.buildings, econ.resources, barr.barracks, barr.barracksLevel, barr.recruits, barr.batches, unit.units])
+  }, [day, log, econ.wallet, econ.inv, econ.buildings, econ.resources, barr.barracks, barr.barracksLevel, barr.recruits, barr.batches, unit.units]) // econ.resources included so resource-only changes persist
 
   function loadSave() {
     const raw = localStorage.getItem('warlord_save')
@@ -137,56 +140,36 @@ export function useGameState() {
     if (qty <= 0 || !Number.isFinite(qty)) return
 
     if (kind === 'RESOURCE') {
+      const have = econ.resources[subtype as keyof ResourceMap] || 0
+      if (have < qty) { addLog('Not enough resources to sell.'); return }
+      const price = itemValueCopper(subtype) * qty
       econ.setResources(prev => {
         const n = { ...prev }
-        const have = n[subtype as keyof ResourceMap] || 0
-        if (have < qty) { addLog('Not enough resources to sell.'); return prev } // This returns prev which sets state to same value, effectively no-op but safe.
-        // Actually setResources expects callback returning new state. If we fail, we effectively want to abort. 
-        // But we are inside existing callback? No, wait. 
-        // "sell" logic above uses setInv(prev => ...).
-        // Better to check BEFORE setting state if possible to avoid complex aborts inside.
-        // But "have" is inside state.
-        // Let's do the check inside and return prev if fail, but we also want to NOT add money.
-        // Complication: The original code for items checked inside setInv, but updated wallet OUTSIDE?
-        // No, original code:
-        //   if (have < qty) { addLog...; return prev }
-        //   ...
-        //   econ.setWallet(w => w + price)
-        //   return n
-        // Wait, the original code sets wallet INSIDE the setInv callback?
-        //   econ.setInv(prev => { ... econ.setWallet(...) ... }) 
-        // Yes, line 145 calls setWallet inside setInv callback. That is technically side-effect in render/update, but React usually handles it if triggered by event.
-        // Ideally should verify first.
-
         n[subtype as keyof ResourceMap] -= qty
-        const price = itemValueCopper(subtype) * qty
-        econ.setWallet(w => w + price)
-        addLog(`Sold ${qty} ${subtype} for ${fmtCopper(price)}.`)
         return n
       })
-      /// Wait, I need to check if I can use the same pattern.
-      // Logic for resources:
-      // We check availability inside setResources.
+      econ.setWallet(w => w + price)
+      addLog(`Sold ${qty} ${subtype} for ${fmtCopper(price)}.`)
     } else {
+      let have = 0
+      if (kind === 'WEAPON') have = econ.inv.weapons[subtype] ?? 0
+      else if (kind === 'ARMOR') have = econ.inv.armors[subtype] ?? 0
+      else {
+        if (!isHorseKey(subtype)) { addLog('Invalid horse type.'); return }
+        have = econ.inv.horses[subtype as HorseKey].active
+      }
+      if (have < qty) { addLog('Not enough items to sell.'); return }
+
+      const price = itemValueCopper(subtype) * qty
       econ.setInv(prev => {
         const n = structuredClone(prev)
-        let have = 0
-        if (kind === 'WEAPON') have = n.weapons[subtype] ?? 0
-        else if (kind === 'ARMOR') have = n.armors[subtype] ?? 0
-        else {
-          if (!isHorseKey(subtype)) { addLog('Invalid horse type.'); return prev }
-          have = n.horses[subtype].active
-        }
-        if (have < qty) { addLog('Not enough items to sell.'); return prev }
-
-        const price = itemValueCopper(subtype) * qty
         if (kind === 'WEAPON') n.weapons[subtype] -= qty
         else if (kind === 'ARMOR') n.armors[subtype] -= qty
         else n.horses[subtype as HorseKey].active -= qty
-        econ.setWallet(w => w + price)
-        addLog(`Sold ${qty} ${subtype} for ${fmtCopper(price)}.`)
         return n
       })
+      econ.setWallet(w => w + price)
+      addLog(`Sold ${qty} ${subtype} for ${fmtCopper(price)}.`)
     }
   }
 
@@ -317,17 +300,16 @@ export function useGameState() {
   }
 
   function doMergeIfReady() {
+    if (mergePick.length !== 2) return
+    const [aId, bId] = mergePick
     setUnits(us => {
-      if (mergePick.length !== 2) return us
-      const [aId, bId] = mergePick
       const a = us.find(x => x.id === aId)
       const b = us.find(x => x.id === bId)
       if (!a || !b || a.type !== b.type) return us
       const merged = mergeUnits(a, b)
-      const filtered = us.filter(x => x.id !== aId && x.id !== bId)
-      setMergePick([])
-      return [merged, ...filtered]
+      return [merged, ...us.filter(x => x.id !== aId && x.id !== bId)]
     })
+    setMergePick([])
   }
 
   function queueLightTraining(target: SoldierType, qty: number) {
@@ -346,9 +328,64 @@ export function useGameState() {
   function runDailyTick() {
     const notes: string[] = []
     const delta = econ.applyBuildingIncome(s => notes.push(s))
+
+    // Unit upkeep
+    const upkeep = dailyUpkeepCopper(unit.units)
+    if (upkeep > 0) {
+      econ.setWallet(w => w - upkeep)
+      notes.push(`Upkeep ${fmtCopper(upkeep)}`)
+      if (econ.wallet - upkeep < 0) {
+        notes.push('⚠ Nu poți plăti upkeep-ul!')
+      }
+    }
+
+    // Food consumption
+    const foodNeeded = dailyFoodConsumption(unit.units)
+    const foodHave = econ.resources.FOOD ?? 0
+    const foodShortage = foodNeeded > 0 && foodHave < foodNeeded
+    if (foodNeeded > 0) {
+      const foodConsumed = Math.min(foodNeeded, foodHave)
+      econ.setResources(prev => ({ ...prev, FOOD: Math.max(0, (prev.FOOD ?? 0) - foodNeeded) }))
+      notes.push(`Hrană: -${foodConsumed}/${foodNeeded}`)
+      if (foodShortage) {
+        notes.push(`⚠ Hrană insuficientă! Lipsesc ${foodNeeded - foodConsumed} unități`)
+      }
+    }
+
+    // Morale update
+    const canPayUpkeep = econ.wallet >= upkeep
+    unit.setUnits(us => us.map(u => applyMoraleChange(u, canPayUpkeep, foodShortage)))
+
+    // Random daily event
+    const event = rollDailyEvent()
+    if (event) {
+      const { effect } = event
+      if (effect.walletDelta) econ.setWallet(w => w + effect.walletDelta!)
+      if (effect.resourceDelta) {
+        econ.setResources(prev => {
+          const n = { ...prev }
+          for (const [k, v] of Object.entries(effect.resourceDelta!)) {
+            n[k as keyof ResourceMap] = Math.max(0, (n[k as keyof ResourceMap] || 0) + (v || 0))
+          }
+          return n
+        })
+      }
+      if (effect.moraleAllDelta) {
+        unit.setUnits(us => us.map(u => ({
+          ...u,
+          morale: Math.max(0, Math.min(100, (u.morale ?? 100) + effect.moraleAllDelta!))
+        })))
+      }
+      if (effect.recruitLoss) {
+        barr.setRecruits(prev => ({ ...prev, count: Math.max(0, prev.count - effect.recruitLoss!) }))
+      }
+      notes.push(`${event.title} — ${event.description}`)
+      addLog(`📅 Eveniment: ${event.title} — ${event.description}`)
+    }
+
     const nextDay = day + 1
     setDay(nextDay)
-    addLog(`Day ${nextDay} — ${notes.join(' | ')} | Wallet Δ ${fmtCopper(delta)}`)
+    addLog(`Day ${nextDay} — ${notes.join(' | ')} | Wallet Δ ${fmtCopper(delta - upkeep)}`)
     // Add: training batch progress here if you want (uses barr.batches etc)
 
     // Process training batches
@@ -449,6 +486,7 @@ export function useGameState() {
       buckets,
       avgXP,
       training: false,
+      morale: 100,
       equip: { weapons: {}, armors: {}, horses: {} },
       loadout: { kind: type } as any
     }

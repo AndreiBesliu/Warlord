@@ -18,11 +18,12 @@ import {
     takeByRank?: RankCount      // if conversion, what ranks were consumed
   }
 
-// Rules: L1 = 2 slots, +1 slot per level, cap 5
+// L1=2 slots, +1 per level, cap 5 (reached at L4)
 export function batchSlots(level: number) {
-  return Math.min(2 + (level - 1), 5)
+  return Math.min(level + 1, 5)
 }
 
+// L1=7 days, -1 per level, min 3 days
 export function batchDurationDays(level: number) {
   return Math.max(7 - (level - 1), 3)
 }
@@ -68,24 +69,6 @@ export function buildBatch(
   }
 }
 
-// export function enqueueBatch(args: {
-//   level: number
-//   batches: TrainingBatch[]
-//   setBatches: (updater: (prev: TrainingBatch[]) => TrainingBatch[]) => void
-//   payload: { kind: BatchKind; target: SoldierType; qty: number; fromType?: SoldierType }
-//   addLog: (s: string) => void
-// }) {
-//   const { level, batches, setBatches, payload, addLog } = args
-//   if (payload.qty <= 0) return false
-//   if (payload.qty > 50) { addLog('Batch too large (max 50).'); return false }
-//   if (!canEnqueue(batches, level)) { addLog('No free training slots.'); return false }
-
-//   const b = buildBatch(level, payload)
-//   setBatches(list => [b, ...list])
-//   addLog(`Queued ${payload.kind.replace('_',' ')}: ${payload.qty} → ${payload.target} (${b.daysRemaining} days).`)
-//   return true
-// }
-
   /** take from pool by rank using a plan, throws if insufficient */
   export function deductByRank(pool: BarracksPool, fromType: SoldierType, plan: RankCount) {
     for (const r of Ranks) {
@@ -99,24 +82,14 @@ export function buildBatch(
       if (want > 0) pool[fromType][r].count -= want
     }
   }
-  
+
   export function addByRank(pool: BarracksPool, toType: SoldierType, plan: RankCount) {
     for (const r of Ranks) {
       const q = plan[r] || 0
       if (q > 0) pool[toType][r].count += q
     }
   }
-  
+
   export function sumPlan(plan: RankCount) {
     return Ranks.reduce((a,r)=>a+(plan[r]||0),0)
   }
-  
-  // /** Create a batch id */
-  // export const newBatchId = () => `B_${Math.random().toString(36).slice(2,8)}`
-  
-  // /** Duration formula: base 7 days - (level-1), min 1 day */
-  // export const batchDurationDays = (level:number) => Math.max(1, 7 - (level-1))
-  
-  // /** Slot formula: base 2 + (level-1) */
-  // export const batchSlots = (level:number) => 2 + (level-1)
-  

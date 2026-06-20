@@ -1,6 +1,31 @@
 // src/logic/economy.ts
-import { BuildingType, ResourceType, ResourceMap } from './types'
+import { BuildingType, ResourceType, ResourceMap, SoldierType, Unit, Rank, RankNumber } from './types'
 import { itemValueCopper } from './items'
+
+// Daily upkeep cost per soldier (in copper), by type
+const UPKEEP_BASE: Record<SoldierType, number> = {
+  LIGHT_INF_SWORD: 2, LIGHT_INF_SPEAR: 2, LIGHT_INF_HALBERD: 2,
+  HEAVY_INF_SWORD: 3, HEAVY_INF_SPEAR: 3, HEAVY_INF_HALBERD: 3,
+  LIGHT_ARCHER: 2,    HEAVY_ARCHER: 3,
+  LIGHT_CAV: 5,       HEAVY_CAV: 8,
+  HORSE_ARCHER: 5,
+}
+
+// Rank multiplier for upkeep (veterans cost more to maintain)
+const UPKEEP_RANK_MULT: Record<Rank, number> = {
+  NOVICE: 1.0, TRAINED: 1.1, ADVANCED: 1.25, VETERAN: 1.5, ELITE: 2.0,
+}
+
+export function dailyUpkeepCopper(units: Unit[]): number {
+  let total = 0
+  for (const u of units) {
+    const base = UPKEEP_BASE[u.type] ?? 2
+    for (const b of u.buckets) {
+      total += Math.round(base * (UPKEEP_RANK_MULT[b.r] ?? 1) * b.count)
+    }
+  }
+  return total
+}
 
 // Building costs (in copper)
 export const BuildingCostCopper: Record<BuildingType, number> = {
@@ -12,7 +37,7 @@ export const BuildingCostCopper: Record<BuildingType, number> = {
   MARKET: 0,
   BARRACKS: 0,
   // Resource buildings
-  LUMBER_MILL: 5_000,   // Cheap
+  LUMBER_MILL: 5_000,
   QUARRY: 5_000,
   IRON_MINE: 50_000,
   COAL_MINE: 30_000,
@@ -20,6 +45,7 @@ export const BuildingCostCopper: Record<BuildingType, number> = {
   SILVER_MINE: 100_000,
   SMELTER: 40_000,
   MINTER: 80_000,
+  FARM: 8_000,
 }
 
 // Resource costs for buildings (Wood, Stone, etc.)
@@ -41,6 +67,7 @@ export const ResourceBuildingCosts: Record<BuildingType, Partial<ResourceMap>> =
   SILVER_MINE: { WOOD: 200, STONE: 200 },
   SMELTER: { WOOD: 50, STONE: 200 },
   MINTER: { WOOD: 50, STONE: 200, IRON_INGOT: 20 },
+  FARM: { WOOD: 30 },
 }
 
 // Focus options (percentage of coin kept; remaining is converted to items)
@@ -63,7 +90,8 @@ export const BuildingOutputChoices: Record<string, { options: string[] }> = {
   COPPER_MINE: { options: ['COPPER_ORE'] },
   SILVER_MINE: { options: ['SILVER_ORE'] },
   SMELTER: { options: ['IRON_INGOT', 'COPPER_INGOT', 'SILVER_INGOT'] },
-  MINTER: { options: [] }, // Mints coins from silver directly
+  MINTER: { options: [] },
+  FARM: { options: ['FOOD'] },
 }
 
 export const SmelterRecipes: Record<string, { input: Partial<ResourceMap> }> = {
@@ -83,12 +111,37 @@ export const ManufacturingRecipes: Record<string, Partial<ResourceMap>> = {
 }
 
 /**
- * Passive income / production math per spec:
- * - Base output/day = 10% of building cost (in copper).
- * - Keep `focusCoinPct`% as coin.
- * - Foregone coin is converted into items at **70%** of their market value.
- * - We return (coinGain, items to add, new fractional buffer).
+ * Passive income / production math:
+ * - Base output/day = 10% of building cost (in copper). Resource buildings use a fixed base.
+ * - Keep `focusCoinPct`% as coin; remaining value is converted to items at 70% market value.
+ * - Returns (coinGain, whole items produced, fractional remainder for next tick).
  */
+
+// Fixed daily output value (in copper) for resource buildings that don't scale with cost.
+const RESOURCE_BUILDING_BASE_VALUE: Partial<Record<string, number>> = {
+  WOOD: 500,   // ~10 wood/day at 50c/wood
+  STONE: 500,
+  FOOD: 800,   // ~16 food/day at 50c/food
+}
+
+// Food consumption per soldier per day (base, before rank modifier)
+const FOOD_BASE: Record<SoldierType, number> = {
+  LIGHT_INF_SWORD: 1, LIGHT_INF_SPEAR: 1, LIGHT_INF_HALBERD: 1,
+  HEAVY_INF_SWORD: 2, HEAVY_INF_SPEAR: 2, HEAVY_INF_HALBERD: 2,
+  LIGHT_ARCHER: 1,    HEAVY_ARCHER: 2,
+  LIGHT_CAV: 2,       HEAVY_CAV: 3,
+  HORSE_ARCHER: 2,
+}
+
+export function dailyFoodConsumption(units: Unit[]): number {
+  let total = 0
+  for (const u of units) {
+    const base = FOOD_BASE[u.type] ?? 1
+    for (const b of u.buckets) total += base * b.count
+  }
+  return total
+}
+
 export function passiveIncomeAndProduction(args: {
   costCopper: number
   focusCoinPct: (typeof FocusOptions)[number]
@@ -97,33 +150,10 @@ export function passiveIncomeAndProduction(args: {
 }): { coinGain: number; items: number; newBuffer: number } {
   const { costCopper, focusCoinPct, outputItem, fractionalBuffer } = args
 
-  if (!costCopper) return { coinGain: 0, items: 0, newBuffer: fractionalBuffer }
-
-  // Special case: Lumber Mill fixed at 10 Wood/day
-  if (outputItem === 'WOOD') {
-    const baseItems = 10
-    // If specific focus logic applies to resources, we can adjust, but usually resources are 100% production?
-    // User said "10 wood per day". Assuming 100% goods (0% coin).
-    // If the user uses the slider, what happens?
-    // "10 wood per day" implies that is the max output.
-    // Let's assume standard split logic applies to the *value* of 10 wood?
-    // OR simpler: It produces 10 Wood if focus is on goods.
-    // If the user explicitly requested "10 wood per day", I will force 10 wood if focus is < 100% coin?
-    // Let's stick to the simpler interpretation: It produces 10 Wood/day base.
-    // But wait, the slider exists.
-    // If I return fixed items:
-    const coinGain = 0 // Or should it generate coin? 
-    // "Lumber Mill ... output to 10 wood per day".
-    // I'll assume if they want wood, they get 10.
-    // Behavior: ignore slider for now or assume 0% coin focus for this building type?
-    // Let's just return fixed 10 items and 0 coin for now to satisfy the "10 wood" requirement.
-    return { coinGain: 0, items: 10, newBuffer: fractionalBuffer }
-  }
-
-  const basePerDay = 0.10 * costCopper
+  const basePerDay = RESOURCE_BUILDING_BASE_VALUE[outputItem] ?? (0.10 * costCopper)
+  if (!basePerDay) return { coinGain: 0, items: 0, newBuffer: fractionalBuffer }
 
   const coinGain = Math.round(basePerDay * (focusCoinPct / 100))
-
   const remainderValue = basePerDay - coinGain
   const mv = itemValueCopper(outputItem) || 0
 
@@ -131,9 +161,8 @@ export function passiveIncomeAndProduction(args: {
     return { coinGain, items: 0, newBuffer: fractionalBuffer }
   }
 
-  // Produce at 70% of market value (i.e., more items than buying)
+  // Produce at 70% of market value (manufacturing efficiency bonus)
   const itemsFloat = remainderValue / (0.7 * mv)
-
   const total = fractionalBuffer + itemsFloat
   const items = Math.floor(total)
   const newBuffer = total - items

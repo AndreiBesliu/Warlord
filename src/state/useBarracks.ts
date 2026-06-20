@@ -39,7 +39,13 @@ export default function useBarracks() {
   // plain recruit mutator (no logging here)
   const recruit = useCallback((qty: number) => {
     const n = Math.max(1, Math.floor(qty || 0))
-    setRecruits((prev: RecruitPool) => ({ count: (prev?.count ?? 0) + n, avgXP: 0 }))
+    setRecruits((prev: RecruitPool) => {
+      const oldCount = prev?.count ?? 0
+      const newCount = oldCount + n
+      // Blend avgXP: new recruits start at 0 XP, diluting the existing average
+      const newAvgXP = oldCount > 0 ? Math.floor((prev.avgXP * oldCount) / newCount) : 0
+      return { count: newCount, avgXP: newAvgXP }
+    })
   }, [])
 
   return {

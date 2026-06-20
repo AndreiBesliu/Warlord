@@ -63,6 +63,7 @@ export type Unit = {
   buckets: UnitBucket[];
   avgXP: number;
   training: boolean;
+  morale: number; // 0–100; afectează combat readiness
   equip: {
     weapons: Record<string, number>;
     armors: Record<string, number>;
@@ -74,7 +75,7 @@ export type Unit = {
 export type Building = {
   id: string;
   type: 'BARRACKS' | 'BLACKSMITH' | 'ARMORY' | 'WOODWORKER' | 'TAILOR' | 'STABLE' | 'MARKET' |
-  'LUMBER_MILL' | 'QUARRY' | 'IRON_MINE' | 'COAL_MINE' | 'COPPER_MINE' | 'SILVER_MINE' | 'SMELTER' | 'MINTER';
+  'LUMBER_MILL' | 'QUARRY' | 'IRON_MINE' | 'COAL_MINE' | 'COPPER_MINE' | 'SILVER_MINE' | 'SMELTER' | 'MINTER' | 'FARM';
   focusCoinPct: 0 | 20 | 40 | 60 | 80 | 100;
   outputItem?: string;
   fractionalBuffer: number;
@@ -82,11 +83,12 @@ export type Building = {
 
 export type ResourceType =
   | 'WOOD' | 'STONE' | 'IRON_ORE' | 'COAL' | 'COPPER_ORE' | 'SILVER_ORE'
-  | 'IRON_INGOT' | 'COPPER_INGOT' | 'SILVER_INGOT';
+  | 'IRON_INGOT' | 'COPPER_INGOT' | 'SILVER_INGOT'
+  | 'FOOD';
 
 export const ResourceTypes: ResourceType[] = [
   'WOOD', 'STONE', 'IRON_ORE', 'COAL', 'COPPER_ORE', 'SILVER_ORE',
-  'IRON_INGOT', 'COPPER_INGOT', 'SILVER_INGOT'
+  'IRON_INGOT', 'COPPER_INGOT', 'SILVER_INGOT', 'FOOD'
 ];
 
 export type ResourceMap = Record<ResourceType, number>;

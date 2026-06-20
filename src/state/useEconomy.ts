@@ -16,7 +16,8 @@ export function useEconomy(initialWallet = 5 * GOLD, defaultBuildings: () => Bui
   const [resources, setResources] = useState<ResourceMap>({
     WOOD: 100, STONE: 0,
     IRON_ORE: 0, COAL: 0, COPPER_ORE: 0, SILVER_ORE: 0,
-    IRON_INGOT: 0, COPPER_INGOT: 0, SILVER_INGOT: 0
+    IRON_INGOT: 0, COPPER_INGOT: 0, SILVER_INGOT: 0,
+    FOOD: 50,
   })
 
   const hasStable = buildings.some(b => b.type === 'STABLE')
