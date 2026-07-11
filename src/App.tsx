@@ -11,6 +11,7 @@ import MarketTab from './components/tabs/MarketTab'
 import OverviewTab from './components/tabs/OverviewTab'
 import UnitsTab from './components/tabs/UnitsTab'
 import LogTab from './components/tabs/LogTab'
+import CampaignTab from './components/tabs/CampaignTab'
 
 import BarracksTab from './components/tabs/BarracksTab'
 import { useGameState } from './state/useGameState'
@@ -98,7 +99,7 @@ export default function App() {
   const buildingsArr = buildings ?? []                   // <- safe fallback
   const owns = (t: string) => buildingsArr.some(b => b.type === t)
 
-  const [tab, setTab] = useState<'overview' | 'resources' | 'buildings' | 'barracks' | 'units' | 'market' | 'log'>('overview')
+  const [tab, setTab] = useState<'overview' | 'resources' | 'buildings' | 'barracks' | 'units' | 'market' | 'campaign' | 'log'>('overview')
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-4">
@@ -145,6 +146,7 @@ export default function App() {
           ['barracks', 'Barracks'],
           ['units', 'Units'],
           ['market', 'Market'],
+          ['campaign', 'Campaign'],
           ['log', 'Log']
         ].map(([k, label]) => (
           <button
@@ -168,6 +170,8 @@ export default function App() {
       {tab === 'units' && <UnitsTab state={state} />}
 
       {tab === 'market' && <MarketTab state={state} />}
+
+      {tab === 'campaign' && <CampaignTab state={state} />}
 
       {tab === 'log' && <LogTab state={state} />}
 

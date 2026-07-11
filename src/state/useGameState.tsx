@@ -22,6 +22,12 @@ import { computeReady, mergeUnits, splitUnit, applyMoraleChange } from '../logic
 import { Registry } from '../logic/registry'
 import { rollDailyEvent } from '../logic/events'
 import { loadSampleMod } from '../mods/sampleMod';
+import { useCampaign, emptyCampaign, type CampaignReward } from './useCampaign'
+import { applyCommand } from '../logic/combat/engine'
+import { chooseEnemyCommands } from '../logic/combat/ai'
+import { createBattle, MISSION_PRESETS, DIFFICULTIES } from '../logic/combat/enemies'
+import { applyBattleResult } from '../logic/combat/army'
+import type { Command, Difficulty } from '../logic/combat/types'
 
 // Initialize registry with core data
 Registry.init();
@@ -57,6 +63,7 @@ export function useGameState() {
   const econ = useEconomy(10 * GOLD, defaultBuildings)
   const barr = useBarracks()
   const unit = useUnits()
+  const camp = useCampaign()
 
   function hasFreeBatchSlot() {
     return barr.batches.length < batchSlots(barr.barracksLevel)
@@ -69,8 +76,9 @@ export function useGameState() {
       barracks: barr.barracks, barracksLevel: barr.barracksLevel,
       recruits: barr.recruits, batches: barr.batches,
       units: unit.units,
+      campaign: camp.campaign,
     }))
-  }, [day, log, econ.wallet, econ.inv, econ.buildings, econ.resources, barr.barracks, barr.barracksLevel, barr.recruits, barr.batches, unit.units]) // econ.resources included so resource-only changes persist
+  }, [day, log, econ.wallet, econ.inv, econ.buildings, econ.resources, barr.barracks, barr.barracksLevel, barr.recruits, barr.batches, unit.units, camp.campaign]) // econ.resources & camp.campaign included so those-only changes persist
 
   function loadSave() {
     const raw = localStorage.getItem('warlord_save')
@@ -87,6 +95,7 @@ export function useGameState() {
       barr.setRecruits(s.recruits ?? { count: 0, avgXP: 0 })
       barr.setBatches(s.batches ?? [])
       unit.setUnits(s.units ?? [])
+      camp.setCampaign(s.campaign ?? emptyCampaign())
       addLog('Loaded save.')
     } catch { addLog('Failed to load save.') }
   }
@@ -102,6 +111,7 @@ export function useGameState() {
     barr.setRecruits({ count: 0, avgXP: 0 })
     barr.setBatches([])
     unit.setUnits([])
+    camp.setCampaign(emptyCampaign())
   }
 
   // type HorseKey = 'LIGHT_HORSE' | 'HEAVY_HORSE'
@@ -563,6 +573,112 @@ export function useGameState() {
     addLog(`Recruited ${n} untyped recruits.`)
   }
 
+  // ---- Campaign / Combat ----
+
+  // Grant battle loot. Validation-free (loot is always non-negative); mirrors the
+  // daily-event effect applier — independent setState calls, never nested.
+  function grantLoot(reward: CampaignReward) {
+    if (reward.copper) econ.setWallet(w => w + reward.copper)
+    const res = reward.resources || {}
+    if (Object.keys(res).length) {
+      econ.setResources(prev => {
+        const n = { ...prev }
+        for (const [k, v] of Object.entries(res)) {
+          n[k as keyof ResourceMap] = Math.max(0, (n[k as keyof ResourceMap] || 0) + (v || 0))
+        }
+        return n
+      })
+    }
+  }
+
+  function startBattle(deployedUnitIds: string[], difficulty: Difficulty) {
+    if (camp.campaign.battle) { addLog('A battle is already in progress.'); return }
+    const chosen = unit.units.filter(u => deployedUnitIds.includes(u.id))
+    if (chosen.length === 0) { addLog('Select at least one unit to deploy.'); return }
+    // Seed selection is UI-level (not part of the deterministic engine); the battle is
+    // fully reproducible from the seed stored inside its state.
+    const seed = (Math.floor(Math.random() * 0x7fffffff)) >>> 0
+    const created = createBattle(chosen, difficulty, seed)
+    camp.setCampaign(c => ({
+      ...c,
+      battle: created.state,
+      deployedIds: created.deployedIds,
+      reward: created.reward,
+      lastResult: null,
+    }))
+    addLog(`⚔ Battle started: ${MISSION_PRESETS[difficulty].name} (${chosen.length} units vs enemy strength ${created.enemyStrength}).`)
+  }
+
+  // Apply one player command to the active battle.
+  function battleCommand(cmd: Command) {
+    camp.setCampaign(c => {
+      if (!c.battle) return c
+      return { ...c, battle: applyCommand(c.battle, cmd) }
+    })
+  }
+
+  // Resolve the whole ENEMY turn deterministically (AI plans, engine applies).
+  function runEnemyTurn() {
+    camp.setCampaign(c => {
+      if (!c.battle || c.battle.status !== 'ONGOING' || c.battle.side !== 'ENEMY') return c
+      let b = c.battle
+      for (const cmd of chooseEnemyCommands(b)) b = applyCommand(b, cmd)
+      return { ...c, battle: b }
+    })
+  }
+
+  // Collect the outcome of a finished battle: write casualties back into the army,
+  // pay loot on a win, update the W/L record, then clear the active battle.
+  function finishBattle() {
+    const c = camp.campaign
+    const b = c.battle
+    if (!b || b.status === 'ONGOING') return
+    const outcome = applyBattleResult(unit.units, b, c.deployedIds)
+    unit.setUnits(outcome.units)
+    const won = outcome.won
+    if (won && c.reward) grantLoot(c.reward)
+    const rewardText = won && c.reward
+      ? ` Loot: ${fmtCopper(c.reward.copper)}${Object.keys(c.reward.resources).length ? ' + resources' : ''}.`
+      : ''
+    addLog(`⚔ ${won ? 'Victory' : 'Defeat'} at ${MISSION_PRESETS[b.difficulty].name}! Lost ${outcome.totalLosses} soldiers${outcome.destroyed ? `, ${outcome.destroyed} units wiped out` : ''}, killed ${outcome.totalKills}.${rewardText}`)
+    camp.setCampaign(prev => ({
+      ...prev,
+      battle: null,
+      deployedIds: [],
+      reward: null,
+      record: { wins: prev.record.wins + (won ? 1 : 0), losses: prev.record.losses + (won ? 0 : 1) },
+      lastResult: {
+        difficulty: b.difficulty,
+        won,
+        totalLosses: outcome.totalLosses,
+        totalKills: outcome.totalKills,
+        destroyed: outcome.destroyed,
+        reward: won ? c.reward : null,
+      },
+    }))
+  }
+
+  function abandonBattle() {
+    if (!camp.campaign.battle) return
+    // Abandon = treat as a loss with the casualties taken so far (write-back still applies).
+    const b = camp.campaign.battle
+    const outcome = applyBattleResult(unit.units, { ...b, winner: 'ENEMY' }, camp.campaign.deployedIds)
+    unit.setUnits(outcome.units)
+    addLog(`⚑ Retreated from ${MISSION_PRESETS[b.difficulty].name}. Lost ${outcome.totalLosses} soldiers.`)
+    camp.setCampaign(prev => ({
+      ...prev,
+      battle: null,
+      deployedIds: [],
+      reward: null,
+      record: { ...prev.record, losses: prev.record.losses + 1 },
+      lastResult: { difficulty: b.difficulty, won: false, totalLosses: outcome.totalLosses, totalKills: outcome.totalKills, destroyed: outcome.destroyed, reward: null },
+    }))
+  }
+
+  function dismissBattleResult() {
+    camp.setCampaign(c => ({ ...c, lastResult: null }))
+  }
+
 
   // Re-export everything your tabs need (keep names the same as today)
   return {
@@ -605,6 +721,18 @@ export function useGameState() {
     // units slice passthroughs you had before…
     createUnitFromBarracks,   // <-- add this
     replenishUnit,            // <-- and this
+
+    // campaign / combat
+    campaign: camp.campaign,
+    MISSION_PRESETS,
+    DIFFICULTIES,
+    startBattle,
+    battleCommand,
+    runEnemyTurn,
+    finishBattle,
+    abandonBattle,
+    dismissBattleResult,
+    grantLoot,
   }
 
 

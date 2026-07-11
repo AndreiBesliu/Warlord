@@ -1,4 +1,5 @@
 import { Unit, UnitBucket } from './types';
+import type { CombatStats } from './combat/types';
 
 // Generic definition for an Item (Weapon, Armor, Horse)
 export interface ItemDef {
@@ -22,6 +23,9 @@ export interface UnitDef {
     };
     // Default loadout for equipping
     loadout: any;
+    // Optional combat stat overrides (moddable). Baked onto the Combatant at battle
+    // setup so the engine stays pure and the override travels in serialized state.
+    combat?: Partial<CombatStats>;
 }
 
 class GameRegistry {

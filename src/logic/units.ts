@@ -66,14 +66,23 @@ export const requiredCountsFor = (u: Unit): {
   return req
 }
 
-export const computeReady = (u: Unit): number => {
+// Soldiers actually equipped from the unit's own `equip` pool, capped by headcount.
+// NOTE: in the current game `u.equip` is left empty (gear is consumed from inventory
+// at unit creation, never stamped onto the unit), so this returns 0 for real units.
+// The combat bridge treats 0 here as "no equip data → use full headcount"; a future
+// fix that populates `u.equip` will make this a real cap for both readiness and combat.
+export const computeEquipped = (u: Unit): number => {
   const size = u.buckets.reduce((a, b) => a + b.count, 0)
   const req = requiredCountsFor(u)
   const caps: number[] = []
   for (const [w, n] of Object.entries(req.weapons)) caps.push(Math.floor(((u.equip.weapons[w as any] || 0) / (n as number)) * size))
   for (const [a, n] of Object.entries(req.armors)) caps.push(Math.floor(((u.equip.armors[a as any] || 0) / (n as number)) * size))
   for (const [h, n] of Object.entries(req.horses)) caps.push(Math.floor(((u.equip.horses[h as any] || 0) / (n as number)) * size))
-  const equipped = caps.length ? Math.min(size, ...caps) : size
+  return caps.length ? Math.min(size, ...caps) : size
+}
+
+export const computeReady = (u: Unit): number => {
+  const equipped = computeEquipped(u)
   // Morale reduces effective combat strength: 50 morale = 75% effectiveness, 0 = 50%
   const moraleFactor = 0.5 + 0.5 * ((u.morale ?? 100) / 100)
   return Math.floor(equipped * moraleFactor)
