@@ -10,6 +10,9 @@ Joc de strategie browser-based în React/TypeScript unde jucătorul gestionează
 4. **Moddable:** sistemul de Registry permite adăugarea de iteme/unități prin mods fără a modifica core-ul.
 5. **TypeScript strict:** nicio linie de `as any` nouă fără justificare. Build-ul TS trebuie să fie verde după fiecare task.
 
+## ⚠️ Sincronizare cu OurDaysApp (embed live)
+Warlord e embed-at ca joc single-player în OurDaysApp la ruta `/warlord` (live pe `our-days-2a939.web.app`). Codul de joc (`src/logic`, `src/state`, `src/components`, `src/mods`, `App.tsx→WarlordApp.tsx`, `src/assets`) e **copiat** în `Apps/OurDaysApp/src/warlord/`. Decizie Andrei (2026-07-11): **ambele copii se țin IDENTICE**. Orice modificare a codului de joc trebuie aplicată în AMBELE locuri. OurDaysApp are build mai strict (`verbatimModuleSyntax`, `noUnusedLocals/Parameters`) — folosește `import type` și fără importuri/variabile nefolosite ca să treacă acolo. `combat.test.ts`, `main.tsx`, `index.html`, `styles.css`, `declarations.d.ts` există DOAR în standalone (nu se copiază). PvP e viitor (`docs/PVP_INTEGRATION.md`).
+
 ## Fapte stabile (infra)
 - **Stack:** React 18 + TypeScript + Vite + Tailwind CSS
 - **State:** hooks custom (useGameState, useEconomy, useBarracks, useUnits) — fără Redux/Zustand

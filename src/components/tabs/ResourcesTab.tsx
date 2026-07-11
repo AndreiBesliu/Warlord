@@ -1,6 +1,5 @@
-import React from 'react'
 import Card from '../common/Card'
-import { ResourceMap, ResourceTypes } from '../../logic/types'
+import type { ResourceMap } from '../../logic/types'
 import { formatGameTooltip, getIconForGameItem } from '../../logic/iconHelpers'
 import GameIcon from '../common/GameIcon'
 

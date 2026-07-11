@@ -1,8 +1,5 @@
 
-import {
-    Ranks, type Rank, type BarracksPool, type RecruitPool, type Inventories,
-    type SoldierType, GOLD, isLightInf, isHeavyInf, isLightArcher, isHeavyArcher
-  } from './types'
+import { Ranks, type Rank, type BarracksPool, type SoldierType } from './types'
 
   export type BatchKind = 'LIGHT_TRAIN' | 'LIGHT_CAV' | 'HEAVY_CAV' | 'HORSE_ARCHER'
 

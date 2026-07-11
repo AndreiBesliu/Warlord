@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import GameIcon from './GameIcon'
 import MoneyDisplay from './MoneyDisplay'
 import { getIconForGameItem, formatGameTooltip } from '../../logic/iconHelpers'

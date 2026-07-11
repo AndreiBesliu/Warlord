@@ -1,12 +1,10 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import Card from '../common/Card'
-import { type Building, type BuildingType, type ResourceMap } from '../../logic/types'
+import { type Building, type ResourceMap } from '../../logic/types'
 import type { GameStateShape } from '../../state/useGameState'
-import GameIcon from '../common/GameIcon'
-import { getIconForGameItem, formatGameTooltip } from '../../logic/iconHelpers'
+import { formatGameTooltip } from '../../logic/iconHelpers'
 import MoneyDisplay from '../common/MoneyDisplay'
 import parchmentBg from '../../assets/parchment_bg.png'
-import { itemValueCopper } from '../../logic/items'
 import ProductionModal from '../buildings/ProductionModal'
 
 import bBarracks from '../../assets/building_barracks.png'
@@ -99,16 +97,13 @@ function PriceTag({ cost, resCost }: { cost: number, resCost?: Partial<ResourceM
 export default function BuildingsTab({ state, setTab }: Props) {
   const {
     buildings,
-    fmtCopper,
     BuildingCostCopper,
     ResourceBuildingCosts,
-    BuildingOutputChoices,
     buyBuilding,
     setBuildingFocus,
     setBuildingOutput,
     barracksLevel,
     upgradeBarracks,
-    barracksUpgradeCost,
   } = state
 
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null)

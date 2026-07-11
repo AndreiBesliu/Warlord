@@ -1,7 +1,6 @@
-import React from 'react'
 import { createPortal } from 'react-dom'
 import { type Building } from '../../logic/types'
-import { FocusOptions, passiveIncomeAndProduction, BuildingCostCopper, BuildingOutputChoices } from '../../logic/economy'
+import { BuildingCostCopper, BuildingOutputChoices } from '../../logic/economy'
 import { itemValueCopper } from '../../logic/items'
 import { getIconForGameItem } from '../../logic/iconHelpers'
 import MoneyDisplay from '../common/MoneyDisplay'

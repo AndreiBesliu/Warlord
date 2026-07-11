@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 
 export default function TrainRow({ label, onTrain }:{label:string; onTrain:(n:number)=>void}) {
   const [n, setN] = useState(20)

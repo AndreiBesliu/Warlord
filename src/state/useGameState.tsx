@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 //logic
 import { GOLD, fmtCopper, Ranks, type Rank, type SoldierType, type Building, type ResourceMap } from '../logic/types'
-import type { RecruitPool, Unit } from '../logic/types'
+import type { Unit } from '../logic/types'
 import { BuildingOutputChoices, BuildingCostCopper, FocusOptions, ResourceBuildingCosts } from '../logic/economy'
 import { makeEmptyInventories, isHorseKey, type HorseKey } from '../logic/helpers'
 import { demandFor, ensureEquipOrBuy } from '../logic/equipment'
 import { itemValueCopper } from '../logic/items'  // if you use buy/sell here
-import { batchSlots, batchDurationDays, newBatchId, enqueueBatch } from '../logic/batches' // or from your batches helper
+import { batchSlots, batchDurationDays } from '../logic/batches' // or from your batches helper
 import {
   queueLightTraining as qLight, queueLightCavConversion as qLC,
   queueHeavyConversion as qHC, queueHorseArcherConversion as qHA
@@ -56,7 +56,10 @@ export function useGameState() {
   const addLog = (s: string) => setLog(l => [`${new Date().toLocaleString()} — ${s} `, ...l])
 
 
-  const [units, setUnits] = useState<Unit[]>([])
+  // NOTE: this local units state is legacy/dead (the real list is unit.units from
+  // useUnits); doSplit/doMergeIfReady/toggleTraining still write to it. Kept as-is to
+  // stay identical to the standalone repo. The destructure drops the unused reader.
+  const [, setUnits] = useState<Unit[]>([])
   const [mergePick, setMergePick] = useState<string[]>([])
 
   // slices
@@ -64,10 +67,6 @@ export function useGameState() {
   const barr = useBarracks()
   const unit = useUnits()
   const camp = useCampaign()
-
-  function hasFreeBatchSlot() {
-    return barr.batches.length < batchSlots(barr.barracksLevel)
-  }
 
   useEffect(() => {
     localStorage.setItem('warlord_save', JSON.stringify({

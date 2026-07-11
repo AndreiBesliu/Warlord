@@ -1,4 +1,3 @@
-import React from 'react'
 import GameIcon from './GameIcon'
 import { GOLD, SILVER } from '../../logic/types'
 

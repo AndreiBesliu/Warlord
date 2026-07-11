@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { GOLD, fmtCopper, type Building, type ResourceMap, ResourceTypes, WeaponTypes, ArmorTypes, HorseTypes } from '../logic/types'
+import { GOLD, fmtCopper, type Building, type ResourceMap, ResourceTypes, WeaponTypes, ArmorTypes } from '../logic/types'
 import { BuildingCostCopper, BuildingOutputChoices, passiveIncomeAndProduction, SmelterRecipes, ManufacturingRecipes } from '../logic/economy'
 
 export function useEconomy(initialWallet = 5 * GOLD, defaultBuildings: () => Building[]) {

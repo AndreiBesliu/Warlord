@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import Card from '../common/Card'
 import RecruitForm from '../barracks/RecruitForm'
 import MoneyDisplay from '../common/MoneyDisplay'
@@ -158,7 +158,7 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
 // Extracted Training View for cleanliness
 function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => void }) {
   const {
-    recruits, queueLightTraining, queueHeavyConversion, queueLightCavConversion, queueHorseArcherConversion
+    queueLightTraining, queueHeavyConversion, queueLightCavConversion, queueHorseArcherConversion
   } = state
 
   const [lightType, setLightType] = useState<SoldierType>('LIGHT_INF_SPEAR')
@@ -170,7 +170,7 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
   const [haQty, setHaQty] = useState(10)
 
   // Reused Requirement Helper
-  const renderReqs = (qty: number, type?: string | undefined, unitId?: string, isHeavy?: boolean, heavySrcVal?: string) => {
+  const renderReqs = (qty: number, type?: string | undefined, unitId?: string, _isHeavy?: boolean, heavySrcVal?: string) => {
     // Custom logic for conversions OR Registry logic for training
     // If unitId is passed, use Registry
     if (unitId) {

@@ -1,5 +1,6 @@
 // src/logic/units.ts
-import { Rank, RankIndex, Unit, SoldierType } from './types'
+import { RankIndex } from './types'
+import type { Rank, Unit, SoldierType } from './types'
 
 import { Registry } from './registry';
 

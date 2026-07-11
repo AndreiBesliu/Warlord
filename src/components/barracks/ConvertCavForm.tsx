@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import { Ranks, SoldierTypes, type BarracksPool, type Rank, type SoldierType } from '../../logic/types'
+import { useEffect, useState } from 'react'
+import { Ranks, type BarracksPool, type Rank, type SoldierType } from '../../logic/types'
 
 export default function ConvertCavForm({
   barracks,

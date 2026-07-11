@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { SoldierTypes, Ranks, type SoldierType, type Rank, type BarracksPool } from '../../logic/types'
 import { demandFor, missingFromInventory } from '../../logic/equipment'
 

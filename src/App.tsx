@@ -1,10 +1,5 @@
 // src/App.tsx
-import React, { useEffect, useState } from 'react'
-import Card from './components/common/Card'
-import InvSummary from './components/common/InvSummary'
-import MarketPanel from './components/common/MarketPanel'
-import MissingEquipment from './components/units/MissingEquipment'
-import SplitMergeControls from './components/units/SplitMergeControls'
+import { useEffect, useState } from 'react'
 import BuildingsTab from './components/tabs/BuildingsTab'
 import ResourcesTab from './components/tabs/ResourcesTab'
 import MarketTab from './components/tabs/MarketTab'
@@ -15,7 +10,6 @@ import CampaignTab from './components/tabs/CampaignTab'
 
 import BarracksTab from './components/tabs/BarracksTab'
 import { useGameState } from './state/useGameState'
-import { WeaponPriceCopper, ArmorPriceCopper, HorsePriceCopper } from './logic/items'
 
 import { fmtCopper as fmtCopperUtil } from './logic/types'
 
@@ -83,21 +77,12 @@ export default function App() {
   }
 
   const {
-    // state
-    day, wallet, inv, buildings, units, mergePick, log,
-    // helpers
+    day, wallet,
     fmtCopper: fmtFromState,
-    BuildingCostCopper, BuildingOutputChoices,
-    FocusOptions, computeReady,
-    // actions
-    loadSave, resetAll, runDailyTick,
-    buyBuilding, setBuildingFocus, setBuildingOutput,
-    doSplit, togglePickForMerge, doMergeIfReady, toggleTraining,
+    loadSave, resetAll,
   } = state
 
   const fmtCopper = fmtFromState || fmtCopperUtil
-  const buildingsArr = buildings ?? []                   // <- safe fallback
-  const owns = (t: string) => buildingsArr.some(b => b.type === t)
 
   const [tab, setTab] = useState<'overview' | 'resources' | 'buildings' | 'barracks' | 'units' | 'market' | 'campaign' | 'log'>('overview')
 

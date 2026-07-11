@@ -1,4 +1,3 @@
-import React from 'react'
 import Card from '../common/Card'
 import InvSummary from '../common/InvSummary'
 import type { GameStateShape } from '../../state/useGameState'
@@ -6,7 +5,7 @@ import GameIcon from '../common/GameIcon'
 import MoneyDisplay from '../common/MoneyDisplay'
 
 export default function OverviewTab({ state }: { state: GameStateShape }) {
-  const { buildings, fmtCopper, wallet, inv } = state
+  const { buildings, wallet, inv } = state
   const buildingsArr = buildings ?? []
 
   return (

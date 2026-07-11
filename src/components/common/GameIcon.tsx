@@ -1,4 +1,3 @@
-import React from 'react'
 import coinSheet from '../../assets/game_icons/coins.png'
 import shieldIcon from '../../assets/game_icons/shield.png'
 import iconSword from '../../assets/game_icons/icon_sword.png'

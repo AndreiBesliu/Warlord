@@ -1,5 +1,5 @@
 // src/logic/economy.ts
-import { BuildingType, ResourceType, ResourceMap, SoldierType, Unit, Rank, RankNumber } from './types'
+import type { BuildingType, ResourceMap, SoldierType, Unit, Rank } from './types'
 import { itemValueCopper } from './items'
 
 // Daily upkeep cost per soldier (in copper), by type

@@ -1,9 +1,8 @@
-import React, { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Ranks, type BarracksPool, type Rank, type SoldierType } from '../../logic/types'
 import { demandFor, missingFromInventory } from '../../logic/equipment'
 
 export default function ReplenishForm({
-  unitId,
   unitType,
   pool,
   inv,

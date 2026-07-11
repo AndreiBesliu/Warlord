@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import Card from '../common/Card'
 import MarketPanel from '../common/MarketPanel'
 import { Registry } from '../../logic/registry'

@@ -51,14 +51,14 @@ export function itemValueCopper(subtype: string): number {
 // I'll keep the exports as `any` or minimal, but mainly implement `itemValueCopper`.
 
 export const WeaponPriceCopper: any = new Proxy({}, {
-  get: (target, prop) => itemValueCopper(String(prop)) || 0
+  get: (_target, prop) => itemValueCopper(String(prop)) || 0
 });
 
 export const ArmorPriceCopper: any = new Proxy({}, {
-  get: (target, prop) => itemValueCopper(String(prop)) || 0
+  get: (_target, prop) => itemValueCopper(String(prop)) || 0
 });
 
 export const HorsePriceCopper: any = new Proxy({}, {
-  get: (target, prop) => itemValueCopper(String(prop)) || 0
+  get: (_target, prop) => itemValueCopper(String(prop)) || 0
 });
 

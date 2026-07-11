@@ -1,4 +1,3 @@
-import { Unit, UnitBucket } from './types';
 import type { CombatStats } from './combat/types';
 
 // Generic definition for an Item (Weapon, Armor, Horse)

@@ -1,4 +1,3 @@
-import React from 'react'
 import { missingEquipmentList } from '../../logic/units'
 import type { Unit } from '../../logic/types'
 

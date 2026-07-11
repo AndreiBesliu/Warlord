@@ -7,7 +7,6 @@
 // never throws, so a bad client message can't desync a PvP match.
 
 import type { SoldierType } from '../types'
-import { RankNumber } from '../types'
 import type {
   BattleState, Combatant, Command, Side, TerrainType, BattleConfig, Difficulty, CombatStats,
 } from './types'

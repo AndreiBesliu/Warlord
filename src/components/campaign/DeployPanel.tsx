@@ -13,7 +13,7 @@ interface Props {
   onBack: () => void
 }
 
-export default function DeployPanel({ units, difficulty, preset, onConfirm, onBack }: Props) {
+export default function DeployPanel({ units, preset, onConfirm, onBack }: Props) {
   const [picked, setPicked] = useState<string[]>([])
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
 

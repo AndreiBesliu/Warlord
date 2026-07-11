@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import Card from '../common/Card'
 import MissingEquipment from '../units/MissingEquipment'
 import SplitMergeControls from '../units/SplitMergeControls'

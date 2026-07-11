@@ -4,7 +4,7 @@
 // into the real units, veterans survive preferentially, survivors gain XP, and
 // destroyed units are removed from the army.
 
-import type { Unit, UnitBucket, Rank, SoldierType, Weapon } from '../types'
+import type { Unit, UnitBucket, Rank, Weapon } from '../types'
 import { Ranks, RankNumber } from '../types'
 import { computeEquipped, computeUnitAvgXP } from '../units'
 import { Registry } from '../registry'

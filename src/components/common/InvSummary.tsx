@@ -1,4 +1,3 @@
-import React from 'react'
 import { Registry } from '../../logic/registry'
 import GameIcon from './GameIcon'
 import { getIconForGameItem } from '../../logic/iconHelpers'

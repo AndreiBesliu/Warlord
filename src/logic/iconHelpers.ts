@@ -1,4 +1,4 @@
-import { IconName } from '../components/common/GameIcon'
+import type { IconName } from '../components/common/GameIcon'
 
 export function getIconForGameItem(item: string): IconName | undefined {
     if (item.includes('SWORD')) return 'sword'

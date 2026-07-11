@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Ranks, type Rank, type SoldierType, type Unit } from '../logic/types'
+import type { Unit } from '../logic/types'
 import { computeReady, splitUnit, mergeUnits } from '../logic/units'
 import { demandFor, ensureEquipOrBuy } from '../logic/equipment'
 

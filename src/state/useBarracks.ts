@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Ranks, type Rank, type SoldierType, type BarracksPool, type RecruitPool } from '../logic/types'
+import { Ranks, type SoldierType, type BarracksPool, type RecruitPool } from '../logic/types'
 import { batchDurationDays, batchSlots, newBatchId, type TrainingBatch } from '../logic/batches'
 
 export function emptyBarracks(): BarracksPool {

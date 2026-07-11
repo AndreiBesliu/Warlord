@@ -1,7 +1,6 @@
-import React from 'react'
 import Card from '../common/Card'
 import type { GameStateShape } from '../../state/useGameState'
-import GameIcon, { IconName } from '../common/GameIcon'
+import GameIcon, { type IconName } from '../common/GameIcon'
 import { BuildingIcon, BuildingImages } from './BuildingsTab'
 import { getIconForGameItem, formatGameTooltip } from '../../logic/iconHelpers'
 
