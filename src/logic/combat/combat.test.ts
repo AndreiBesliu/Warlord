@@ -2,10 +2,11 @@ import { describe, it, expect } from 'vitest'
 import type { Rank, SoldierType, Unit } from '../types'
 import { RankNumber } from '../types'
 import type { BattleState, Combatant, Command, Side, TerrainType } from './types'
-import { applyCommand, buildBattle, estimateKills, combatantById } from './engine'
+import { applyCommand, buildBattle, estimateKills, combatantById, forecastAttack } from './engine'
 import { chooseEnemyCommands } from './ai'
-import { createBattle } from './enemies'
+import { createBattle, escalationMult, streakLootMult } from './enemies'
 import { unitToCombatant, applyBattleResult } from './army'
+import { promoteBuckets } from '../units'
 import { weaponVsMounted, weaponVsArmor } from './stats'
 import { Registry } from '../registry'
 
@@ -228,5 +229,102 @@ describe('full battle via createBattle + AI plays to resolution', () => {
     const b = play()
     expect(a.status).not.toBe('ONGOING')
     expect(JSON.stringify(a)).toEqual(JSON.stringify(b))
+  })
+})
+
+describe('rank promotion', () => {
+  it('promotes a bucket at its threshold, carrying overflow XP', () => {
+    const { buckets, promotions } = promoteBuckets([{ r: 'NOVICE', count: 20, avgXP: 120 }])
+    expect(promotions).toEqual([{ from: 'NOVICE', to: 'TRAINED', count: 20 }])
+    expect(buckets).toEqual([{ r: 'TRAINED', count: 20, avgXP: 20 }])
+  })
+
+  it('merges a promoted bucket into an existing higher bucket (weighted XP), conserving count', () => {
+    const input = [
+      { r: 'NOVICE' as Rank, count: 10, avgXP: 100 },
+      { r: 'TRAINED' as Rank, count: 30, avgXP: 40 },
+    ]
+    const { buckets, promotions } = promoteBuckets(input)
+    expect(promotions).toHaveLength(1)
+    expect(buckets).toHaveLength(1)
+    expect(buckets[0].r).toBe('TRAINED')
+    expect(buckets[0].count).toBe(40)
+    // weighted: (10*0 + 30*40)/40 = 30
+    expect(buckets[0].avgXP).toBe(30)
+    const total = (b: { count: number }[]) => b.reduce((a, x) => a + x.count, 0)
+    expect(total(buckets)).toBe(total(input))
+  })
+
+  it('returns the same reference when nothing promotes; ELITE never promotes', () => {
+    const stable = [{ r: 'ELITE' as Rank, count: 5, avgXP: 9999 }]
+    const res = promoteBuckets(stable)
+    expect(res.buckets).toBe(stable)
+    expect(res.promotions).toHaveLength(0)
+  })
+
+  it('battle XP can promote survivors via applyBattleResult', () => {
+    // 40 spearmen at 90 XP (10 short of TRAINED); big kill count → +XP crosses threshold
+    const u = makeUnit('u1', 'LIGHT_INF_SPEAR', [{ r: 'NOVICE', count: 40, avgXP: 90 }])
+    const c = { ...unitToCombatant(u, 'PLAYER', 0), hp: 40, kills: 30 } // xp = min(60, 100*30/40) = 60 → 150 ≥ 100
+    const finalState = buildBattle({
+      playerCombatants: [c], enemyCombatants: [], terrain: plains(4, 4),
+      width: 4, height: 4, seed: 1, difficulty: 'BANDIT_RAID',
+    })
+    finalState.winner = 'PLAYER'
+    const out = applyBattleResult([u], finalState, ['u1'])
+    expect(out.report[0].promotions).toEqual([{ from: 'NOVICE', to: 'TRAINED', count: 40 }])
+    expect(out.units[0].buckets[0].r).toBe('TRAINED')
+  })
+})
+
+describe('attack forecast', () => {
+  it('is pure: consumes no rng and matches the mean estimate', () => {
+    const s = buildBattle({
+      playerCombatants: [mk('P0', 'PLAYER', 'LIGHT_INF_SPEAR', 40, 5, 4)],
+      enemyCombatants: [mk('E0', 'ENEMY', 'LIGHT_CAV', 30, 5, 3)],
+      terrain: plains(12, 8), width: 12, height: 8, seed: 7, difficulty: 'BANDIT_RAID',
+    })
+    const before = JSON.stringify(s)
+    const f = forecastAttack(s, 'P0', 'E0')!
+    expect(JSON.stringify(s)).toBe(before) // no mutation
+    expect(s.rngCursor).toBe(0) // no rng consumed
+    expect(f.melee).toBe(true)
+    const a = combatantById(s, 'P0')!
+    const d = combatantById(s, 'E0')!
+    expect(f.kills).toBe(estimateKills(s, a, d, { isMelee: true }))
+    expect(f.retalKills).toBeGreaterThan(0) // survivor retaliates in melee
+  })
+
+  it('returns null for illegal targets and no retaliation for ranged', () => {
+    const s = buildBattle({
+      playerCombatants: [mk('P0', 'PLAYER', 'LIGHT_ARCHER', 30, 5, 5)],
+      enemyCombatants: [mk('E0', 'ENEMY', 'LIGHT_INF_SWORD', 30, 5, 2)],
+      terrain: plains(12, 8), width: 12, height: 8, seed: 7, difficulty: 'BANDIT_RAID',
+    })
+    expect(forecastAttack(s, 'P0', 'nope')).toBeNull()
+    const f = forecastAttack(s, 'P0', 'E0')!
+    expect(f.melee).toBe(false)
+    expect(f.retalKills).toBe(0)
+  })
+})
+
+describe('campaign escalation', () => {
+  it('escalationMult and streakLootMult scale 5%/step capped at 1.5', () => {
+    expect(escalationMult(0)).toBe(1)
+    expect(escalationMult(4)).toBeCloseTo(1.2)
+    expect(escalationMult(100)).toBe(1.5)
+    expect(streakLootMult(2)).toBeCloseTo(1.1)
+    expect(streakLootMult(999)).toBe(1.5)
+  })
+
+  it('ratioMult scales the generated enemy army strength and rewardMult the loot', () => {
+    const units = [makeUnit('u1', 'HEAVY_INF_SPEAR', [{ r: 'VETERAN', count: 100, avgXP: 80 }])]
+    const base = createBattle(units, 'RIVAL_BARON', 99).enemyStrength
+    const esc = createBattle(units, 'RIVAL_BARON', 99, { ratioMult: 1.5 }).enemyStrength
+    expect(esc).toBeGreaterThan(base)
+    expect(esc / base).toBeGreaterThan(1.3) // ≈1.5 modulo token rounding
+    const r1 = createBattle(units, 'RIVAL_BARON', 99).reward.copper
+    const r2 = createBattle(units, 'RIVAL_BARON', 99, { rewardMult: 1.5 }).reward.copper
+    expect(r2).toBeGreaterThan(r1)
   })
 })

@@ -73,6 +73,35 @@
 > Build: standalone `tsc --noEmit` ✅ + `test` ✅ (10/10); OurDaysApp `tsc -b` ✅ + `vite build` ✅ (Warlord = chunk lazy 118kB/gzip 32kB, bundle principal neschimbat) + deploy hosting ✅ (live: our-days-2a939.web.app/warlord).
 > Verificat local (bypass temporar de auth, revenit): Warlord se randează la /warlord fără erori de consolă; flux complet Load→Campaign→Deploy→March→grid de luptă funcțional în contextul embed.
 
+**2026-07-11 - Task Started (dezvoltare joc)**
+> Prompt: "vreau sa imbunatatim si sa dezvoltam jocul / deci? / limita este libera"
+> Plan: (1) fix dead-state split/merge/training; (2) promovare rank din XP + XP antrenament aplicat zilnic; (3) upgrade clădiri cu nivele; (4) progresie campanie (1 luptă/zi, escaladare, streak); (5) prognoză de atac + raport de bătălie; (6) salvări per-uid în embed. Sync ambele repo-uri + teste + review + deploy.
+> Model: Claude Opus 4.8
+
+**2026-07-11 - Task Completed (dezvoltare joc)**
+> Model: Claude Opus 4.8
+> BUG-URI REALE REPARATE:
+> - **Save pierdut la refresh** — useGameState scria save-ul la mount cu state proaspăt, suprascriind salvarea înainte de Load. Fix: hidratare la inițializare (`readSaveBlob` citit sincron în useState initializer; toate slice-urile — useEconomy/useBarracks/useUnits/useCampaign — primesc blob-ul). Refresh-ul păstrează acum progresul.
+> - **Dead-state**: doSplit/doMergeIfReady/toggleTraining scriau într-un `units` local mort → mutate pe `unit.setUnits` (butoanele Split/Merge/Training funcționează de-acum); checks înainte de setState.
+> - **XP fără destinație**: `trainingGainPerDay` nu era folosit nicăieri; unitățile în training nu primeau nimic.
+> FEATURES NOI:
+> - **Promovare în rank** (`units.ts`): `PROMOTE_AT` (NOVICE 100 / TRAINED 250 / ADVANCED 450 / VETERAN 700 → ELITE doar din luptă), `promoteBuckets` pur (conservare exactă, overflow XP purtat, merge ponderat în bucket-ul superior, same-ref când nu promovează nimic). Aplicat zilnic în `runDailyTick` (training) și post-luptă în `applyCasualtiesToUnit`.
+> - **Upgrade clădiri** (`economy.ts` + `BuildingsTab`): `Building.level` 1–3, output ×1.0/×1.3/×1.6 (`buildingLevelMult` în `passiveIncomeAndProduction`), cost upgrade = 60% × cost bază × nivel curent; badge L{n} real + buton UP (înlocuiește „LVL 1" hardcodat). BARRACKS/MARKET/STABLE excluse.
+> - **Progresie campanie** (`useCampaign` + `enemies.ts`): `lastBattleDay` (1 bătălie/zi — butonul Prepare devine „Resting 🏕"), `clears` per misiune → `escalationMult` (+5%/victorie, cap +50% forță inamică), `streak` → `streakLootMult` (+5%/victorie consecutivă, cap +50% pradă; reset la înfrângere/retragere). `createBattle(units, diff, seed, {ratioMult, rewardMult})`.
+> - **Prognoză de atac** (`engine.ts` + `CampaignTab`): `forecastAttack` pur (varianță medie, ZERO rng consumat, zero mutație — sigur pt PvP); panou lateral cu ținta, ~kills, ~pierderi la ripostă, ☠ letal, (ranged); click pe rând = atac.
+> - **Raport de bătălie** (`army.ts` + `ResultScreen`): `UnitReport[]` per unitate (fielded/lost/XP/promovări/💀) în `lastResult.report`; tabel în ecranul de rezultat.
+> - **Salvări per-uid în embed** (`App.tsx` + OurDaysApp `screens/Warlord.tsx`): prop `saveKey` scopează save + timerele autoTick; embed folosește `warlord_save_{uid}` cu migrare one-time din `warlord_save`.
+> COMPAT: save-urile vechi se hidratează cu defaults (`hydrateCampaign`, `level ?? 1`, `report?`).
+> Build: standalone `tsc` ✅ + `build` ✅ + Vitest **18/18** ✅ (6 teste noi: promovare/conservare/forecast-pur/escaladare); OurDaysApp `tsc -b` ✅ + `build` ✅ (chunk Warlord 126kB).
+> Verificat end-to-end în preview (embed): hidratare la refresh (Day 5 fără Load), save vechi fără crash, promovare NOVICE→TRAINED cu overflow 15 XP, FARM L1→L2 cu −4800c exact, lastBattleDay setat la start de luptă, panou forecast apărut la țintă în rază + atac prin panou (8 kills, ranged, fără ripostă) + ascuns după acțiune.
+> REVIEW ADVERSARIAL (workflow 19 agenți, 15 constatări confirmate = 9 distincte, toate reparate):
+> - CRITIC: schimbarea saveKey pe componentă montată suprascria save-ul noii chei cu state-ul vechii chei → `key={saveKey}` la <WarlordApp> în embed (remount = re-hidratare) + guard `hydratedKey` în useGameState (persist doar pentru cheia din care s-a hidratat).
+> - MAJOR: migrarea legacy `warlord_save` putea fi consumată de un render anonim → migrare doar cu uid real autentificat.
+> - MAJOR: `canPayUpkeep`/`foodShortage` calculate pe snapshot-ul PRE-venit (moral scădea deși upkeep-ul era de fapt plătit din venitul zilei) → `applyBuildingIncome` returnează `{walletDelta, resources}` post-producție, flag-urile se calculează pe valorile de azi.
+> - MAJOR: estimarea inamicului din DeployPanel ignora escaladarea (subestima) → primește `clears` + `escalationMult`.
+> - MINOR: setBarracks/addLog în interiorul updater-ului setBatches (dublare latentă în StrictMode) → pre-pass pur; kills-urile unităților distruse pierdute din raport → combatanții distruși rămân în array (hp 0, toți consumatorii filtrează hp>0), selecție curățată la moarte; resetAll nu golea mergePick → golit; tooltip UP zicea „+30%" mereu → arată multiplicatorul rezultat (×1.3/×1.6).
+> Post-fix: tsc ✅, 18/18 teste ✅, build ambele ✅, redeploy ✅.
+
 ### Session 2 — 2026-06-20
 
 **2026-06-20 - Task Started**
