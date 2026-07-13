@@ -1,9 +1,37 @@
 # Warlord PvP — Integration Design (OurDaysApp)
 
-> Status: **DESIGN ONLY.** The deterministic combat engine (`src/logic/combat/`) is built,
-> tested, and shipped for single-player PvE. This document specifies how to host a
-> Warlord *battle* as a real-time, server-authoritative multiplayer game inside
-> **OurDaysApp**'s arcade. Implement next session; nothing here is wired yet.
+> Status: **SHIPPED & LIVE (2026-07-12).** Server-authoritative PvP is implemented and
+> deployed. Actual implementation differs from parts of the design below — see
+> "Implemented vs designed" and "Known limitations (post-ship)".
+
+## Implemented vs designed (source of truth)
+- Challenge creation goes through a **`createWarlordChallenge` callable**, NOT a client
+  `addDoc`. The challenger's army is stored in an **Admin-only `warlordDeploys/{gameId}`**
+  doc so the opponent can't read it before committing (closes a counter-pick exploit the
+  first cut had). The public `games` doc has NO army data while `waiting`.
+- Callables: `createWarlordChallenge`, `acceptWarlordChallenge`, `submitWarlordCommand`,
+  `forfeitWarlordBattle`; trigger `onWarlordBattleUpdated` (turn/lifecycle FCM push).
+- Deploy sanitization drops BOTH `statsOverride` AND `loadoutWeapon` (a mismatched weapon
+  swapped `weaponClass` while keeping the type's range → a ranged unit with melee
+  counters; PvP is strictly vanilla stats now).
+- Engine copy lives at `OurDaysApp/functions/src/warlordCombat/` (3rd byte-identical copy).
+- Client UI: `OurDaysApp/src/warlordPvp/` + a Domain|PvP toggle in `screens/Warlord.tsx`.
+
+## Known limitations (post-ship, decide later)
+- **No turn timeout.** A player who stops moving stalls the match; the opponent's only
+  exit is `forfeitWarlordBattle` (a self-inflicted loss). A per-turn deadline +
+  `claimWarlordTimeout` callable (or a scheduled sweep + `chooseEnemyCommands` auto-play)
+  is the fix.
+- **Full information once playing.** `state` is readable by both players (same as Rummy
+  hands). Fog-of-war would need per-player subdocs.
+- **i18n:** PvP UI is English-only for now (per Andrei's standing decision for Warlord).
+- **Army provenance is unverifiable.** Deploy payloads are client-claimed (army lives in
+  localStorage); sanitizeDeploy BOUNDS them but can't prove them. A server-side domain
+  registry is the real fix if cheating becomes a concern.
+
+---
+
+> Original design (kept for reference; some parts superseded above):
 
 ---
 

@@ -10,6 +10,9 @@ Joc de strategie browser-based în React/TypeScript unde jucătorul gestionează
 4. **Moddable:** sistemul de Registry permite adăugarea de iteme/unități prin mods fără a modifica core-ul.
 5. **TypeScript strict:** nicio linie de `as any` nouă fără justificare. Build-ul TS trebuie să fie verde după fiecare task.
 
+## ⚠️ PvP server-authoritative (LIVE)
+PvP-ul între membrii unui grup rulează pe server: Cloud Functions în `Apps/OurDaysApp/functions/src/index.ts` (acceptWarlordChallenge / submitWarlordCommand / forfeitWarlordBattle / onWarlordBattleUpdated) rulează ACELAȘI motor pur. **A TREIA copie a motorului**: `logic/types.ts` + `logic/combat/{types,rng,stats,engine,pvp}.ts` există byte-identic și în `Apps/OurDaysApp/functions/src/warlordCombat/` — orice modificare la aceste fișiere se aplică în TOATE TREI locurile (verifică: `git diff --no-index <a> <b>`), apoi `firebase deploy --only functions`. Regulile Firestore (`firestore.rules`, blocul games) au fence pe `gameType == 'warlord-battle'` — câmpurile server-owned nu pot fi scrise de client. UI-ul PvP e OurDaysApp-only (`src/warlordPvp/`), NU face parte din codul sincronizat.
+
 ## ⚠️ Sincronizare cu OurDaysApp (embed live)
 Warlord e embed-at ca joc single-player în OurDaysApp la ruta `/warlord` (live pe `our-days-2a939.web.app`). Codul de joc (`src/logic`, `src/state`, `src/components`, `src/mods`, `App.tsx→WarlordApp.tsx`, `src/assets`) e **copiat** în `Apps/OurDaysApp/src/warlord/`. Decizie Andrei (2026-07-11): **ambele copii se țin IDENTICE**. Orice modificare a codului de joc trebuie aplicată în AMBELE locuri. OurDaysApp are build mai strict (`verbatimModuleSyntax`, `noUnusedLocals/Parameters`) — folosește `import type` și fără importuri/variabile nefolosite ca să treacă acolo. `combat.test.ts`, `main.tsx`, `index.html`, `styles.css`, `declarations.d.ts` există DOAR în standalone (nu se copiază). PvP e viitor (`docs/PVP_INTEGRATION.md`).
 

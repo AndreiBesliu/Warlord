@@ -7,6 +7,7 @@ import { chooseEnemyCommands } from './ai'
 import { createBattle, escalationMult, streakLootMult } from './enemies'
 import { unitToCombatant, applyBattleResult } from './army'
 import { promoteBuckets } from '../units'
+import { sanitizeDeploy, createPvpBattle, PVP_MAX_COMBATANTS, type DeployCombatantClaim } from './pvp'
 import { weaponVsMounted, weaponVsArmor } from './stats'
 import { Registry } from '../registry'
 
@@ -326,5 +327,97 @@ describe('campaign escalation', () => {
     const r1 = createBattle(units, 'RIVAL_BARON', 99).reward.copper
     const r2 = createBattle(units, 'RIVAL_BARON', 99, { rewardMult: 1.5 }).reward.copper
     expect(r2).toBeGreaterThan(r1)
+  })
+})
+
+describe('pvp: sanitizeDeploy', () => {
+  const claim = (over: Partial<DeployCombatantClaim> = {}): DeployCombatantClaim => ({
+    unitId: over.unitId ?? 'u1',
+    type: 'LIGHT_INF_SPEAR',
+    hp: 40,
+    morale: 90,
+    buckets: [{ r: 'VETERAN', count: 40, avgXP: 80 }],
+    ...over,
+  })
+  const wrap = (cs: DeployCombatantClaim[]) => ({ unitIds: cs.map(c => c.unitId), combatants: cs })
+
+  it('accepts a valid payload and derives server-owned fields', () => {
+    const res = sanitizeDeploy(wrap([claim()]), 'ENEMY')
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    const c = res.combatants[0]
+    expect(c.id).toBe('E0')
+    expect(c.side).toBe('ENEMY')
+    expect(c.hpStart).toBe(40)
+    expect(c.kills).toBe(0)
+    expect(c.x).toBe(-1)
+    expect(c.vet).toBe(3) // derived from VETERAN buckets, not claimable
+    expect('statsOverride' in c).toBe(false)
+  })
+
+  it('rejects oversize armies, absurd hp, and hp above bucket total', () => {
+    const many = Array.from({ length: PVP_MAX_COMBATANTS + 1 }, (_, i) => claim({ unitId: `u${i}` }))
+    expect(sanitizeDeploy(wrap(many), 'PLAYER').ok).toBe(false)
+    expect(sanitizeDeploy(wrap([claim({ hp: 501 })]), 'PLAYER').ok).toBe(false)
+    expect(sanitizeDeploy(wrap([claim({ hp: 41 })]), 'PLAYER').ok).toBe(false) // 41 > Σbuckets 40
+    expect(sanitizeDeploy(wrap([claim({ morale: 101 })]), 'PLAYER').ok).toBe(false)
+    expect(sanitizeDeploy(wrap([claim({ type: 'DRAGON' as any })]), 'PLAYER').ok).toBe(false)
+  })
+
+  it('ignores forged server-owned fields (vet/kills/statsOverride/loadoutWeapon cannot be claimed)', () => {
+    const forged: any = { ...claim(), vet: 4, kills: 999, statsOverride: { atk: 9999 }, hpStart: 9999, side: 'PLAYER', id: 'P99', loadoutWeapon: 'HALBERD' }
+    const res = sanitizeDeploy({ unitIds: ['u1'], combatants: [forged] }, 'ENEMY')
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    const c = res.combatants[0]
+    expect(c.kills).toBe(0)
+    expect(c.hpStart).toBe(40)
+    expect(c.side).toBe('ENEMY')
+    expect(c.id).toBe('E0')
+    expect((c as any).statsOverride).toBeUndefined()
+    // weapon-smuggling is closed: no loadoutWeapon reaches the combatant
+    expect((c as any).loadoutWeapon).toBeUndefined()
+  })
+
+  it('an archer with a smuggled halberd resolves to bow stats (range 3), not halberd', () => {
+    const forged: any = { unitId: 'a', type: 'LIGHT_ARCHER', hp: 30, morale: 100, buckets: [{ r: 'ELITE', count: 30, avgXP: 60 }], loadoutWeapon: 'HALBERD' }
+    const res = sanitizeDeploy({ unitIds: ['a'], combatants: [forged] }, 'PLAYER')
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect((res.combatants[0] as any).loadoutWeapon).toBeUndefined()
+  })
+})
+
+describe('pvp: createPvpBattle + defender write-back', () => {
+  const deploySide = (side: 'PLAYER' | 'ENEMY', ids: string[]) => {
+    const cs: DeployCombatantClaim[] = ids.map((id) => ({
+      unitId: id, type: 'LIGHT_INF_SWORD', hp: 30, morale: 100,
+      buckets: [{ r: 'TRAINED', count: 30, avgXP: 20 }],
+    }))
+    const res = sanitizeDeploy({ unitIds: ids, combatants: cs }, side)
+    if (!res.ok) throw new Error(res.error)
+    return res.combatants
+  }
+
+  it('is deterministic: same payloads + seed → identical state', () => {
+    const a = createPvpBattle(deploySide('PLAYER', ['a1', 'a2']), deploySide('ENEMY', ['b1']), 777)
+    const b = createPvpBattle(deploySide('PLAYER', ['a1', 'a2']), deploySide('ENEMY', ['b1']), 777)
+    expect(JSON.stringify(a)).toEqual(JSON.stringify(b))
+    expect(a.combatants.every((c) => c.x >= 0 && c.y >= 0)).toBe(true)
+  })
+
+  it('applyBattleResult with side=ENEMY applies the defender perspective', () => {
+    const state = createPvpBattle(deploySide('PLAYER', ['a1']), deploySide('ENEMY', ['b1']), 5)
+    state.status = 'ENEMY_WON'
+    state.winner = 'ENEMY'
+    // defender's local unit matching unitId b1
+    const defUnit = makeUnit('b1', 'LIGHT_INF_SWORD', [{ r: 'TRAINED', count: 30, avgXP: 20 }])
+    const out = applyBattleResult([defUnit], state, ['b1'], 'ENEMY')
+    expect(out.won).toBe(true) // ENEMY side won and we ARE the enemy side
+    expect(out.units).toHaveLength(1)
+    // and the challenger perspective on the same state loses
+    const chUnit = makeUnit('a1', 'LIGHT_INF_SWORD', [{ r: 'TRAINED', count: 30, avgXP: 20 }])
+    const outCh = applyBattleResult([chUnit], state, ['a1'], 'PLAYER')
+    expect(outCh.won).toBe(false)
   })
 })

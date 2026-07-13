@@ -102,6 +102,25 @@
 > - MINOR: setBarracks/addLog în interiorul updater-ului setBatches (dublare latentă în StrictMode) → pre-pass pur; kills-urile unităților distruse pierdute din raport → combatanții distruși rămân în array (hp 0, toți consumatorii filtrează hp>0), selecție curățată la moarte; resetAll nu golea mergePick → golit; tooltip UP zicea „+30%" mereu → arată multiplicatorul rezultat (×1.3/×1.6).
 > Post-fix: tsc ✅, 18/18 teste ✅, build ambele ✅, redeploy ✅.
 
+**2026-07-12 - Task Started (PvP server-authoritative)**
+> Prompt: "pvp" + decizii: server-authoritative de la început („securitate și anti-cheat bun, aplicația se extinde de la familie la social mai larg"), pierderi reale, push de tură.
+> Plan: modul pur `combat/pvp.ts` (sanitizeDeploy + createPvpBattle) în TOATE 3 copiile (standalone/embed/functions); 4 Cloud Functions (accept/submit/forfeit/turn-push) rulând ACELAȘI applyCommand; fence firestore.rules pe gameType warlord-battle; client OurDaysApp-only `src/warlordPvp/` cu optimistic UI + reconciliere prin determinism + write-back pierderi idempotent.
+> Model: Claude Opus 4.8
+
+**2026-07-12 - Task Completed (PvP server-authoritative)**
+> Model: Claude Opus 4.8
+> LIVRAT (server-authoritative, LIVE pe our-days-2a939.web.app/warlord → tab ⚔ PvP):
+> - Motor: `combat/pvp.ts` NOU pur (sanitizeDeploy — reconstruiește Combatant-uri curate cu caps ≤12 unități/≤500 per unitate/≤2000 total, vet derivat, statsOverride ȘI loadoutWeapon eliminate; createPvpBattle determinist). A TREIA copie byte-identică în `Apps/OurDaysApp/functions/src/warlordCombat/`. `army.ts applyBattleResult(side)` pt perspectiva ENEMY. 24 teste vitest.
+> - Cloud Functions (`OurDaysApp/functions/src/index.ts`): createWarlordChallenge, acceptWarlordChallenge, submitWarlordCommand, forfeitWarlordBattle (onCall + tranzacții) + onWarlordBattleUpdated (push „e tura ta"/„joined"/„battle over"). Toate rulează ACELAȘI applyCommand ca autoritate.
+> - firestore.rules: fence pe warlord-battle (create doar prin callable; update interzice state/winner/status/seed/deploy/players/finalized/etc.; delete doar waiting); colecția privată `warlordDeploys` interzisă total clientului.
+> - Client OurDaysApp-only `src/warlordPvp/` (pvpApi/PvpPanel/PvpBattle) + toggle Domain|PvP în screens/Warlord.tsx + branch GamesHubModal. Optimistic UI (applyCommand local) reconciliat cu doc-ul server prin determinism, rollback la applied:false. Pierderi reale idempotente (warlord_pvp_applied_{uid}).
+> REVIEW ADVERSARIAL (workflow, constatări confirmate reparate ÎNAINTE de ship-ul final):
+> - CRITIC: `loadoutWeapon` valida independent de `type` → arcaș-cu-halebardă (rază 3 fără ripostă + ×1.5 vs armură + fură scutul). FIX: `loadoutWeapon` eliminat complet din sanitizeDeploy (PvP = stats vanilla, arma mereu default-ul tipului). Test nou.
+> - MAJOR: adversarul putea citi armata provocatorului din doc înainte să-și aleagă a lui (counter-pick). FIX: crearea prin `createWarlordChallenge` (callable), armata provocatorului în `warlordDeploys/{gameId}` (Admin-only); doc-ul „waiting" n-are info de armată. Repară și verificarea de membru grup + validarea server la creare.
+> - MINOR: `finalized` adăugat la deny-list.
+> AMÂNAT (documentat în docs/PVP_INTEGRATION.md): fără timeout de tură (retragerea = portița); i18n engleză.
+> Build: standalone tsc+24 teste ✅; embed tsc ✅; functions tsc ✅; vite build ✅. Deploy: functions ✅ + rules ✅ + hosting ✅.
+
 ### Session 2 — 2026-06-20
 
 **2026-06-20 - Task Started**
