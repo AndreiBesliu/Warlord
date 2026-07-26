@@ -121,6 +121,15 @@
 > AMÂNAT (documentat în docs/PVP_INTEGRATION.md): fără timeout de tură (retragerea = portița); i18n engleză.
 > Build: standalone tsc+24 teste ✅; embed tsc ✅; functions tsc ✅; vite build ✅. Deploy: functions ✅ + rules ✅ + hosting ✅.
 
+**2026-07-12 - Task Completed (cont de joc cloud-sync)**
+> Prompt: "fiecare user al aplicatiei OurDaysApp are un cont separat pentru jocul Warlords...?" → decizie: toți userii = O lume; regatul fiecăruia devine cont real cross-device.
+> Model: Claude Opus 4.8
+> Persistență pluggable în `useGameState(saveKey, opts?)` (SYNCED): `opts.initialBlob` (cloud override) + `opts.onPersist(blob)` (scriere suplimentară, ex. cloud). Log plafonat la 300 (protejează doc-ul cloud). `App.tsx` propagă prop-urile. Standalone neschimbat (fără opts → localStorage). 24 teste.
+> OurDaysApp-only: `src/warlordCloud.ts` (loadWarlordDomain: cloud→localStorage + migrare local→cloud dacă cloud gol; saveWarlordDomain; createDomainSync debounced 2.5s + flush). `screens/Warlord.tsx`: încarcă cloud ÎNAINTE de mount (ready-gate + spinner), onPersist=writer debounced, flush la unmount/switch-view. PvP write-back (`writeLocalArmy`) împinge acum și în cloud. Rule nouă `warlordDomains/{uid}` owner-only.
+> Model salvare: localStorage = cache write-through + offline; Firestore `warlordDomains/{uid}` = sursă durabilă. Regatul urmează userul pe orice dispozitiv.
+> NOTAT (viziune, de construit ulterior): toți userii într-o singură lume, PvP dincolo de grupuri (grupurile = strat social: căutare/mesaje/invitații), legături joc↔app definite în sesiunea principală.
+> Build: standalone tsc+24 teste ✅; embed tsc+build ✅; deploy rules ✅ + hosting ✅. Verificat local: ready-gate hidratează Day 8, toggle Domain↔PvP fără pierdere, zero erori consolă.
+
 ### Session 2 — 2026-06-20
 
 **2026-06-20 - Task Started**
