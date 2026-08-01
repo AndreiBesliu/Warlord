@@ -42,6 +42,16 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-01 - Bug Fix (ziua nu avansa după ieșire/intrare în aplicație)**
+> Raport: „am lăsat jocul deschis și a ajuns la ziua 159, am ieșit și am intrat înapoi, iar ziua nu a avansat" + „timer-ul s-a resetat".
+> Model: Claude Opus 5
+> - **Cauza:** `App.tsx:46` — `n > Date.now() ? n : Date.now() + TICK_MS`. Termenul următoarei zile era un timestamp ținut lângă save (`${saveKey}:nextTickAt`) și era ARUNCAT dacă trecuse, la orice montare. Timpul petrecut cu jocul închis credita zero zile, numărătoarea repornea la 5:00, iar vizitele mai scurte de 5 minute nu avansau niciodată ziua.
+> - **NOU `src/logic/tick.ts`** (pur, testat): `planTicks(now, lastTickAt, tickMs, maxDays)` → `{ due, grant, forfeited, anchor, remainingMs }`. Ceasul e ancorat de `lastTickAt` — momentul ultimei zile încheiate — care intră ÎN SAVE (deci se sincronizează cu norul în embed, ca `day`). Numărătoarea e derivată din ancoră: fără derivă, fără reset la remontare.
+> - `useGameState`: `lastTickAt` în save + dep-array + `loadSave` + `resetAll` (cele 4 locuri); `runDailyTick(anchorTo?)` avansează ancora cu exact o fereastră, sau la un moment dat de apelant (butonul „Run Day").
+> - `App.tsx`: recuperarea rulează **o zi per commit** (`pendingDays`), pentru că `runDailyTick` citește snapshot-ul de render — N apeluri sincrone ar fi avansat ziua cu 1. Heartbeat-ul se instalează o singură dată și citește jocul printr-un ref (înainte avea `state`, obiect nou la fiecare render, în dependențe).
+> - Plafon implicit 24 de zile (2 ore reale), reglabil din admin (`GameConfig.tick()`: `minutesPerDay`, `maxOfflineDays`). Excedentul se pierde și ancora e rebazată, ca următoarea intrare să nu-l crediteze din nou. O singură linie de log pentru absență, ca `LOG_CAP` să nu șteargă istoricul.
+> - 68 teste verzi (15 noi), `npx tsc --noEmit` ✅, `npm run build` ✅, cele 2 copii identice. Verificarea live e în DEVLOG-ul OurDaysApp.
+
 **2026-08-01 - Task Started (admin de balans)**
 > Prompt: "adminul" — un admin de unde se configurează tot ce ține de balans. Decizii: aceiași admini ca OurDaysApp (`admins/{uid}`, panou separat, permisiune comună); scope v1 = tehnologii + buff-uri de momentum + economia de bază.
 > Plan: singleton `GameConfig` (model `Registry`) peste tabelele existente, pârghii care citesc din el, reparat modificatorii de research care nu ajungeau nicăieri, doc `warlordConfig/live` + reguli, panou în OurDaysApp.
