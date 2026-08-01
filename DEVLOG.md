@@ -121,6 +121,20 @@
 > AMÂNAT (documentat în docs/PVP_INTEGRATION.md): fără timeout de tură (retragerea = portița); i18n engleză.
 > Build: standalone tsc+24 teste ✅; embed tsc ✅; functions tsc ✅; vite build ✅. Deploy: functions ✅ + rules ✅ + hosting ✅.
 
+**2026-07-12 - Task Completed (Tech Tree + Momentum)**
+> Model: Claude Opus 4.8
+> LIVRAT (ultimul item din backlog-ul original):
+> - **Nucleu pur `logic/research/`**: `catalog.ts` — 12 tehnologii pe 4 ramuri × 3 trepte, DEFINITE CA DATE, cu `resolveCatalog(overrides)` (merge peste default; viitorul admin doar livrează un obiect de override — fără migrare). `effects.ts` — UN SINGUR obiect `Modifiers` + `applyDelta`/`clampModifiers` cu **plafoane** (economia nu poate exploda). `momentum.ts` — buff-uri temporare + `aggregate()`.
+> - **EFECTELE ÎNCRUCIȘATE cerute:** o victorie nu mai dă doar pradă — declanșează **War Spoils** (+25% producție 3z) ȘI **Martial Fervour** (+50% XP antrenament 3z); o cercetare terminată dă **Breakthrough** (+10% prod, +20% XP, 2z); o înfrângere/retragere dă **Licking Wounds** (−15% prod, 2z). Buff-urile trec prin ACEEAȘI agregare ca tehnologiile ⇒ o singură cale de efect, nu două sisteme. Re-câștigarea REÎMPROSPĂTEAZĂ buff-ul (nu-l stivuiește) — altfel o serie de victorii ar compune la infinit.
+> - **Pârghii backward-compatible** (default = fără efect): `passiveIncomeAndProduction(outputMult, craftEfficiency)`, `applyBuildingIncome(addNote, mods)`, `dailyUpkeepCopper/dailyFoodConsumption(units, mult)`, `batchDurationDays/batchSlots(level, delta)`, `trainingGainPerDay × mods.trainXpMult`, `rewardMult × mods.lootMult`, sloturi de training + `mods.trainSlotsDelta`, moral post-luptă.
+> - `useResearch` (model `useCampaign`, cu `hydrateResearch` tolerant la save-uri vechi) + `startResearch` (tiparul `buyBuilding`: toate verificările înainte de setState) + bloc în `runDailyTick` (pre-pass pur, ca la batch-uri) + save/deps/load/reset/export.
+> - `ResearchTab`: 4 coloane, stări blocat/disponibil/în curs/cercetat, bara de **Momentum** cu zilele rămase și panoul „Total effect".
+> DECIZIE: cercetarea afectează DOMENIUL, nu stat-urile de luptă — motorul (3 copii byte-identice) rămâne neatins, PvP-ul rămâne vanilla, iar avantajul se propagă onest prin trupe mai multe/mai bine antrenate. Arena „armate reale" va fi doar o decizie de includere a obiectului `Modifiers`.
+> BUG prins de verificarea LIVE (nu de teste): garda „s-a schimbat ceva?" din tick compara doar lungimile, iar decrementarea zilelor nu schimbă lungimea ⇒ cercetarea nu progresa niciodată. Acum scrie ori de câte ori există ceva în desfășurare.
+> Build: `tsc` ✅ + **40/40 teste** (16 noi) ✅ + `build` ✅ standalone; `tsc -b` ✅ + `build` ✅ embed; cele 10 fișiere verificate identice între copii (`diff -q`). Deploy hosting ✅.
+> Verificat live: costuri deduse exact (18000c + 50 lemn), zile 3→2→…→deblocat, Breakthrough auto-acordat, XP/zi 25 → 53 (35 bază după promovare × 1.25 tech × 1.2 buff), retragerea adaugă Licking Wounds fără să distrugă buff-ul existent, zero erori de consolă.
+> RĂMÂNE (notat): admin Warlord (editor peste `resolveCatalog`), Arene PvP, deblocările din ramura Doctrine încă nu filtrează UI-uri (ids expuse în `mods.unlocks`).
+
 **2026-07-12 - Task Completed (matchmaking GLOBAL — o singură lume)**
 > Prompt: "atacam acum" (după decizia: toți userii aplicației sunt jucători în ACEEAȘI lume; grupurile = strat social)
 > Model: Claude Opus 4.8
@@ -137,6 +151,11 @@
 > Model salvare: localStorage = cache write-through + offline; Firestore `warlordDomains/{uid}` = sursă durabilă. Regatul urmează userul pe orice dispozitiv.
 > NOTAT (viziune, de construit ulterior): toți userii într-o singură lume, PvP dincolo de grupuri (grupurile = strat social: căutare/mesaje/invitații), legături joc↔app definite în sesiunea principală.
 > Build: standalone tsc+24 teste ✅; embed tsc+build ✅; deploy rules ✅ + hosting ✅. Verificat local: ready-gate hidratează Day 8, toggle Domain↔PvP fără pierdere, zero erori consolă.
+
+**2026-07-12 - Task Started (Tech Tree + Momentum)**
+> Prompt: "tech tree" + cerințe: toate cele 4 ramuri; **efecte încrucișate subtile** („o victorie ar trebui să aducă și un boost temporar în economie, nu doar loot, și un XP boost temporar pentru unitățile în antrenament"); **un admin Warlord separat** de unde se configurează totul; context viitor: mai multe **Arene** PvP (vanilla / armate reale / custom sandbox).
+> Plan: nucleu pur `logic/research/` cu definițiile ca DATE (`resolveCatalog(overrides)` → admin-ul de mai târziu doar suprascrie, fără migrare) + UN SINGUR obiect `Modifiers` agregat din cercetări ȘI buff-uri temporare (aceeași cale de efect, nu două sisteme). Cercetarea afectează DOMENIUL (producție/antrenament/upkeep/pradă), NU stat-urile de luptă — motorul rămâne sigilat (3 copii byte-identice) și PvP-ul rămâne vanilla; avantajul se propagă onest prin trupe mai bune. Arena „armate reale" devine ulterior o decizie de includere a obiectului `Modifiers`.
+> Model: Claude Opus 4.8
 
 ### Session 2 — 2026-06-20
 
