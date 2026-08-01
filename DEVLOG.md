@@ -10,6 +10,17 @@
 
 ## 🚀 Active Roadmap & Backlog
 
+### 🔬 Research legat de lume — plan pe 4 felii (decis cu Andrei, 2026-08-01)
+**Felia 1 ✅ LIVRATĂ** (vezi Session Log): clădirea **Scriptorium** ca poartă a cercetării + cerințe de infrastructură per tehnologie (`TechDef.requiresBuildings`, tip + nivel).
+
+**Modelul agreat pentru feliile următoare** — progresul nu mai e o numărătoare de zile, ci **Studiu, resursă produsă zilnic**:
+- **Felia 2 — Studiu ca producție.** Rezervoare pe ramuri (Economy/Army/Campaign/Doctrine), alimentate de Scriptorium (nivel) + clădirile relevante fiecărei ramuri. **Fiecare clădire primește un al treilea slider: Research%**, care ia din producția curentă (monede vs. iteme) — logica lui Andrei: o clădire contribuie la cercetare fie prin resursele ei, fie prin timpul dedicat studiului în locul producției. Plus: **fonduri** (bani, randament descrescător, plafon zilnic) și **materiale dedicate** (pachet de resurse ⇒ multiplicator temporar pe proiectul activ).
+- **Felia 3 — Oameni.** Două roluri DISTINCTE: (a) **Head of Research / erou** — unul singur, permanent, care ridică șansa zilnică de *big leap* (salt mare de progres), influențată și de domeniul cercetat; (b) **experți angajați per proiect** — salariu zilnic în bucla de upkeep + **randament dramatic descrescător dacă îngrămădești mai mulți pe același domeniu** (cerință explicită Andrei), tot cu trăsături (Pedant / Alchimist / Veteran de campanie).
+- **Felia 4 — Consecințe.** Probe de teren (tehnologiile militare cer o bătălie purtată), eșecuri și eureka legate de buff-ul `BREAKTHROUGH` existent, și **deblocările din Doctrine să blocheze ceva real** (`GRAND_ARMORY`, `ELITE_DRILL` sunt azi promisiuni goale).
+- **Felia 5 (viziune Andrei, de detaliat) — Doctrine & Tradiții.** Jucătorul *impune* o doctrină; dacă o ține destul de mult, ea *naște o tradiție* permanentă (ex. Apprenticeship). Direcția: un sistem prin care jucătorul își personalizează regatul, nu doar un arbore de bonusuri. De proiectat separat, după felia 3.
+
+**Ce înseamnă trecerea de la zile la Studiu pentru restul producției** (întrebarea lui Andrei): tick-ul zilnic rămâne neatins — ziua e în continuare unitatea de timp pentru venituri, upkeep, hrană, loturi de antrenament și campanie. Se schimbă DOAR contorul unui proiect de cercetare: din „mai ai 3 zile" în „mai ai 120 de Studiu". Singura cuplare economică reală e sliderul Research% pe clădiri — acolo cercetarea chiar CONCUREAZĂ cu monedele și itemele, ceea ce e și scopul.
+
 ### 🎨 Revamp UI/UX + temă dark (CERUT de Andrei, 2026-08-01 — următorul lucru mare)
 > Motivul, în cuvintele lui: *„ma dor ochii incercand sa testez, dar sa mai si joc"*. Deci nu e cosmetică — e condiție ca jocul să poată fi testat și jucat sesiuni lungi.
 
@@ -72,6 +83,17 @@
 ## 📅 Session Log
 
 ### Session 4 — 2026-08-01
+
+**2026-08-01 - Task Completed (Research felia 1 — Scriptorium + cerințe de infrastructură)**
+> Prompt: „research ar trebui sa fie disponibil dupa ce se construieste o cladire anume, si anumite research options ar trebui sa fie influentate de unele cladiri si de nivelul lor de upgrade… vreau un sistem complex si realistic".
+> Model: Claude Opus 5
+> - **NOU: clădirea `SCRIPTORIUM`** (60.000 cupru + 60 Wood + 40 Stone, niveluri 1-3). Fără ea, tabul Research **nu există** în navigație, iar `startResearch` refuză orice proiect. Click pe Scriptorium în Buildings → deschide direct tabul Research (același comportament ca Barracks). Nu produce încă nimic — producția de Studiu vine în felia 2, deci e în lista de clădiri fără venit din `useEconomy`.
+> - **`TechDef.requiresBuildings`** — fiecare din cele 12 tehnologii cere infrastructura care o face plauzibilă (Improved Kilns ⇒ Smelter L2, War Academy ⇒ Barracks L3 + Armory L2, Grand Armory ⇒ Armory L3 + Scriptorium L2 etc.). Nou în `catalog.ts`: `missingBuildings()` (întoarce text gata de afișat: „Smelter L2 (you have L1)"), `buildingReqsMet()`, `hasResearchBuilding()`. Verificarea e ȘI în `startResearch`, nu doar în UI.
+> - Cardul blocat spune acum exact ce lipsește, pe două linii separate: tehnologii („Requires:") și clădiri („Needs:").
+> - Cerințele trec prin `resolveCatalog`, deci sunt **editabile din admin** (tabul JSON) ca orice altă valoare de balans; un override le poate înlocui sau șterge complet.
+> - **Bug găsit pe drum:** `FARM` exista în TOATE tabelele (cost, resurse, output, consum de hrană) dar **nu apărea în nicio listă de construcție** din `BuildingsTab` — nu puteai construi o fermă, deși hrana se consuma zilnic. Adăugată la `resTypes`.
+> - 79 teste verzi (11 noi în `logic/research/gating.test.ts`), tsc + build verzi, cele 2 copii identice.
+> - Verificat live: fără Scriptorium tabul Research lipsește din cele 8 taburi; după construire apare al 9-lea; cele 12 carduri afișează exact ce infrastructură le lipsește; construind un Blacksmith se deblochează fix un card (Iron Tools); pornirea cercetării scade banii și cele 4 lingouri și intră în coadă. Zero erori în consolă.
 
 **2026-08-01 - Bug Fix (ziua nu avansa după ieșire/intrare în aplicație)**
 > Raport: „am lăsat jocul deschis și a ajuns la ziua 159, am ieșit și am intrat înapoi, iar ziua nu a avansat" + „timer-ul s-a resetat".
