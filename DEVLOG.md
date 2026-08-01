@@ -121,6 +121,14 @@
 > AMÂNAT (documentat în docs/PVP_INTEGRATION.md): fără timeout de tură (retragerea = portița); i18n engleză.
 > Build: standalone tsc+24 teste ✅; embed tsc ✅; functions tsc ✅; vite build ✅. Deploy: functions ✅ + rules ✅ + hosting ✅.
 
+**2026-07-12 - Task Completed (matchmaking GLOBAL — o singură lume)**
+> Prompt: "atacam acum" (după decizia: toți userii aplicației sunt jucători în ACEEAȘI lume; grupurile = strat social)
+> Model: Claude Opus 4.8
+> PvP-ul era limitat la membrii unui grup comun. Acum ORICE user poate provoca pe ORICINE; grupurile/prietenii rămân doar scurtături de descoperire.
+> Totul e OurDaysApp-only (codul de joc sincronizat NU s-a schimbat): registru public `warlordPlayers/{uid}` (nume/nameLower/poză/putere + wins/losses scrise DOAR de server), `createWarlordChallenge` cu groupId opțional (etichetă, nu poartă) + notificare/push scrise direct de funcție, `recordWarlordResult` la fiecare final, selector de adversar din toată lumea (recenți + căutare + badge „known").
+> REPARAT în aceeași sesiune (prins de review-ul adversarial, era LIVE): `acceptWarlordChallenge` citea necondiționat `groups/${g.groupId}` — cu groupId null rezultă calea validă-dar-inexistentă „groups/null", deci ORICE provocare globală eșua cu permission-denied. Acum e ghidat de `battleGroupId` tipat; eticheta de grup, când există, se verifică în continuare.
+> Reguli: ramura de grup rămâne PRIMA (interogările arcade evaluează exact ca înainte) + gardă de null, ramura `players` gardată pe cheie.
+
 **2026-07-12 - Task Completed (cont de joc cloud-sync)**
 > Prompt: "fiecare user al aplicatiei OurDaysApp are un cont separat pentru jocul Warlords...?" → decizie: toți userii = O lume; regatul fiecăruia devine cont real cross-device.
 > Model: Claude Opus 4.8
