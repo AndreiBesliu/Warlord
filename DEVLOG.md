@@ -40,6 +40,23 @@
 
 ## 📅 Session Log
 
+### Session 4 — 2026-08-01
+
+**2026-08-01 - Task Started (admin de balans)**
+> Prompt: "adminul" — un admin de unde se configurează tot ce ține de balans. Decizii: aceiași admini ca OurDaysApp (`admins/{uid}`, panou separat, permisiune comună); scope v1 = tehnologii + buff-uri de momentum + economia de bază.
+> Plan: singleton `GameConfig` (model `Registry`) peste tabelele existente, pârghii care citesc din el, reparat modificatorii de research care nu ajungeau nicăieri, doc `warlordConfig/live` + reguli, panou în OurDaysApp.
+> Model: Claude Opus 5
+
+**2026-08-01 - Task Completed (admin de balans + modificatori reparați)**
+> Model: Claude Opus 5
+> - **NOU `src/logic/config.ts`** — singleton `GameConfig` cu override-uri peste DEFAULT-uri: prețuri clădiri (copper + resurse), valoarea de bază pe resursă, upkeep (bază + multiplicator de rank), hrană, antrenament (`baseDays`/`minDays`/`maxSlots`), presete de misiune, catalog de tehnologii, buff-uri. Valorile invalide (NaN, negative, tip greșit, id necunoscut) cad pe default — un typo în admin nu poate strica economia. Singleton pentru că `BuildingsTab`/`ProductionModal` citesc tabelele direct din module: o configurare pasată doar prin `useGameState` ar fi afișat un preț și ar fi încasat altul.
+> - **REPARAT — doi modificatori de research erau inerți.** `mods.buildCostMult` (Craft Guilds, Grand Armory) și `trainDaysDelta`/`trainSlotsDelta` (War Academy) apăreau în `ResearchTab` fără să ajungă nicăieri. Acum: `buildingCostCopper(type, mult)` e SINGURA sursă de preț (cumpărare, upgrade, PriceTag, tooltip), iar `enqueueBatch(…, daysDelta)` / `canEnqueue(…, extraSlots)` primesc deltele prin `Ctx.mods` din `training.ts`.
+> - **REPARAT — `ProductionModal` reimplementa formula de venit** (`0.10*cost`, `0.7*mv`), ignorând nivelul clădirii, valorile de bază pe resursă și bonusurile de research. Acum cheamă `passiveIncomeAndProduction`, exact funcția rulată de tick-ul zilnic. `useEconomy` folosește prețul din config drept bază de venit, FĂRĂ reducerea de research (o tehnologie de construcție ieftină nu trebuie să reducă și veniturile).
+> - Date resolvate: `missionPresets()` în `enemies.ts` și `resolveBuffs(overrides)` în `momentum.ts` (plus `onBattleWon/Lost/onResearchCompleted(buffs, table)`), lângă `resolveCatalog` existent. `useGameState` acceptă `opts.config`, inițializează `GameConfig` și exportă presetele resolvate + getterele de preț.
+> - Exportate ca DEFAULT-uri pentru panou: `UPKEEP_BASE`, `UPKEEP_RANK_MULT`, `FOOD_BASE`, `RESOURCE_BUILDING_BASE_VALUE`.
+> - `App.tsx` primește prop-ul `config` (embed-ul îl încarcă din Firestore înainte de montare). Panoul de admin + regulile trăiesc în OurDaysApp (`src/warlordAdmin/`, `warlordConfig/live`) — vezi DEVLOG-ul de acolo.
+> - `npx tsc --noEmit` ✅, `npm run build` ✅, 53 teste verzi (13 noi în `src/logic/config.test.ts`, inclusiv testele care dovedesc că modificatorii nu mai sunt inerți). Cele 2 copii de cod de joc identice (`diff -q`).
+
 ### Session 3 — 2026-07-11
 
 **2026-07-11 - Task Started**
