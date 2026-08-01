@@ -10,6 +10,37 @@
 
 ## 🚀 Active Roadmap & Backlog
 
+### 🎨 Revamp UI/UX + temă dark (CERUT de Andrei, 2026-08-01 — următorul lucru mare)
+> Motivul, în cuvintele lui: *„ma dor ochii incercand sa testez, dar sa mai si joc"*. Deci nu e cosmetică — e condiție ca jocul să poată fi testat și jucat sesiuni lungi.
+
+**Cauza directă a durerii de ochi:** jocul NU are temă dark, iar embed-ul o dezactivează explicit. `OurDaysApp/src/screens/Warlord.tsx` învelește jocul în `bg-white text-zinc-900 [color-scheme:light]` tocmai pentru că tot Warlord-ul folosește clase Tailwind deschise, fără variante `dark:`. Rezultat: chiar dacă OurDaysApp e pe dark, Warlord rămâne o placă albă pe tot ecranul. Lacătul ăsta se scoate ULTIMUL, după ce jocul chiar suportă dark.
+
+**Observații concrete (din sesiunea de testare + captura de pe ziua 159):**
+- **Suprafețe albe uriașe** — pagină albă + carduri albe, nimic pe care să se odihnească ochiul; contrast maxim pe toată suprafața, ore în șir.
+- **Costurile sunt șiruri de iconițe fără etichetă** — „🪙1 ⚙50 ▪40 ◪4 3d". Nu poți învăța ce e fiecare pictogramă, nu există tooltip, iar badge-ul de zile arată exact ca încă o resursă.
+- **„Cannot afford" nu spune CE lipsește** — buton gri, mort, fără „îți mai trebuie 30 Iron / 2 zile". Aceeași informație există deja în state, doar nu e arătată.
+- **Tehnologiile blocate (🔒) diferă de cele disponibile doar prin opacitate** — la fel și ierarhia T1/T2/T3, redusă la un badge mic în colț.
+- **Antetul e înghesuit** pe un singur rând: Day / Load / Reset / numărătoare / Pause Auto / Run Day. `Reset` (distructiv) stă lipit de `Load`, în linia principală.
+- **Bara de taburi = 9 pastile plate**, fără iconițe și fără grupare; tabul activ e un bloc negru greu. La 9 taburi ar trebui grupare (Domeniu / Militar / Extern) sau iconițe.
+- **Codul de culoare pe ramuri nu coboară în arbore** — Economy/Army/Campaign/Doctrine colorează doar cardurile T1; T2/T3 sunt gri, deci culoarea nu mai ajută la orientare exact acolo unde arborele devine complex.
+- **Panoul de Momentum ocupă o casetă mare ca să spună „nimic încă"** — spațiu care ar trebui să se contracte când e gol.
+- **Ierarhie tipografică plată** — titlu, cost, descriere și buton au greutăți apropiate; ochiul nu are unde să intre în card.
+- **Log-ul e un dump brut** cu timestamp complet pe fiecare linie; fără filtre (economie / luptă / cercetare) și fără grupare pe zile.
+- **Nemăsurat pe telefon** — layout `max-w-6xl` fix și grile de 4 coloane, deși aplicația-mamă e PWA/Capacitor și se deschide pe telefon.
+- **Panoul de admin** are aceeași problemă: liste lungi de câmpuri, tot pe alb, fără secțiuni pliabile.
+
+**Fundația tehnică (înainte de orice ecran):** jocul folosește clase Tailwind stock peste tot, deci soluția NU e să presar `dark:` prin 30 de fișiere, ci un set de **tokenuri semantice** (suprafață / suprafață-ridicată / text / text-slab / accent / avertisment) definite o dată și folosite de toate componentele. Abia apoi tema dark e o a doua valoare per token.
+
+**Constrângeri de care să ții cont:**
+- Cele **2 copii identice** (`games/warlord/src` ↔ `OurDaysApp/src/warlord`) — orice pasă de temă se aplică în ambele și se verifică cu `diff -q`.
+- Warlord e **English-only** prin decizie explicită, deci revamp-ul UI nu costă traduceri (spre deosebire de restul OurDaysApp).
+- Adminul cere autentificare ⇒ e punct orb la randare; verificarea lui rămâne pe seama owner-ului.
+
+**Decizii de luat cu Andrei înainte de implementare:**
+1. Tema dark a jocului **urmează tema OurDaysApp** (isDarkMode/customThemeIsDark din store) sau are comutator propriu în antet?
+2. Păstrăm direcția vizuală medievală (pergament, texturi, imaginile de clădiri) și o adaptăm la dark, sau trecem pe ceva plat/modern și lăsăm arta doar în modale?
+3. Revamp pe felii (întâi tokenuri + dark peste tot, apoi ecran cu ecran) sau redesign complet al unui singur tab ca prototip, aprobat, apoi restul?
+
 ### În curs / Următor
 - **Combat System (grid tactic)** 🔨 ÎN CURS — tab nou "Campaign", luptă tură-cu-tură pe grid; motor pur + determinist (RNG cu sămânță) reutilizabil server-side pentru PvP viitor; PvE acum + document design PvP (OurDaysApp)
 - **PvP în OurDaysApp** — integrare Warlord ca joc în arcade-ul OurDaysApp (Cloud Function autoritativ pe același motor); design în `docs/PVP_INTEGRATION.md`, implementare sesiune viitoare
