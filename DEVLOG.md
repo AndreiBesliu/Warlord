@@ -84,6 +84,18 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-02 - Task Completed (topbar cu resurse + prognoză zilnică)**
+> Prompt: „o sa vreau ca resursele sa poata fi vazute permanent in topbar, si vreau sa se vada si cat vor creste zilnic in functie de setarile cladirilor".
+> Model: Claude Opus 5
+> - **`simulateEconomyDay(input)` în `logic/economy.ts`** — o zi de economie ca funcție PURĂ. Corpul e ridicat verbatim din `useEconomy.applyBuildingIncome` (producție + rețete + minter + grajd), plus upkeep-ul soldaților și hrana. `useEconomy` a rămas un ambalaj de 25 de linii care doar comite rezultatul. **Prognoza nu e o a doua implementare — e ACEEAȘI funcție**, singurul mod în care numărul afișat nu poate devia de cel plătit (bug pe care proiectul l-a livrat deja de două ori).
+> - **`logic/forecast.ts`** — `forecastDay()` întoarce deltele exacte pe resursă, delta de monede, hrana cerută vs. consumată, zilele până la golire și clădirile blocate; `explainResource()` construiește explicația din același breakdown, deci tooltipul nu poate contrazice cifra.
+> - **`components/common/ResourceBar.tsx`** — bară persistentă în antet, vizibilă din orice tab: monede + fiecare resursă cu stocul și `+n/−n` pe zi. Hrana insuficientă colorează pastila în roșu; tooltipul spune cine produce, cine consumă și în câte zile se golește. Se recalculează la fiecare render **intenționat** — memoizarea pe `inv` ar fi greșită, pentru că `queueLightTraining` mută inventarul pe loc, fără să schimbe referința.
+> - **Trei minciuni de UI reparate, găsite de cartografiere:** (1) `ProductionModal` avea încă o ramură hardcodată `LUMBER_MILL + WOOD → 0 monede, 10 lemn` chiar sub comentariul care documenta postmortemul aceleiași erori — la focus 100 tick-ul plătește 500c și 0 lemn; (2) `OverviewTab` afirma „10% din cost / 70% valoare", formulă pe care jocul n-o mai folosea (clădirile de resurse au valori proprii, iar craftEfficiency intră în numitor); (3) `ResourcesTab` **omitea complet FOOD**, singura resursă consumată în fiecare zi.
+> - Reparat și un `NaN` latent: `nres[outItem] += maxAfford` la topirea într-un save fără cheia de lingou dădea `undefined + n` și otrăvea resursa permanent.
+> - **Ce scoate la iveală bara:** `buyBuilding` creează orice clădire cu `focusCoinPct: 100`, iar la focus 100 nu mai rămâne nimic de transformat în bunuri — **o fermă nou-construită produce 800 de monede și ZERO hrană**. Până acum nimic nu-ți spunea asta.
+> - 96 teste verzi (17 noi în `logic/forecast.test.ts`: ordinea clădirilor contează, deficitul se distruge, hrana se oprește la 0, punga NU, zilele până la golire, config-ul admin ajunge în prognoză).
+> - Verificat live: prognoza afișată (WOOD +15, IRON_ORE −38, COAL −19, IRON_INGOT +19, FOOD ±0, +800c) a coincis **exact** cu ce a produs apăsarea pe „Run Day"; cu 30 de soldați și 7 hrană pastila devine roșie, arată −7 (nu −30) și explică „needs 30 — starving, Empty in 1 day". Zero erori în consolă.
+
 **2026-08-01 - Task Completed (Research felia 1 — Scriptorium + cerințe de infrastructură)**
 > Prompt: „research ar trebui sa fie disponibil dupa ce se construieste o cladire anume, si anumite research options ar trebui sa fie influentate de unele cladiri si de nivelul lor de upgrade… vreau un sistem complex si realistic".
 > Model: Claude Opus 5
