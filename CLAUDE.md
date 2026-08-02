@@ -11,10 +11,32 @@ Joc de strategie browser-based în React/TypeScript unde jucătorul gestionează
 5. **TypeScript strict:** nicio linie de `as any` nouă fără justificare. Build-ul TS trebuie să fie verde după fiecare task.
 
 ## ⚠️ PvP server-authoritative (LIVE)
-PvP-ul între membrii unui grup rulează pe server: Cloud Functions în `Apps/OurDaysApp/functions/src/index.ts` (acceptWarlordChallenge / submitWarlordCommand / forfeitWarlordBattle / onWarlordBattleUpdated) rulează ACELAȘI motor pur. **A TREIA copie a motorului**: `logic/types.ts` + `logic/combat/{types,rng,stats,engine,pvp}.ts` există byte-identic și în `Apps/OurDaysApp/functions/src/warlordCombat/` — orice modificare la aceste fișiere se aplică în TOATE TREI locurile (verifică: `git diff --no-index <a> <b>`), apoi `firebase deploy --only functions`. Regulile Firestore (`firestore.rules`, blocul games) au fence pe `gameType == 'warlord-battle'` — câmpurile server-owned nu pot fi scrise de client. UI-ul PvP e OurDaysApp-only (`src/warlordPvp/`), NU face parte din codul sincronizat.
+PvP-ul între membrii unui grup rulează pe server: Cloud Functions în `Apps/OurDaysApp/functions/src/index.ts` (acceptWarlordChallenge / submitWarlordCommand / forfeitWarlordBattle / onWarlordBattleUpdated) rulează ACELAȘI motor pur. **Singura copie rămasă a motorului** (submodulul a eliminat-o pe cealaltă): `logic/types.ts` + `logic/combat/{types,rng,stats,engine,pvp}.ts` există byte-identic și în `Apps/OurDaysApp/functions/src/warlordCombat/`, pentru că funcțiile server rulează pe alt runtime și alt tsconfig. Orice modificare la aceste fișiere se aplică în AMBELE locuri (verifică: `git diff --no-index <a> <b>`), apoi `firebase deploy --only functions`. Regulile Firestore (`firestore.rules`, blocul games) au fence pe `gameType == 'warlord-battle'` — câmpurile server-owned nu pot fi scrise de client. UI-ul PvP e OurDaysApp-only (`src/warlordPvp/`), NU face parte din codul sincronizat.
 
-## ⚠️ Sincronizare cu OurDaysApp (embed live)
-Warlord e embed-at ca joc single-player în OurDaysApp la ruta `/warlord` (live pe `our-days-2a939.web.app`). Codul de joc (`src/logic`, `src/state`, `src/components`, `src/mods`, `App.tsx→WarlordApp.tsx`, `src/assets`) e **copiat** în `Apps/OurDaysApp/src/warlord/`. Decizie Andrei (2026-07-11): **ambele copii se țin IDENTICE**. Orice modificare a codului de joc trebuie aplicată în AMBELE locuri. OurDaysApp are build mai strict (`verbatimModuleSyntax`, `noUnusedLocals/Parameters`) — folosește `import type` și fără importuri/variabile nefolosite ca să treacă acolo. `combat.test.ts`, `main.tsx`, `index.html`, `styles.css`, `declarations.d.ts` există DOAR în standalone (nu se copiază). PvP e viitor (`docs/PVP_INTEGRATION.md`).
+## ⚠️ Cum ajunge jocul în OurDaysApp (SUBMODUL, nu copie)
+Warlord e un **produs propriu, cu repo propriu** — poate fi distribuit și prin alte canale,
+nu doar prin OurDaysApp. În același timp, jocul și aplicația trebuie să meargă împreună pe live.
+
+Din 2026-08-02 mecanismul e un **submodul git**: `OurDaysApp/src/warlord` **nu mai e o copie**,
+e un pointer către un commit din repo-ul ăsta. Nu mai există două copii de ținut identice —
+divergența a devenit imposibilă prin construcție. (Până atunci, codul era copiat fișier cu
+fișier și verificat cu `diff -q`; regula aceea nu mai există — dacă o găsești scrisă undeva,
+e depășită.)
+
+**Consecință pentru fluxul de lucru:** o modificare în joc cere DOUĂ commit-uri.
+1. Aici: commit + push în repo-ul Warlord.
+2. În OurDaysApp: `git -C src/warlord pull` (sau `git submodule update --remote`), apoi
+   commit care urcă pointerul + push. Fără pasul 2, live-ul rămâne pe versiunea veche.
+
+Aplicația importă jocul prin aliasul `@warlord/*` (→ `src/warlord/src/*`, definit în
+`vite.config.ts` + `tsconfig.app.json`), ca să nu depindă de structura internă a submodulului.
+`vite.config.ts` are și `dedupe: ['react','react-dom']` — submodulul își are propriul
+`node_modules` când e dezvoltat standalone, iar fără dedupe aplicația ar ajunge cu două
+copii de React (simptomul e „Invalid hook call”, nu o eroare de modul).
+
+Ce rămâne DOAR în OurDaysApp (nu face parte din joc): ecranul-înveliș `src/screens/Warlord.tsx`,
+sincronizarea în cloud `src/warlordCloud.ts`, UI-ul PvP `src/warlordPvp/`, panoul de admin
+`src/warlordAdmin/`.
 
 ## Fapte stabile (infra)
 - **Stack:** React 18 + TypeScript + Vite + Tailwind CSS
@@ -28,7 +50,7 @@ Warlord e embed-at ca joc single-player în OurDaysApp la ruta `/warlord` (live 
 - **Teste:** `npm run test` (Vitest) — motorul de combat are teste de determinism în `src/logic/combat/combat.test.ts`
 
 ## Reguli de lucru (hard)
-- **Sync workflow:** după FIECARE task: `npx tsc --noEmit` verde → `npm run build` verde → intrare în DEVLOG.md → commit → push
+- **Sync workflow:** după FIECARE task: `npx tsc --noEmit` verde → `npm run test -- --run` verde → `npm run build` verde → intrare în DEVLOG.md → commit → push → **urcă pointerul submodulului în OurDaysApp** (vezi secțiunea despre submodul)
 - **DEVLOG.md** (append-only): Task Started + Task Completed cu timestamp, prompt exact, model
 - **Plan mode** pentru orice feature care atinge mai mult de 2 fișiere
 - **Nu modifica proiectele-soră din `Apps\`** (CNCVectorStudio, DataRead, OurDaysApp, PrestoConstruct) — sunt doar referință/context. NOTĂ: warlord e acum EL ÎNSUȘI sub `Apps\games\warlord`, deci regula veche „nu atinge Apps\" NU se aplică lui warlord; poți edita liber în `Apps\games\warlord\`. (Excepție permisă: `Apps\.claude\launch.json`, unde e configul de preview `warlord`.)
