@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Verification only. The GitHub Pages deploy job that used to live here failed on every
+# push from 2025-12-04 (no `permissions: contents: write`, so the token could not create
+# the gh-pages branch) and e-mailed a failure each time. Publishing the game as its own
+# public site is a real option — re-add the job WITH the write permission and enable
+# Pages in the repo settings when that channel is actually wanted.
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: npm run test -- --run
+
+      - name: Build
+        run: npm run build

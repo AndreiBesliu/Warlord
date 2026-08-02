@@ -1,21 +1,30 @@
-# Warlord — ARCHIVED
+# Warlord
 
-**This repository is no longer where Warlord is developed.** As of 2026-08-02 the game
-lives inside the OurDaysApp repository, which is also where it is played:
+Browser strategy game in React + TypeScript: run a medieval domain — buildings, resources,
+equipment, unit training, research, and turn-by-turn grid battles. Offline-first; the whole
+game runs in the browser with the save in localStorage.
 
-- Source (single copy): `src/warlord/**` in <https://github.com/AndreiBesliu/ourdaysapp>
-- Live: <https://our-days-2a939.web.app/warlord>
-- Standalone dev harness (no auth, no cloud): `npm run dev:warlord` in that repo
+**This repo is the game's home.** It is developed and versioned here on purpose: the game is
+its own product and may be distributed through channels other than the app it currently ships
+in (its own site, a PWA, another host).
 
-## Why it moved
+## Where it runs today
 
-The game code existed as **two byte-identical copies** — this repo and
-`OurDaysApp/src/warlord/` — kept in sync by hand on every change. That duplication was a
-permanent tax and a permanent risk: a fix applied to one copy and not the other is
-invisible until it reaches a player. There is now one copy.
+- Inside **OurDaysApp** at `/warlord` — live at <https://our-days-2a939.web.app/warlord>.
+  There it also gets what a standalone build cannot have: a cloud-synced kingdom per user,
+  server-authoritative PvP, and an admin panel for balance.
+- **On its own**: `npm run dev` for the game alone, `npm run build` for a static bundle.
 
-The CI here was also failing on every push since 2025-12-04 (it tried to publish to
-GitHub Pages with a read-only token, so the `gh-pages` branch was never created), sending
-a failure e-mail each time. That workflow has been removed.
+## Commands
 
-This repo is kept for its history. Nothing here is built, deployed or maintained.
+```bash
+npm run dev          # dev server
+npm run build        # production build
+npx tsc --noEmit     # type check
+npm run test         # Vitest (96 tests)
+```
+
+## Working on it
+
+See `CLAUDE.md` for the architecture map, the hard rules, and the known traps.
+`DEVLOG.md` is the append-only history.
