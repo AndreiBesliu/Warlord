@@ -20,13 +20,13 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
       <Card title="Barracks Hub" className="relative p-0 overflow-hidden select-none">
 
         {/* Main Scene Container */}
-        <div className="relative w-full aspect-[2/1] bg-gray-900 overflow-hidden">
-          <img src={barracksScene} className="w-full h-full object-cover" alt="Barracks Scene" draggable={false} />
+        <div className="relative w-full aspect-[2/1] bg-wl-panel-contrast overflow-hidden">
+          <img src={barracksScene} className="wl-scene w-full h-full object-cover" alt="Barracks Scene" draggable={false} />
 
           {/* CLICK ZONES */}
           {/* 1. Training Yard (Left) */}
           <div
-            className="absolute top-[20%] left-[5%] w-[35%] h-[60%] cursor-pointer group hover:bg-white/10 rounded-xl transition-all border-2 border-transparent hover:border-yellow-400/50"
+            className="absolute top-[20%] left-[5%] w-[35%] h-[60%] cursor-pointer group hover:bg-white/10 rounded-xl transition-all border-2 border-transparent hover:border-wl-accent/50"
             onClick={() => setView('TRAINING')}
             title="Training Yard"
           >
@@ -37,7 +37,7 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
 
           {/* 2. Recruitment Tent (Right) */}
           <div
-            className="absolute top-[30%] right-[5%] w-[30%] h-[50%] cursor-pointer group hover:bg-white/10 rounded-xl transition-all border-2 border-transparent hover:border-blue-400/50"
+            className="absolute top-[30%] right-[5%] w-[30%] h-[50%] cursor-pointer group hover:bg-white/10 rounded-xl transition-all border-2 border-transparent hover:border-wl-info/50"
             onClick={() => setView('RECRUIT')}
             title="Recruitment"
           >
@@ -48,7 +48,7 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
 
           {/* 3. Headquarters (Top Center) */}
           <div
-            className="absolute top-[5%] left-[40%] w-[20%] h-[40%] cursor-pointer group hover:bg-white/10 rounded-xl transition-all border-2 border-transparent hover:border-red-400/50"
+            className="absolute top-[5%] left-[40%] w-[20%] h-[40%] cursor-pointer group hover:bg-white/10 rounded-xl transition-all border-2 border-transparent hover:border-wl-bad/50"
             onClick={() => setView('MANAGEMENT')}
             title="Management"
           >
@@ -65,7 +65,7 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
           </div>
         </div>
 
-        <div className="p-4 text-sm text-gray-500 text-center">
+        <div className="p-4 text-sm text-wl-muted text-center">
           Click on an area to enter. Hover for details.
         </div>
       </Card>
@@ -76,7 +76,7 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
   const BackBtn = () => (
     <button
       onClick={() => setView('SCENE')}
-      className="mb-4 text-sm text-blue-600 hover:underline flex items-center gap-1"
+      className="mb-4 text-sm text-wl-info hover:underline flex items-center gap-1"
     >
       ← Back to Barracks Scene
     </button>
@@ -89,7 +89,7 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
         <BackBtn />
         <div className="p-2">
           <RecruitForm onRecruit={(qty) => state.recruit(qty)} />
-          <div className="mt-4 text-sm text-gray-600">
+          <div className="mt-4 text-sm text-wl-muted">
             Current Untyped Recruits: <span className="font-bold">{state.recruits.count}</span>
           </div>
         </div>
@@ -106,7 +106,7 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
       <Card title="Headquarters">
         <BackBtn />
         <div className="grid md:grid-cols-2 gap-4">
-          <div className="border rounded p-4">
+          <div className="border border-wl-line rounded p-4">
             <h3 className="font-semibold mb-2">Facility Status</h3>
             <div className="text-sm space-y-2">
               <div>Level: <span className="font-bold">{barracksLevel}</span></div>
@@ -115,30 +115,30 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
             </div>
             <div className="mt-4">
               <button
-                className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50 disabled:bg-gray-400 flex items-center gap-2 shadow hover:bg-blue-700 transition"
+                className="px-4 py-2 bg-wl-info text-wl-inverse rounded disabled:opacity-50 disabled:bg-wl-subtle flex items-center gap-2 shadow hover:bg-wl-info/90 transition"
                 disabled={barracksLevel >= 5 || !hasCostFn}
                 onClick={upgradeBarracks}
               >
                 Upgrade Barracks
-                {barracksLevel < 5 && hasCostFn && <span className="text-blue-100 text-xs">(<MoneyDisplay amount={nextCost} size={12} className="inline-flex text-white" />)</span>}
-                {barracksLevel >= 5 && <span className="text-blue-100 text-xs">(Max)</span>}
+                {barracksLevel < 5 && hasCostFn && <span className="text-wl-inverse/80 text-xs">(<MoneyDisplay amount={nextCost} size={12} className="inline-flex text-wl-inverse" />)</span>}
+                {barracksLevel >= 5 && <span className="text-wl-inverse/80 text-xs">(Max)</span>}
               </button>
             </div>
           </div>
 
-          <div className="border rounded p-4">
+          <div className="border border-wl-line rounded p-4">
             <h3 className="font-semibold mb-2">Active Batches ({batches.length})</h3>
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {batches.length === 0 && <div className="text-sm text-gray-500">No active training batches.</div>}
+              {batches.length === 0 && <div className="text-sm text-wl-muted">No active training batches.</div>}
               {batches.map((b: any) => (
-                <div key={b.id} className="border rounded p-2 text-sm bg-gray-50">
+                <div key={b.id} className="border border-wl-line rounded p-2 text-sm bg-wl-panel-muted">
                   <div className="flex justify-between font-bold">
                     <span>{b.kind}</span>
-                    <span className="text-xs font-mono text-gray-400">{b.id.slice(0, 4)}</span>
+                    <span className="text-xs font-mono text-wl-subtle">{b.id.slice(0, 4)}</span>
                   </div>
                   <div>Target: {b.target}{b.fromType ? ` (from ${b.fromType})` : ''}</div>
                   <div>Qty: {b.qty}</div>
-                  <div className="text-blue-600 font-semibold">Days remaining: {b.daysRemaining}</div>
+                  <div className="text-wl-info font-semibold">Days remaining: {b.daysRemaining}</div>
                 </div>
               ))}
             </div>
@@ -186,13 +186,13 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
       };
       add(weapons); add(armors); add(horses);
 
-      if (list.length === 0) return <div className="text-xs text-green-600 mt-2">No gear required.</div>;
+      if (list.length === 0) return <div className="text-xs text-wl-good mt-2">No gear required.</div>;
 
       return (
         <div className="flex flex-wrap gap-4 mt-2">
-          <span className="text-xs text-gray-500 flex items-center">Requires:</span>
+          <span className="text-xs text-wl-muted flex items-center">Requires:</span>
           {list.map(item => (
-            <div key={item.id} className="flex items-center gap-1 text-xs text-gray-700">
+            <div key={item.id} className="flex items-center gap-1 text-xs text-wl-ink">
               <GameIcon name={getIconForGameItem(item.id) || 'sword'} size={24} />
               <span className="font-mono">{item.count}</span>
               <span>{item.name}</span>
@@ -207,8 +207,8 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
       // Light Cav: 1 Light Horse
       return (
         <div className="flex flex-wrap gap-4 mt-2">
-          <div className="flex items-center gap-1 text-xs text-gray-700">
-            <span className="text-gray-500 mr-1">Requires:</span>
+          <div className="flex items-center gap-1 text-xs text-wl-ink">
+            <span className="text-wl-muted mr-1">Requires:</span>
             <GameIcon name="light_horse" size={24} />
             <span className="font-mono">{qty}</span>
             <span>Light Horse</span>
@@ -219,8 +219,8 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
     if (type === 'HORSE_ARCHER') {
       return (
         <div className="flex flex-wrap gap-4 mt-2">
-          <div className="flex items-center gap-1 text-xs text-gray-700">
-            <span className="text-gray-500 mr-1">Requires:</span>
+          <div className="flex items-center gap-1 text-xs text-wl-ink">
+            <span className="text-wl-muted mr-1">Requires:</span>
             <GameIcon name="light_horse" size={24} />
             <span className="font-mono">{qty}</span>
             <span>Light Horse</span>
@@ -231,8 +231,8 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
     if (type === 'HEAVY_CAV') {
       return (
         <div className="flex flex-wrap gap-4 mt-2">
-          <div className="flex items-center gap-1 text-xs text-gray-700">
-            <span className="text-gray-500 mr-1">Requires:</span>
+          <div className="flex items-center gap-1 text-xs text-wl-ink">
+            <span className="text-wl-muted mr-1">Requires:</span>
             <div className="flex items-center gap-1">
               <GameIcon name="heavy_horse" size={24} />
               <span className="font-mono">{qty}</span>
@@ -261,7 +261,7 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
     <Card title="Training Grounds">
       <button
         onClick={onBack}
-        className="mb-4 text-sm text-blue-600 hover:underline flex items-center gap-1"
+        className="mb-4 text-sm text-wl-info hover:underline flex items-center gap-1"
       >
         ← Back to Barracks Scene
       </button>
@@ -269,13 +269,13 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
       <div className="space-y-6">
 
         {/* Basic Training */}
-        <div className="border rounded p-4 bg-white shadow-sm">
-          <div className="font-semibold mb-2 text-lg border-b pb-1">Basic Training</div>
-          <div className="text-sm text-gray-500 mb-2">Train untyped recruits into specialized light infantry.</div>
+        <div className="border border-wl-line rounded p-4 bg-wl-panel shadow-sm">
+          <div className="font-semibold mb-2 text-lg border-b border-wl-line pb-1">Basic Training</div>
+          <div className="text-sm text-wl-muted mb-2">Train untyped recruits into specialized light infantry.</div>
           <div className="flex gap-4 items-end flex-wrap">
             <div className="flex flex-col">
               <label className="text-sm font-medium">Target Unit</label>
-              <select className="border rounded px-2 py-1 bg-gray-50" value={lightType} onChange={e => setLightType(e.target.value as SoldierType)}>
+              <select className="border border-wl-line rounded px-2 py-1 bg-wl-panel-muted" value={lightType} onChange={e => setLightType(e.target.value as SoldierType)}>
                 {Registry.getAllUnits()
                   .filter(u => u.id.startsWith('LIGHT_INF') || u.id === 'LIGHT_ARCHER')
                   .map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -283,10 +283,10 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
             </div>
             <div className="flex flex-col">
               <label className="text-sm font-medium">Quantity</label>
-              <input className="border rounded px-2 py-1 w-24 bg-gray-50" type="number" min={1} max={50}
+              <input className="border border-wl-line rounded px-2 py-1 w-24 bg-wl-panel-muted" type="number" min={1} max={50}
                 value={lightQty} onChange={e => setLightQty(Math.max(1, Math.min(50, parseInt(e.target.value || '1'))))} />
             </div>
-            <button className="px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700" onClick={() => queueLightTraining(lightType, lightQty)}>
+            <button className="px-4 py-1 bg-wl-good text-wl-inverse rounded hover:bg-wl-good/90" onClick={() => queueLightTraining(lightType, lightQty)}>
               Train Batch
             </button>
           </div>
@@ -297,22 +297,22 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
         <div className="grid md:grid-cols-2 gap-4">
 
           {/* Light Cav */}
-          <div className="border rounded p-4 bg-white shadow-sm">
-            <div className="font-semibold mb-2 border-b pb-1">Light Cavalry Conversion</div>
+          <div className="border border-wl-line rounded p-4 bg-wl-panel shadow-sm">
+            <div className="font-semibold mb-2 border-b border-wl-line pb-1">Light Cavalry Conversion</div>
             <div className="flex gap-2 items-end">
               <div className="flex flex-col grow">
                 <label className="text-xs">From (Novice+)</label>
-                <select className="border rounded px-2 py-1 text-sm w-full" value={lcSrc} onChange={e => setLcSrc(e.target.value as SoldierType)}>
+                <select className="border border-wl-line rounded px-2 py-1 text-sm w-full" value={lcSrc} onChange={e => setLcSrc(e.target.value as SoldierType)}>
                   {(['LIGHT_INF_SWORD', 'LIGHT_INF_SPEAR', 'LIGHT_INF_HALBERD'] as SoldierType[])
                     .map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div className="flex flex-col">
                 <label className="text-xs">Qty</label>
-                <input className="border rounded px-2 py-1 w-16 text-sm" type="number" min={1} max={50}
+                <input className="border border-wl-line rounded px-2 py-1 w-16 text-sm" type="number" min={1} max={50}
                   value={lcQty} onChange={e => setLcQty(Math.max(1, Math.min(50, parseInt(e.target.value || '1'))))} />
               </div>
-              <button className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-100 text-sm" onClick={() => queueLightCavConversion(lcSrc, lcQty)}>
+              <button className="px-3 py-1 border border-wl-line rounded hover:bg-wl-panel-muted text-sm" onClick={() => queueLightCavConversion(lcSrc, lcQty)}>
                 Queue
               </button>
             </div>
@@ -320,18 +320,18 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
           </div>
 
           {/* Horse Archer */}
-          <div className="border rounded p-4 bg-white shadow-sm">
-            <div className="font-semibold mb-2 border-b pb-1">Horse Archer Conversion</div>
+          <div className="border border-wl-line rounded p-4 bg-wl-panel shadow-sm">
+            <div className="font-semibold mb-2 border-b border-wl-line pb-1">Horse Archer Conversion</div>
             <div className="flex gap-2 items-end">
               <div className="flex flex-col grow">
-                <div className="text-sm py-1 text-gray-600">From LIGHT_ARCHER (Adv+)</div>
+                <div className="text-sm py-1 text-wl-muted">From LIGHT_ARCHER (Adv+)</div>
               </div>
               <div className="flex flex-col">
                 <label className="text-xs">Qty</label>
-                <input className="border rounded px-2 py-1 w-16 text-sm" type="number" min={1} max={50}
+                <input className="border border-wl-line rounded px-2 py-1 w-16 text-sm" type="number" min={1} max={50}
                   value={haQty} onChange={e => setHaQty(Math.max(1, Math.min(50, parseInt(e.target.value || '1'))))} />
               </div>
-              <button className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-100 text-sm" onClick={() => queueHorseArcherConversion(haQty)}>
+              <button className="px-3 py-1 border border-wl-line rounded hover:bg-wl-panel-muted text-sm" onClick={() => queueHorseArcherConversion(haQty)}>
                 Queue
               </button>
             </div>
@@ -340,22 +340,22 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
         </div>
 
         {/* Heavy Cav (Full Width) */}
-        <div className="border rounded p-4 bg-white shadow-sm">
-          <div className="font-semibold mb-2 border-b pb-1">Heavy Cavalry Conversion</div>
+        <div className="border border-wl-line rounded p-4 bg-wl-panel shadow-sm">
+          <div className="font-semibold mb-2 border-b border-wl-line pb-1">Heavy Cavalry Conversion</div>
           <div className="flex gap-4 items-end flex-wrap">
             <div className="flex flex-col">
               <label className="text-sm">From (Advanced+)</label>
-              <select className="border rounded px-2 py-1 text-sm bg-gray-50" value={heavySrc} onChange={e => setHeavySrc(e.target.value as SoldierType)}>
+              <select className="border border-wl-line rounded px-2 py-1 text-sm bg-wl-panel-muted" value={heavySrc} onChange={e => setHeavySrc(e.target.value as SoldierType)}>
                 {(['LIGHT_CAV', 'HEAVY_INF_SWORD', 'HEAVY_INF_SPEAR', 'HEAVY_INF_HALBERD'] as SoldierType[])
                   .map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div className="flex flex-col">
               <label className="text-sm">Quantity</label>
-              <input className="border rounded px-2 py-1 w-20 text-sm bg-gray-50" type="number" min={1} max={50}
+              <input className="border border-wl-line rounded px-2 py-1 w-20 text-sm bg-wl-panel-muted" type="number" min={1} max={50}
                 value={heavyQty} onChange={e => setHeavyQty(Math.max(1, Math.min(50, parseInt(e.target.value || '1'))))} />
             </div>
-            <button className="px-4 py-1 bg-gray-800 text-white rounded hover:bg-black text-sm" onClick={() => queueHeavyConversion(heavySrc, heavyQty)}>
+            <button className="px-4 py-1 bg-wl-accent text-wl-accent-ink rounded hover:bg-wl-accent/90 text-sm" onClick={() => queueHeavyConversion(heavySrc, heavyQty)}>
               Initialize Conversion
             </button>
           </div>

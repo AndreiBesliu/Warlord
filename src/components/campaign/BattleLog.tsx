@@ -36,7 +36,7 @@ export default function BattleLog({ battle }: { battle: BattleState }) {
   return (
     <div className="text-xs font-mono space-y-0.5 max-h-[380px] overflow-auto">
       {entries.map(({ i, e, text }) => (
-        <div key={i} className={e.side === 'PLAYER' ? 'text-blue-800' : e.kind === 'end_turn' || e.kind === 'start' || e.kind === 'victory' ? 'text-stone-500' : 'text-red-800'}>
+        <div key={i} className={e.side === 'PLAYER' ? 'text-wl-info' : e.kind === 'end_turn' || e.kind === 'start' || e.kind === 'victory' ? 'text-wl-muted' : 'text-wl-bad'}>
           {text}
         </div>
       ))}

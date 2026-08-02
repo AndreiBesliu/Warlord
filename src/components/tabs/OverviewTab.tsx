@@ -17,7 +17,7 @@ export default function OverviewTab({ state }: { state: GameStateShape }) {
             </li>
           ))}
         </ul>
-        <div className="text-xs text-gray-500 mt-2">
+        <div className="text-xs text-wl-muted mt-2">
           Coin/day scales with the building price (or its resource value), its level and research. Coin you give up becomes goods — see the bar at the top for what tomorrow actually brings.
         </div>
       </Card>

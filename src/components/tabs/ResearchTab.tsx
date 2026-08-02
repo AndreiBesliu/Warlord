@@ -9,17 +9,17 @@ import { getIconForGameItem, formatGameTooltip } from '../../logic/iconHelpers'
 const BRANCHES: Branch[] = ['ECONOMY', 'ARMY', 'CAMPAIGN', 'UNLOCKS']
 
 const BRANCH_STYLE: Record<Branch, string> = {
-  ECONOMY: 'bg-amber-50 border-amber-300',
-  ARMY: 'bg-red-50 border-red-300',
-  CAMPAIGN: 'bg-blue-50 border-blue-300',
-  UNLOCKS: 'bg-violet-50 border-violet-300',
+  ECONOMY: 'bg-wl-economy-surface border-wl-economy',
+  ARMY: 'bg-wl-army-surface border-wl-army',
+  CAMPAIGN: 'bg-wl-campaign-surface border-wl-campaign',
+  UNLOCKS: 'bg-wl-doctrine-surface border-wl-doctrine',
 }
 
 const BRANCH_HEAD: Record<Branch, string> = {
-  ECONOMY: 'text-amber-900',
-  ARMY: 'text-red-900',
-  CAMPAIGN: 'text-blue-900',
-  UNLOCKS: 'text-violet-900',
+  ECONOMY: 'text-wl-economy',
+  ARMY: 'text-wl-army',
+  CAMPAIGN: 'text-wl-campaign',
+  UNLOCKS: 'text-wl-doctrine',
 }
 
 // Human-readable summary of the aggregated modifiers — so the player can always see
@@ -61,28 +61,28 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
                 <div
                   key={b.id}
                   title={b.desc}
-                  className={`px-3 py-2 rounded-lg border text-sm ${b.good ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}
+                  className={`px-3 py-2 rounded-lg border text-sm ${b.good ? 'bg-wl-good-surface border-wl-good' : 'bg-wl-bad-surface border-wl-bad'}`}
                 >
                   <div className="font-semibold">{b.good ? '🔥' : '🩸'} {b.name}</div>
-                  <div className="text-xs text-stone-600">{b.daysRemaining}d left</div>
+                  <div className="text-xs text-wl-muted">{b.daysRemaining}d left</div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-stone-600">
+            <p className="text-sm text-wl-muted">
               No active momentum. Win a battle or finish a research project — victories lift
               your workshops and your soldiers in training for a few days.
             </p>
           )}
 
-          <div className="border-t pt-2">
-            <div className="text-xs uppercase tracking-wide text-stone-500 mb-1">Total effect</div>
+          <div className="border-t border-wl-line pt-2">
+            <div className="text-xs uppercase tracking-wide text-wl-muted mb-1">Total effect</div>
             {effects.length === 0 ? (
-              <span className="text-sm text-stone-500">Nothing researched yet.</span>
+              <span className="text-sm text-wl-muted">Nothing researched yet.</span>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {effects.map((e) => (
-                  <span key={e} className="text-xs font-mono px-2 py-1 rounded bg-stone-100 border">{e}</span>
+                  <span key={e} className="text-xs font-mono px-2 py-1 rounded bg-wl-panel-muted border border-wl-line">{e}</span>
                 ))}
               </div>
             )}
@@ -110,20 +110,20 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
                 return (
                   <div
                     key={t.id}
-                    className={`border rounded-lg p-3 ${done ? 'bg-green-50 border-green-300' : busy ? 'bg-yellow-50 border-yellow-400' : ready ? BRANCH_STYLE[branch] : 'bg-stone-100 border-stone-300 opacity-70'}`}
+                    className={`border rounded-lg p-3 ${done ? 'bg-wl-good-surface border-wl-good' : busy ? 'bg-wl-warn-surface border-wl-warn' : ready ? BRANCH_STYLE[branch] : 'bg-wl-panel-muted border-wl-line opacity-70'}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="font-semibold text-sm">
                         {done ? '✔ ' : busy ? '⏳ ' : !ready ? '🔒 ' : ''}{t.name}
                       </div>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/70 border font-mono">T{t.tier}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-wl-panel/70 border border-wl-line font-mono">T{t.tier}</span>
                     </div>
-                    <p className="text-xs text-stone-600 mt-1 min-h-[32px]">{t.desc}</p>
+                    <p className="text-xs text-wl-muted mt-1 min-h-[32px]">{t.desc}</p>
 
-                    {done && <div className="text-xs text-green-800 font-semibold">Researched</div>}
+                    {done && <div className="text-xs text-wl-good font-semibold">Researched</div>}
 
                     {busy && (
-                      <div className="text-xs text-yellow-900 font-semibold">
+                      <div className="text-xs text-wl-warn font-semibold">
                         In progress — {busy.daysRemaining} day{busy.daysRemaining > 1 ? 's' : ''} left
                       </div>
                     )}
@@ -138,10 +138,10 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
                               <span className="font-mono">{amt as number}</span>
                             </span>
                           ))}
-                          <span className="text-stone-500 font-mono">{t.days}d</span>
+                          <span className="text-wl-muted font-mono">{t.days}d</span>
                         </div>
                         {!ready ? (
-                          <div className="text-xs text-stone-500 mt-1">
+                          <div className="text-xs text-wl-muted mt-1">
                             {missingReq.length > 0 && <div>Requires: {missingReq.join(', ')}</div>}
                             {missingB.length > 0 && <div>Needs: {missingB.join(', ')}</div>}
                           </div>
@@ -149,7 +149,7 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
                           <button
                             onClick={() => startResearch(t.id)}
                             disabled={!affordable}
-                            className={`mt-2 w-full px-3 py-1 rounded text-sm ${affordable ? 'bg-black text-white hover:bg-stone-800' : 'bg-stone-300 text-stone-500 cursor-not-allowed'}`}
+                            className={`mt-2 w-full px-3 py-1 rounded text-sm ${affordable ? 'bg-wl-accent text-wl-accent-ink hover:bg-wl-accent/90' : 'bg-wl-panel-muted text-wl-subtle cursor-not-allowed'}`}
                           >
                             {affordable ? 'Research 🔬' : 'Cannot afford'}
                           </button>
@@ -163,7 +163,7 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
         ))}
       </div>
 
-      <div className="text-center text-xs text-stone-500 italic">
+      <div className="text-center text-xs text-wl-muted italic">
         Research improves your domain — production, training, supply and campaign spoils.
         Battles are always fought on even stats; a stronger economy simply fields a better army.
       </div>

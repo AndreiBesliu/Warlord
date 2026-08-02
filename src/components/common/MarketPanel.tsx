@@ -25,11 +25,11 @@ export default function MarketPanel({
       <div className="space-y-2">
         {options.map(({ k, price }) => {
           return (
-            <div key={k} className="border rounded p-2 flex items-center gap-2">
+            <div key={k} className="border border-wl-line rounded p-2 flex items-center gap-2">
               <GameIcon name={getIconForGameItem(k) || 'sword'} size={32} />
               <div className="flex-1">
                 <div className="font-medium">{formatGameTooltip(k)}</div>
-                <div className="text-xs text-gray-600 flex items-center gap-2">
+                <div className="text-xs text-wl-muted flex items-center gap-2">
                   <span className="flex items-center gap-1">
                     Price: <MoneyDisplay amount={price} size={12} />
                   </span>
@@ -38,14 +38,14 @@ export default function MarketPanel({
                 </div>
               </div>
               <input
-                className="border rounded px-2 py-1 w-20"
+                className="border border-wl-line rounded px-2 py-1 w-20"
                 type="number"
                 min={1}
                 value={qty}
                 onChange={(e) => setQty(Math.max(1, parseInt(e.target.value || '1')))}
               />
-              <button className="px-3 py-1 border rounded" onClick={() => onSell(kind, k, qty)}>Sell</button>
-              <button className="px-3 py-1 bg-black text-white rounded" onClick={() => onBuy(kind, k, qty)}>Buy</button>
+              <button className="px-3 py-1 border border-wl-line rounded" onClick={() => onSell(kind, k, qty)}>Sell</button>
+              <button className="px-3 py-1 bg-wl-accent text-wl-accent-ink rounded" onClick={() => onBuy(kind, k, qty)}>Buy</button>
             </div>
           )
         })}

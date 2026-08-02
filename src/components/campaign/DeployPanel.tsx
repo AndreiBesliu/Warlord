@@ -27,11 +27,11 @@ export default function DeployPanel({ units, preset, clears, onConfirm, onBack }
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-serif text-lg font-bold">Deploy for {preset.name}</h3>
-        <button onClick={onBack} className="px-3 py-1 border rounded text-sm">← Missions</button>
+        <button onClick={onBack} className="px-3 py-1 border border-wl-line rounded text-sm">← Missions</button>
       </div>
 
       {units.length === 0 ? (
-        <p className="text-sm text-stone-600">You have no formed units. Create units in the Units tab before marching to battle.</p>
+        <p className="text-sm text-wl-muted">You have no formed units. Create units in the Units tab before marching to battle.</p>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
           {units.map((u) => {
@@ -41,30 +41,30 @@ export default function DeployPanel({ units, preset, clears, onConfirm, onBack }
               <button
                 key={u.id}
                 onClick={() => toggle(u.id)}
-                className={`flex items-center gap-3 border rounded-lg p-2 text-left transition-all ${on ? 'ring-2 ring-yellow-400 bg-yellow-50' : 'bg-white hover:bg-stone-50'}`}
+                className={`flex items-center gap-3 border border-wl-line rounded-lg p-2 text-left transition-all ${on ? 'ring-2 ring-wl-accent bg-wl-accent-surface' : 'bg-wl-panel hover:bg-wl-panel-muted'}`}
               >
                 <GameIcon name={getIconForGameItem(u.type) || 'sword'} size={28} />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold truncate">{prettyName(u.type)}</div>
-                  <div className="text-xs text-stone-500 font-mono">{size} soldiers · morale {Math.round(u.morale ?? 100)} · fielded {fieldedStrength(u)}</div>
+                  <div className="text-xs text-wl-muted font-mono">{size} soldiers · morale {Math.round(u.morale ?? 100)} · fielded {fieldedStrength(u)}</div>
                 </div>
-                <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${on ? 'bg-black text-white' : 'bg-white'}`}>{on ? '✓' : ''}</span>
+                <span className={`w-4 h-4 rounded border border-wl-line flex items-center justify-center text-[10px] ${on ? 'bg-wl-accent text-wl-accent-ink' : 'bg-wl-panel'}`}>{on ? '✓' : ''}</span>
               </button>
             )
           })}
         </div>
       )}
 
-      <div className="flex items-center justify-between border-t pt-3">
-        <div className="text-sm text-stone-600">
+      <div className="flex items-center justify-between border-t border-wl-line pt-3">
+        <div className="text-sm text-wl-muted">
           Deploying <span className="font-mono font-bold">{picked.length}</span> units ·
           strength <span className="font-mono font-bold">{deployStrength}</span> ·
-          est. enemy <span className="font-mono font-bold text-red-700">≈{estEnemy}</span>
+          est. enemy <span className="font-mono font-bold text-wl-bad">≈{estEnemy}</span>
         </div>
         <button
           disabled={picked.length === 0}
           onClick={() => onConfirm(picked)}
-          className={`px-4 py-2 rounded text-white ${picked.length ? 'bg-red-800 hover:bg-red-900' : 'bg-stone-300 cursor-not-allowed'}`}
+          className={`px-4 py-2 rounded ${picked.length ? 'bg-wl-bad text-wl-inverse hover:opacity-90' : 'bg-wl-panel-muted text-wl-subtle cursor-not-allowed'}`}
         >
           March to battle ⚔
         </button>

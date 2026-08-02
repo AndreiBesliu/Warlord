@@ -16,43 +16,43 @@ export default function ResourcesTab({ resources }: Props) {
 
     return (
         <div className="space-y-4">
-            <Card title="Raw Resources" className="bg-stone-800 text-amber-50">
+            <Card title="Raw Resources" className="bg-wl-panel-contrast text-wl-contrast-ink">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {raw.map(r => {
                         const val = resources[r as keyof ResourceMap] || 0
                         const icon = getIconForGameItem(r) || 'sword'
                         return (
-                            <div key={r} className="bg-stone-700 p-3 rounded flex justify-between items-center border border-stone-600">
+                            <div key={r} className="bg-wl-panel-contrast p-3 rounded flex justify-between items-center border border-wl-line-strong">
                                 <div className="flex items-center gap-3">
                                     <GameIcon name={icon} size={32} className="drop-shadow-md" />
-                                    <span className="font-semibold text-stone-300">{formatGameTooltip(r)}</span>
+                                    <span className="font-semibold text-wl-contrast-ink/80">{formatGameTooltip(r)}</span>
                                 </div>
-                                <span className="font-mono text-xl text-amber-100">{val}</span>
+                                <span className="font-mono text-xl text-wl-contrast-ink">{val}</span>
                             </div>
                         )
                     })}
                 </div>
             </Card>
 
-            <Card title="Refined Materials" className="bg-slate-800 text-slate-50">
+            <Card title="Refined Materials" className="bg-wl-panel-contrast text-wl-contrast-ink">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {ingots.map(r => {
                         const val = resources[r as keyof ResourceMap] || 0
                         const icon = getIconForGameItem(r) || 'sword'
                         return (
-                            <div key={r} className="bg-slate-700 p-3 rounded flex justify-between items-center border border-slate-600">
+                            <div key={r} className="bg-wl-panel-contrast p-3 rounded flex justify-between items-center border border-wl-line-strong">
                                 <div className="flex items-center gap-3">
                                     <GameIcon name={icon} size={32} className="drop-shadow-md" />
-                                    <span className="font-semibold text-slate-300">{formatGameTooltip(r)}</span>
+                                    <span className="font-semibold text-wl-contrast-ink/80">{formatGameTooltip(r)}</span>
                                 </div>
-                                <span className="font-mono text-xl text-white">{val}</span>
+                                <span className="font-mono text-xl text-wl-contrast-ink">{val}</span>
                             </div>
                         )
                     })}
                 </div>
             </Card>
 
-            <div className="text-center text-xs text-gray-400 italic mt-4">
+            <div className="text-center text-xs text-wl-muted italic mt-4">
                 Resources are gathered by Mines, Lumber Mills, and Quarries.
                 <br />
                 Refined materials are produced in Smelters.

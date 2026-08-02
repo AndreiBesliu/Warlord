@@ -25,7 +25,7 @@ export default function ConvertCavForm({
       <div className="flex gap-2 items-end">
         <div className="flex flex-col">
           <label className="text-sm">To</label>
-          <select className="border rounded px-2 py-1" value={to} onChange={e=>setTo(e.target.value as any)}>
+          <select className="border border-wl-line rounded px-2 py-1" value={to} onChange={e=>setTo(e.target.value as any)}>
             <option value="LIGHT_CAV">LIGHT_CAV</option>
             <option value="HEAVY_CAV">HEAVY_CAV</option>
             <option value="HORSE_ARCHER">HORSE_ARCHER</option>
@@ -33,7 +33,7 @@ export default function ConvertCavForm({
         </div>
         <div className="flex flex-col">
           <label className="text-sm">From</label>
-          <select className="border rounded px-2 py-1" value={fromType} onChange={e=>setFromType(e.target.value as SoldierType)}>
+          <select className="border border-wl-line rounded px-2 py-1" value={fromType} onChange={e=>setFromType(e.target.value as SoldierType)}>
             {fromOptions.map(t=><option key={t} value={t}>{t}</option>)}
           </select>
         </div>
@@ -41,13 +41,13 @@ export default function ConvertCavForm({
       <div className="grid grid-cols-5 gap-2">
         {Ranks.map(r=>(
           <div key={r} className="flex flex-col">
-            <label className="text-xs text-gray-500">{r} (avail {barracks[fromType][r].count})</label>
-            <input className="border rounded px-2 py-1" type="number" min={0} value={plan[r]||0}
+            <label className="text-xs text-wl-muted">{r} (avail {barracks[fromType][r].count})</label>
+            <input className="border border-wl-line rounded px-2 py-1" type="number" min={0} value={plan[r]||0}
               onChange={e=>setPlan({...plan, [r]: Math.max(0, parseInt(e.target.value||'0'))})}/>
           </div>
         ))}
       </div>
-      <button className="px-3 py-1 border rounded" onClick={()=>onConvert(fromType, to, plan)}>Convert</button>
+      <button className="px-3 py-1 border border-wl-line rounded" onClick={()=>onConvert(fromType, to, plan)}>Convert</button>
     </div>
   )
 }

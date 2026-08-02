@@ -52,7 +52,7 @@ export function BuildingIcon({ type, size = 24 }: { type: string, size?: number 
   const imgSrc = BuildingImages[type]
   return (
     <div
-      className="inline-block shrink-0 relative overflow-hidden rounded shadow-sm border border-amber-900/40 bg-white"
+      className="wl-art inline-block shrink-0 relative overflow-hidden rounded shadow-sm border border-wl-accent-line"
       style={{ width: size, height: size }}
     >
       {imgSrc ? <img src={imgSrc} className="w-full h-full object-cover mix-blend-multiply" alt={type} /> : <div className="w-full h-full bg-stone-300"></div>}
@@ -63,7 +63,7 @@ export function BuildingIcon({ type, size = 24 }: { type: string, size?: number 
 function BuildingImg({ type }: { type: string }) {
   const imgSrc = BuildingImages[type]
   return (
-    <div className="w-full aspect-[4/3] relative overflow-hidden rounded border border-yellow-900/30 shadow-inner bg-[#fffbf0] flex items-center justify-center">
+    <div className="wl-art w-full aspect-[4/3] relative overflow-hidden rounded border border-wl-accent-line shadow-inner flex items-center justify-center">
       {imgSrc ? (
         <img
           src={imgSrc}
@@ -85,7 +85,7 @@ function PriceTag({ cost, resCost }: { cost: number, resCost?: Partial<ResourceM
       {resources.length > 0 && (
         <div className="flex flex-wrap justify-center gap-1">
           {resources.map(([r, amt]) => (
-            <span key={r} className="bg-stone-200 px-1.5 py-0.5 rounded text-stone-700 font-mono font-bold">
+            <span key={r} className="bg-wl-panel-muted px-1.5 py-0.5 rounded text-wl-muted font-mono font-bold">
               {amt} {formatGameTooltip(r)}
             </span>
           ))}
@@ -154,9 +154,13 @@ export default function BuildingsTab({ state, setTab }: Props) {
         />
       )}
 
-      <Card title="Town Infrastructure" className="relative p-0 overflow-hidden bg-stone-800">
+      <Card title="Town Infrastructure" className="relative p-0 overflow-hidden bg-wl-panel">
+        {/* The parchment is a fixed light asset, so it cannot follow the theme on its own —
+            multiplied against the card's own surface it does: white in light leaves it
+            untouched, the dark panel in dark drives it down to a dark parchment. Without
+            this, every heading on this card is ink-on-cream and vanishes in dark. */}
         <div
-          className="absolute inset-0 opacity-100 z-0 pointer-events-none"
+          className="absolute inset-0 opacity-100 z-0 pointer-events-none mix-blend-multiply"
           style={{ backgroundImage: `url(${parchmentBg})`, backgroundSize: 'cover' }}
         />
 
@@ -164,37 +168,37 @@ export default function BuildingsTab({ state, setTab }: Props) {
 
           {/* Established Buildings */}
           <div>
-            <h3 className="font-serif text-2xl text-amber-900 mb-4 border-b border-amber-900/30 pb-2">Established Buildings</h3>
-            {buildingsArr.length === 0 && <div className="text-amber-800/60 italic">Empty. Build below.</div>}
+            <h3 className="font-serif text-2xl text-wl-ink mb-4 border-b border-wl-accent-line pb-2">Established Buildings</h3>
+            {buildingsArr.length === 0 && <div className="text-wl-muted italic">Empty. Build below.</div>}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {buildingsArr.map((b) => (
                 <div
                   key={b.id}
-                  className="bg-amber-50/80 p-3 rounded-lg shadow-md border border-amber-900/20 flex flex-col gap-3 relative group hover:-translate-y-1 transition-transform duration-300 cursor-pointer"
+                  className="bg-wl-accent-surface/80 p-3 rounded-lg shadow-md border border-wl-accent-line flex flex-col gap-3 relative group hover:-translate-y-1 transition-transform duration-300 cursor-pointer"
                   onClick={() => handleBuildingClick(b)}
                 >
-                  <div className="flex justify-between items-center border-b border-amber-900/10 pb-2">
-                    <span className="font-bold text-amber-900 text-sm">{b.type.replace('_', ' ')}</span>
+                  <div className="flex justify-between items-center border-b border-wl-accent-line pb-2">
+                    <span className="font-bold text-wl-ink text-sm">{b.type.replace('_', ' ')}</span>
                     {b.type === 'BARRACKS' ? (
                       <div className="flex items-center gap-1">
-                        <span className="text-[10px] bg-amber-200/50 px-1 rounded text-amber-800 font-mono">L{barracksLevel}</span>
+                        <span className="text-[10px] bg-wl-accent-surface/50 px-1 rounded text-wl-accent font-mono">L{barracksLevel}</span>
                         {barracksLevel < 5 && (
-                          <button onClick={(e) => { e.stopPropagation(); upgradeBarracks() }} className="text-[9px] bg-red-800 text-white px-1.5 py-0.5 rounded shadow hover:bg-red-700">
+                          <button onClick={(e) => { e.stopPropagation(); upgradeBarracks() }} className="text-[9px] bg-wl-bad text-wl-inverse px-1.5 py-0.5 rounded shadow hover:bg-wl-bad/90">
                             UP
                           </button>
                         )}
                       </div>
                     ) : ['MARKET', 'STABLE'].includes(b.type) ? (
-                      <span className="text-[10px] bg-amber-200/50 px-1 rounded text-amber-800 font-mono">L{b.level ?? 1}</span>
+                      <span className="text-[10px] bg-wl-accent-surface/50 px-1 rounded text-wl-accent font-mono">L{b.level ?? 1}</span>
                     ) : (
                       <div className="flex items-center gap-1">
-                        <span className="text-[10px] bg-amber-200/50 px-1 rounded text-amber-800 font-mono">L{b.level ?? 1}</span>
+                        <span className="text-[10px] bg-wl-accent-surface/50 px-1 rounded text-wl-accent font-mono">L{b.level ?? 1}</span>
                         {(b.level ?? 1) < BUILDING_MAX_LEVEL && (
                           <button
                             onClick={(e) => { e.stopPropagation(); upgradeBuilding(b.id) }}
                             title={`Upgrade to L${(b.level ?? 1) + 1} — ${fmtCopper(buildingUpgradeCostCopper(b.type, b.level ?? 1, mods?.buildCostMult ?? 1))} (output ×${buildingLevelMult((b.level ?? 1) + 1).toFixed(1)})`}
-                            className="text-[9px] bg-red-800 text-white px-1.5 py-0.5 rounded shadow hover:bg-red-700"
+                            className="text-[9px] bg-wl-bad text-wl-inverse px-1.5 py-0.5 rounded shadow hover:bg-wl-bad/90"
                           >
                             UP
                           </button>
@@ -207,11 +211,11 @@ export default function BuildingsTab({ state, setTab }: Props) {
 
                   <div className="space-y-2 mt-auto pt-2" onClick={(e) => e.stopPropagation()}>
                     {!['STABLE', 'MARKET', 'BARRACKS'].includes(b.type) && (
-                      <div className="text-[10px] text-amber-800/70 px-1 bg-amber-100/30 rounded py-1 border border-amber-900/5">
+                      <div className="text-[10px] text-wl-muted px-1 bg-wl-accent-surface/30 rounded py-1 border border-wl-accent-line">
                         <div className="flex justify-between">
                           <span>{b.focusCoinPct}% Tax</span>
                           {b.outputItem && (
-                            <span className="font-mono text-amber-900">
+                            <span className="font-mono text-wl-ink">
                               Creating {formatGameTooltip(b.outputItem)}
                             </span>
                           )}
@@ -227,17 +231,17 @@ export default function BuildingsTab({ state, setTab }: Props) {
           {/* Construction Plans */}
           {(prodConstruction.length > 0 || resConstruction.length > 0) && (
             <div className="space-y-6">
-              <h3 className="font-serif text-2xl text-amber-900 border-b border-amber-900/30 pb-2">Construction Plans</h3>
+              <h3 className="font-serif text-2xl text-wl-ink border-b border-wl-accent-line pb-2">Construction Plans</h3>
 
               {/* Production */}
               {prodConstruction.length > 0 && (
                 <div>
-                  <h4 className="font-bold text-amber-800 mb-2 uppercase text-xs tracking-wider">Production & Military</h4>
+                  <h4 className="font-bold text-wl-ink mb-2 uppercase text-xs tracking-wider">Production & Military</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {prodConstruction.map(t => (
-                      <button key={t} onClick={() => buyBuilding(t)} className="flex flex-col items-center p-3 rounded border border-amber-900/20 bg-amber-50/40 hover:bg-amber-100 transition-colors">
-                        <div className="w-24 h-24 mb-3"><img src={BuildingImages[t]} className="w-full h-full object-contain mix-blend-multiply" alt={t} /></div>
-                        <span className="font-bold text-sm text-amber-900 mb-2">{t}</span>
+                      <button key={t} onClick={() => buyBuilding(t)} className="flex flex-col items-center p-3 rounded border border-wl-accent-line bg-wl-accent-surface/40 hover:bg-wl-accent-surface transition-colors">
+                        <div className="wl-art w-24 h-24 mb-3 rounded"><img src={BuildingImages[t]} className="w-full h-full object-contain mix-blend-multiply" alt={t} /></div>
+                        <span className="font-bold text-sm text-wl-ink mb-2">{t}</span>
                         <PriceTag cost={buildingPrice(t)} resCost={buildingResCost(t)} />
                       </button>
                     ))}
@@ -248,17 +252,17 @@ export default function BuildingsTab({ state, setTab }: Props) {
               {/* Resources */}
               {resConstruction.length > 0 && (
                 <div>
-                  <h4 className="font-bold text-amber-800 mb-2 uppercase text-xs tracking-wider">Resource Management</h4>
+                  <h4 className="font-bold text-wl-ink mb-2 uppercase text-xs tracking-wider">Resource Management</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {resConstruction.map(t => (
-                      <button key={t} onClick={() => buyBuilding(t)} className="flex flex-col items-center p-3 rounded border border-amber-900/20 bg-stone-100/40 hover:bg-stone-200 transition-colors">
-                        <div className="w-24 h-24 mb-3 flex items-center justify-center">
+                      <button key={t} onClick={() => buyBuilding(t)} className="flex flex-col items-center p-3 rounded border border-wl-accent-line bg-wl-panel-muted/40 hover:bg-wl-panel-muted transition-colors">
+                        <div className="wl-art w-24 h-24 mb-3 rounded flex items-center justify-center">
                           {BuildingImages[t] ?
                             <img src={BuildingImages[t]} className="w-full h-full object-contain mix-blend-multiply" alt={t} />
-                            : <span className="text-4xl text-stone-400 font-bold">{t[0]}</span>
+                            : <span className="text-4xl text-wl-subtle font-bold">{t[0]}</span>
                           }
                         </div>
-                        <span className="font-bold text-sm text-stone-800 mb-2">{t.replace('_', ' ')}</span>
+                        <span className="font-bold text-sm text-wl-ink mb-2">{t.replace('_', ' ')}</span>
                         <PriceTag cost={buildingPrice(t)} resCost={buildingResCost(t)} />
                       </button>
                     ))}
@@ -268,7 +272,7 @@ export default function BuildingsTab({ state, setTab }: Props) {
             </div>
           )}
 
-          <div className="text-center text-xs text-amber-800/50 pt-8 font-serif italic">
+          <div className="text-center text-xs text-wl-subtle pt-8 font-serif italic">
             "A prosperous town fuels a mighty army."
           </div>
 

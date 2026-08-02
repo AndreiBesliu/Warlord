@@ -23,11 +23,11 @@ export default function MarketTab({ state }: { state: any }) {
   // Main Scene View
   if (!selectedCategory) {
     return (
-      <Card title="Market Square" className="relative p-0 overflow-hidden bg-stone-900 border-stone-800" titleClassName="text-amber-100 bg-stone-950/80 border-b border-stone-800">
+      <Card title="Market Square" className="relative p-0 overflow-hidden bg-wl-panel-contrast border-wl-line-strong" titleClassName="text-wl-contrast-ink bg-wl-panel-contrast border-b border-wl-line-strong">
         <div className="aspect-[16/9] relative group cursor-default">
           {/* Background Image */}
           <div
-            className="absolute inset-0 bg-cover bg-center"
+            className="wl-scene absolute inset-0 bg-cover bg-center"
             style={{ backgroundImage: `url(${marketBg})` }}
           />
 
@@ -112,27 +112,27 @@ export default function MarketTab({ state }: { state: any }) {
   }
 
   return (
-    <Card title={`Market - ${panelProps.title}`} className="relative p-0 overflow-hidden bg-stone-900 border-stone-800" titleClassName="text-amber-100 bg-stone-950/80 border-b border-stone-800">
+    <Card title={`Market - ${panelProps.title}`} className="relative p-0 overflow-hidden bg-wl-panel-contrast border-wl-line-strong" titleClassName="text-wl-contrast-ink bg-wl-panel-contrast border-b border-wl-line-strong">
       <div className="relative min-h-[600px] flex items-center justify-center p-4">
         {/* Detail Background */}
         <div
-          className="absolute inset-0 bg-cover bg-center transition-all duration-700 ease-in-out"
+          className="wl-scene absolute inset-0 bg-cover bg-center transition-all duration-700 ease-in-out"
           style={{ backgroundImage: `url(${panelProps.bg})` }}
         />
         {/* Blur/Darken Backdrop */}
         <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-[1px]" />
 
         {/* Framed Panel */}
-        <div className="relative z-10 w-full max-w-3xl bg-[#f5f5f0] p-6 rounded-lg shadow-2xl border-2 border-stone-600">
+        <div className="relative z-10 w-full max-w-3xl bg-wl-panel text-wl-ink p-6 rounded-lg shadow-2xl border-2 border-wl-line-strong">
           {/* Custom Header with Close Button */}
-          <div className="flex justify-between items-start mb-4 border-b border-stone-300 pb-3">
+          <div className="flex justify-between items-start mb-4 border-b border-wl-line pb-3">
             <div>
-              <h2 className="text-2xl font-serif font-bold text-stone-800">{panelProps.title}</h2>
-              <p className="text-sm text-stone-500 italic">Select items to purchase or sell.</p>
+              <h2 className="text-2xl font-serif font-bold text-wl-ink">{panelProps.title}</h2>
+              <p className="text-sm text-wl-muted italic">Select items to purchase or sell.</p>
             </div>
             <button
               onClick={close}
-              className="text-stone-500 hover:text-red-600 transition-colors p-1"
+              className="text-wl-muted hover:text-wl-bad transition-colors p-1"
               title="Close Shop"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>

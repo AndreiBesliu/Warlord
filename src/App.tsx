@@ -1,4 +1,5 @@
 // src/App.tsx
+import './styles/tokens.css'
 import { useEffect, useRef, useState } from 'react'
 import BuildingsTab from './components/tabs/BuildingsTab'
 import ResourcesTab from './components/tabs/ResourcesTab'
@@ -25,13 +26,28 @@ export default function App({
   initialBlob,
   onPersist,
   config,
+  theme,
 }: {
   saveKey?: string
   initialBlob?: any
   onPersist?: (blob: any) => void
   config?: GameConfigOverrides | null // admin-tuned balance (absent = built-in defaults)
+  // A host that has its own light/dark setting passes it here and the game follows it.
+  // Omitted (standalone, or a host with no opinion) → the game keeps its own toggle.
+  theme?: 'light' | 'dark'
 }) {
   const state = useGameState(saveKey, { initialBlob, onPersist, config })
+
+  // Colour is decided ONCE, by tokens on the `.warlord` root (src/styles/tokens.css).
+  // Components never name a palette colour, so there is no second set of dark values
+  // to keep in step — which is why the game had no dark mode for so long.
+  const [selfDark, setSelfDark] = useState<boolean>(
+    () => localStorage.getItem(`${saveKey}:dark`) === 'true'
+  )
+  const dark = theme ? theme === 'dark' : selfDark
+  useEffect(() => {
+    if (!theme) localStorage.setItem(`${saveKey}:dark`, String(selfDark))
+  }, [saveKey, selfDark, theme])
 
   // ---- day clock ----
   // Every day is derived from `state.lastTickAt` (the timestamp of the last completed
@@ -125,32 +141,42 @@ export default function App({
   const [tab, setTab] = useState<'overview' | 'resources' | 'buildings' | 'barracks' | 'units' | 'market' | 'research' | 'campaign' | 'log'>('overview')
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-4">
-      <div className="flex gap-2 items-center">
-        <h1 className="text-3xl font-bold">Warlord</h1>
+    <div className={`warlord${dark ? ' dark' : ''} min-h-screen p-6 space-y-4`}>
+      <div className="max-w-6xl mx-auto space-y-4">
+      <div className="flex gap-2 items-center flex-wrap">
+        <h1 className="text-3xl font-bold text-wl-ink">Warlord</h1>
         <div className="ml-auto flex gap-2">
           <div className="ml-4 flex items-center gap-3">
-            <span className="text-lg">Day:</span>
-            <span className="px-2 py-1 bg-gray-100 rounded font-mono">{day}</span>
+            <span className="text-lg text-wl-muted">Day:</span>
+            <span className="px-2 py-1 bg-wl-panel-muted text-wl-ink rounded font-mono">{day}</span>
           </div>
-          <button className="px-3 py-2 border rounded" onClick={loadSave}>Load</button>
-          <button className="px-3 py-2 border rounded" onClick={resetAll}>Reset</button>
+          <button className="px-3 py-2 border border-wl-line bg-wl-panel text-wl-ink rounded hover:bg-wl-panel-muted" onClick={loadSave}>Load</button>
+          <button className="px-3 py-2 border border-wl-line bg-wl-panel text-wl-ink rounded hover:bg-wl-panel-muted" onClick={resetAll}>Reset</button>
           <div className="ml-auto flex gap-2 items-center">
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-wl-muted">
               Next day in <span className="font-mono">{mmss(remaining)}</span>
             </div>
             <button
-              className="px-3 py-2 border rounded"
+              className="px-3 py-2 border border-wl-line bg-wl-panel text-wl-ink rounded hover:bg-wl-panel-muted"
               onClick={() => setAutoTick(a => !a)}
             >
               {autoTick ? 'Pause Auto' : 'Resume Auto'}
             </button>
             <button
-              className="px-3 py-2 bg-black text-white rounded"
+              className="px-3 py-2 bg-wl-accent text-wl-accent-ink rounded font-semibold hover:opacity-90"
               onClick={runDayNow}
             >
               Run Day ▶
             </button>
+            {!theme && (
+              <button
+                className="px-3 py-2 border border-wl-line bg-wl-panel text-wl-ink rounded hover:bg-wl-panel-muted"
+                onClick={() => setSelfDark(d => !d)}
+                title={dark ? 'Switch to light' : 'Switch to dark'}
+              >
+                {dark ? '☀' : '☾'}
+              </button>
+            )}
           </div>
 
         </div>
@@ -182,7 +208,11 @@ export default function App({
           <button
             key={k}
             onClick={() => setTab(k as any)}
-            className={`px-3 py-1 rounded border ${tab === k ? 'bg-black text-white' : 'bg-white'}`}
+            className={`px-3 py-1 rounded border transition-colors ${
+              tab === k
+                ? 'bg-wl-accent text-wl-accent-ink border-wl-accent font-semibold'
+                : 'bg-wl-panel text-wl-ink border-wl-line hover:bg-wl-panel-muted'
+            }`}
           >
             {label}
           </button>
@@ -207,6 +237,7 @@ export default function App({
 
       {tab === 'log' && <LogTab state={state} />}
 
+      </div>
     </div>
   )
 }

@@ -65,13 +65,20 @@ export default function ProductionModal({ building, onClose, onSetOutput, onSetF
         items = perDay > 0 ? perDay.toFixed(1) : '0'
     }
 
+    // The portal has to land INSIDE the `.warlord` root, not on <body>: that element is
+    // where the colour tokens are declared, so on <body> every wl- utility in this modal
+    // resolves against an undefined custom property and the declaration is dropped — the
+    // control slab rendered with NO background at all. `.warlord` is not a containing
+    // block for `fixed` (no transform/filter), so the overlay still covers the viewport.
+    const host = document.querySelector<HTMLElement>('.warlord') ?? document.body
+
     return createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-            <div className="relative w-full max-w-5xl aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-stone-600">
+            <div className="relative w-full max-w-5xl aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-wl-line-strong">
 
                 {/* Background Image */}
                 <div
-                    className="absolute inset-0 bg-cover bg-center transition-all duration-700"
+                    className="wl-scene absolute inset-0 bg-cover bg-center transition-all duration-700"
                     style={{ backgroundImage: `url(${bg})` }}
                 />
 
@@ -130,24 +137,26 @@ export default function ProductionModal({ building, onClose, onSetOutput, onSetF
                 </div>
 
                 {/* Bottom Manager Controls */}
-                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-stone-900/90 border border-stone-700 p-6 rounded-xl shadow-2xl w-[600px] backdrop-blur-md flex flex-col gap-4">
+                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-wl-panel-contrast/90 border border-wl-line-strong p-6 rounded-xl shadow-2xl w-[600px] backdrop-blur-md flex flex-col gap-4">
 
                     {/* Stats Header */}
-                    <div className="flex justify-between items-end border-b border-white/10 pb-2">
+                    <div className="flex justify-between items-end border-b border-wl-contrast-ink/10 pb-2">
                         <div className="flex flex-col">
-                            <span className="text-xs text-stone-400 uppercase tracking-widest">Daily Output Preview</span>
+                            <span className="text-xs text-wl-contrast-ink/70 uppercase tracking-widest">Daily Output Preview</span>
                             <div className="flex items-baseline gap-4 mt-1">
+                                {/* Deliberately NOT wl-accent: this slab is dark in both themes, and the
+                                    light-theme accent (40% L gold) sits at ~2:1 on it. */}
                                 <span className="text-yellow-400 font-bold text-xl drop-shadow-sm">
                                     <MoneyDisplay amount={coinGain} />
                                 </span>
-                                <span className="text-stone-500 font-serif italic text-sm">and</span>
-                                <span className="text-white font-bold text-xl drop-shadow-sm">
+                                <span className="text-wl-contrast-ink/60 font-serif italic text-sm">and</span>
+                                <span className="text-wl-contrast-ink font-bold text-xl drop-shadow-sm">
                                     {items} {building.outputItem?.replace(/_/g, ' ') || 'Items'}
                                 </span>
                             </div>
                         </div>
                         <div className="text-right">
-                            <span className="text-xs text-stone-500 block">Current Focus</span>
+                            <span className="text-xs text-wl-contrast-ink/60 block">Current Focus</span>
                             <span className="text-2xl font-mono text-amber-500">{building.focusCoinPct}% Coin</span>
                         </div>
                     </div>
@@ -161,9 +170,9 @@ export default function ProductionModal({ building, onClose, onSetOutput, onSetF
                             step="20"
                             value={building.focusCoinPct}
                             onChange={(e) => onSetFocus(parseInt(e.target.value))}
-                            className="w-full h-2 bg-stone-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            className="w-full h-2 bg-wl-contrast-ink/20 rounded-lg appearance-none cursor-pointer accent-amber-500"
                         />
-                        <div className="flex justify-between text-[10px] text-stone-500 uppercase mt-2 font-bold tracking-widest">
+                        <div className="flex justify-between text-[10px] text-wl-contrast-ink/60 uppercase mt-2 font-bold tracking-widest">
                             <span>100% Goods</span>
                             <span>100% Coin</span>
                         </div>
@@ -173,6 +182,6 @@ export default function ProductionModal({ building, onClose, onSetOutput, onSetF
 
             </div>
         </div>,
-        document.body
+        host
     )
 }

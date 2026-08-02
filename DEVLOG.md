@@ -84,6 +84,19 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-02 - Task Completed (revamp UI felia 1: tokenuri semantice + temă dark)**
+> Prompt: „continua cu ce urma de facut la joc" — următorul lucru din ordinea agreată era revamp-ul UI + tema dark („mă dor ochii încercând să testez, dar să mai și joc").
+> Model: Claude Opus 5
+> - **Măsurat înainte de a decide:** 109 utilitare de culoare distincte în 26 de fișiere. Varianta „pun `dark:` peste tot" ar fi însemnat 200+ decizii independente care divergă imediat. Deci: **tokenuri semantice**, rezolvate o dată per temă.
+> - **NOU `src/styles/tokens.css`** — vocabular semantic (surface / panel / panel-muted / panel-contrast, ink / muted / subtle / inverse, line, accent, good / bad / warn / info, plus culorile celor 4 ramuri de research), cu valori pentru light și dark. Scopat pe `.warlord`, clase prefixate `wl-` ca să nu se bată cu gazda (OurDaysApp deține deja `accent`, `border`, `background`).
+> - **Tema dark e CALDĂ, nu albastru-negru** — jocul e medieval, iar arta presupune pergament și aur. Decizie implicită; se schimbă din valorile tokenurilor, nu din structură.
+> - **Sursa temei e pluggable:** `App` acceptă `theme?: 'light'|'dark'`. Gazda care are propria setare o impune; fără ea, jocul își ține propriul comutator ☾/☀ persistat. Așa merge și embed-at, și pe orice alt canal.
+> - **`tailwind.warlord.js`** — scala de culoare, o singură sursă, consumată ȘI de configul jocului ȘI de al aplicației (build-ul care compilează jocul când e embed-at e al aplicației). Capcană plătită: export dublu (named + default al aceluiași obiect) face `cloneDeep`-ul din Tailwind să recurgă la infinit, iar eroarea arată spre `styles.css`, care n-are nicio vină.
+> - **Conversia celor 24 de fișiere** a rulat în paralel (5 agenți pe seturi disjuncte + un audit), ~450 de utilitare convertite. Culorile rămase sunt deliberate și documentate: text pe scrim-uri negre peste fotografii și dalele cu `mix-blend-multiply`.
+> - **Arta nu putea fi tokenizată** — PNG-urile de clădiri sunt decupaje pe alb, compuse cu `mix-blend-multiply`, deci dala DE SUB ele trebuie să rămână deschisă, altfel arta devine noroi. Pe fundal închis rămâneau 8 dreptunghiuri crem de 315×236 — exact oboseala vizuală pe care tema o combate. Soluție: clasele `.wl-art` / `.wl-scene`, iar tema dark le estompează (`brightness(.6)`, respectiv `.66`). Regula stă lângă tokenuri, nu ca variante `dark:` în componente: o componentă spune CE e o suprafață, niciodată în ce temă e.
+> - **Verificare:** audit de contrast calculat în browser (raport WCAG între text și fundalul efectiv), pe toate cele 9 taburi, cu un domeniu populat (8 clădiri, 2 unități, research în curs, buff-uri active), în AMBELE teme: **zero perechi sub 3:1**. Zero suprafețe luminoase neestompate pe dark. `npx tsc --noEmit` + 96 teste + build verzi.
+> - **Rămâne de decis cu Andrei:** terenul din grila de luptă folosește acum tokenuri de status (good / accent / info) ca umpluturi, iar în dark ordinea de luminanță PLAINS/FOREST se inversează — se citește, dar nu mai „arată" ca iarbă vs pădure. Merită tokenuri proprii de teren.
+
 **2026-08-02 - Task Completed (topbar cu resurse + prognoză zilnică)**
 > Prompt: „o sa vreau ca resursele sa poata fi vazute permanent in topbar, si vreau sa se vada si cat vor creste zilnic in functie de setarile cladirilor".
 > Model: Claude Opus 5

@@ -12,9 +12,9 @@ interface Props {
 }
 
 const BADGE: Record<Difficulty, string> = {
-  BANDIT_RAID: 'bg-green-100 text-green-800 border-green-300',
-  RIVAL_BARON: 'bg-amber-100 text-amber-800 border-amber-300',
-  INVASION: 'bg-red-100 text-red-800 border-red-300',
+  BANDIT_RAID: 'bg-wl-good-surface text-wl-good border-wl-good',
+  RIVAL_BARON: 'bg-wl-warn-surface text-wl-warn border-wl-warn',
+  INVASION: 'bg-wl-bad-surface text-wl-bad border-wl-bad',
 }
 
 const FLAVOR: Record<Difficulty, string> = {
@@ -29,15 +29,15 @@ export default function MissionList({ presets, difficulties, record, streak, cle
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-4 text-sm">
         <span className="font-semibold">Campaign record:</span>
-        <span className="text-green-700 font-mono">{record.wins} W</span>
-        <span className="text-red-700 font-mono">{record.losses} L</span>
+        <span className="text-wl-good font-mono">{record.wins} W</span>
+        <span className="text-wl-bad font-mono">{record.losses} L</span>
         {streak > 1 && (
-          <span className="px-2 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-800 text-xs font-semibold">
+          <span className="px-2 py-0.5 rounded-full bg-wl-accent-surface border border-wl-accent-line text-wl-accent text-xs font-semibold">
             🔥 {streak}-win streak — loot ×{lootMult.toFixed(2)}
           </span>
         )}
         {!canFightToday && (
-          <span className="px-2 py-0.5 rounded-full bg-stone-100 border border-stone-300 text-stone-600 text-xs">
+          <span className="px-2 py-0.5 rounded-full bg-wl-panel-muted border border-wl-line text-wl-muted text-xs">
             🏕 Your host has fought today — march again tomorrow (Run Day ▶)
           </span>
         )}
@@ -48,22 +48,22 @@ export default function MissionList({ presets, difficulties, record, streak, cle
           const c = clears[d] ?? 0
           const esc = escalationMult(c)
           return (
-            <div key={d} className="border rounded-xl p-4 bg-white flex flex-col gap-2 shadow-sm">
+            <div key={d} className="border border-wl-line rounded-xl p-4 bg-wl-panel flex flex-col gap-2 shadow-sm">
               <div className="flex items-center justify-between">
                 <h3 className="font-serif text-lg font-bold">{p.name}</h3>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full border uppercase tracking-wide ${BADGE[d]}`}>
                   {d === 'BANDIT_RAID' ? 'Easy' : d === 'RIVAL_BARON' ? 'Medium' : 'Hard'}
                 </span>
               </div>
-              <p className="text-xs text-stone-600 min-h-[48px]">{FLAVOR[d]}</p>
-              <div className="text-xs text-stone-500">
+              <p className="text-xs text-wl-muted min-h-[48px]">{FLAVOR[d]}</p>
+              <div className="text-xs text-wl-muted">
                 Enemy strength ≈ <span className="font-mono">{Math.round(p.ratio * esc * 100)}%</span> of your host
-                {c > 0 && <span className="text-amber-700"> (escalated ×{esc.toFixed(2)} after {c} {c === 1 ? 'victory' : 'victories'})</span>}
+                {c > 0 && <span className="text-wl-warn"> (escalated ×{esc.toFixed(2)} after {c} {c === 1 ? 'victory' : 'victories'})</span>}
               </div>
               <button
                 onClick={() => onPick(d)}
                 disabled={!canFightToday}
-                className={`mt-1 px-3 py-2 rounded transition-colors ${canFightToday ? 'bg-black text-white hover:bg-stone-800' : 'bg-stone-200 text-stone-400 cursor-not-allowed'}`}
+                className={`mt-1 px-3 py-2 rounded transition-colors ${canFightToday ? 'bg-wl-accent text-wl-accent-ink hover:opacity-90' : 'bg-wl-panel-muted text-wl-subtle cursor-not-allowed'}`}
               >
                 {canFightToday ? 'Prepare ⚔' : 'Resting 🏕'}
               </button>

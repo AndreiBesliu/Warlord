@@ -16,9 +16,10 @@ type Props = {
 const ALWAYS: ResourceType[] = ['FOOD', 'WOOD', 'STONE']
 
 function Delta({ n }: { n: number }) {
-  if (n === 0) return <span className="text-stone-400 font-mono text-[11px]">±0</span>
+  // `subtle` is 2.9:1 against bad-surface — and the starving chip is the one you must read.
+  if (n === 0) return <span className="text-wl-muted font-mono text-[11px]">±0</span>
   return (
-    <span className={`font-mono text-[11px] ${n > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+    <span className={`font-mono text-[11px] ${n > 0 ? 'text-wl-good' : 'text-wl-bad'}`}>
       {n > 0 ? '+' : ''}{n}
     </span>
   )
@@ -37,7 +38,7 @@ export default function ResourceBar({ wallet, resources, inv, buildings, units, 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
       <span
-        className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-amber-50 border border-amber-200"
+        className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-wl-accent-surface border border-wl-accent-line"
         title={
           `Buildings and minting: ${fmtCopper(f.incomeWalletDelta)}/day\n` +
           `Soldier upkeep: −${fmtCopper(f.soldierUpkeep)}/day` +
@@ -59,7 +60,7 @@ export default function ResourceBar({ wallet, resources, inv, buildings, units, 
           <span
             key={r}
             className={`inline-flex items-center gap-1.5 px-2 py-1 rounded border ${
-              starving ? 'bg-red-50 border-red-300' : 'bg-white border-stone-200'
+              starving ? 'bg-wl-bad-surface border-wl-bad' : 'bg-wl-panel border-wl-line'
             }`}
             title={
               `${formatGameTooltip(r)}\n` +
@@ -77,7 +78,7 @@ export default function ResourceBar({ wallet, resources, inv, buildings, units, 
 
       {f.blocked.length > 0 && (
         <span
-          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-100 border border-amber-300 text-[11px] text-amber-900"
+          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-wl-warn-surface border border-wl-warn text-[11px] text-wl-warn"
           title={f.blocked
             .map((l) => `${l.type} wants ${l.itemsWanted} ${l.outputItem} but has no inputs — the output is lost, not stored`)
             .join('\n')}

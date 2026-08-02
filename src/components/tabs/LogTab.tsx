@@ -19,7 +19,7 @@ function LogItem({ text }: { text: string }) {
   const parts = text.split(/([ \t,;]+)/).filter(Boolean)
 
   return (
-    <div className="border-b py-1.5 flex flex-wrap items-center gap-1 text-sm bg-white/50 px-2 rounded mb-1 last:mb-0">
+    <div className="border-b border-wl-line py-1.5 flex flex-wrap items-center gap-1 text-sm bg-wl-panel/50 px-2 rounded mb-1 last:mb-0">
       {parts.map((part, i) => {
         const trimmed = part.trim().replace(/[;:,.]+$/, '')
 
@@ -29,9 +29,9 @@ function LogItem({ text }: { text: string }) {
           const [_, plus, amt, type] = moneyMatch
           const icon: IconName = type === 'g' ? 'gold' : type === 's' ? 'silver' : 'copper'
           return (
-            <span key={i} className="flex items-center bg-gray-100 rounded px-1 border border-gray-200">
-              {plus && <span className="text-gray-500 mr-0.5">+</span>}
-              <span className="font-mono font-bold text-gray-800">{amt}</span>
+            <span key={i} className="flex items-center bg-wl-panel-muted rounded px-1 border border-wl-line">
+              {plus && <span className="text-wl-muted mr-0.5">+</span>}
+              <span className="font-mono font-bold text-wl-ink">{amt}</span>
               <GameIcon name={icon} size={14} className="ml-0.5" />
             </span>
           )
@@ -45,28 +45,28 @@ function LogItem({ text }: { text: string }) {
 
         // 3. Arrow
         if (trimmed === '→' || trimmed === '->') {
-          return <span key={i} className="text-gray-400">➜</span>
+          return <span key={i} className="text-wl-subtle">➜</span>
         }
 
         // 4. Special Keywords
-        if (trimmed === 'Day') return <span key={i} className="font-bold text-gray-500 uppercase text-[10px]">Day</span>
+        if (trimmed === 'Day') return <span key={i} className="font-bold text-wl-muted uppercase text-[10px]">Day</span>
         if (trimmed.match(/^\d+$/) && parts[i - 2]?.trim() === 'Day') {
           // Day number
-          return <span key={i} className="font-mono font-bold bg-gray-200 px-1 rounded text-gray-600">{trimmed}</span>
+          return <span key={i} className="font-mono font-bold bg-wl-panel-muted px-1 rounded text-wl-muted">{trimmed}</span>
         }
 
         // 5. Items (General Icon Lookup)
         const itemIcon = getIconForGameItem(trimmed)
         if (itemIcon) {
           return (
-            <div key={i} className="flex items-center gap-0.5 bg-slate-100 border border-slate-200 px-1 rounded" title={formatGameTooltip(trimmed)}>
+            <div key={i} className="flex items-center gap-0.5 bg-wl-panel-muted border border-wl-line px-1 rounded" title={formatGameTooltip(trimmed)}>
               <GameIcon name={itemIcon} size={20} />
             </div>
           )
         }
 
         // Default text
-        return <span key={i} className={part.match(/^\d+/) ? "font-mono font-bold text-blue-900" : "text-gray-700"}>{part}</span>
+        return <span key={i} className={part.match(/^\d+/) ? "font-mono font-bold text-wl-info" : "text-wl-ink"}>{part}</span>
       })}
     </div>
   )
@@ -78,7 +78,7 @@ export default function LogTab({ state }: { state: GameStateShape }) {
   return (
     <Card title="Activity Log">
       <div className="space-y-1">
-        {(!log || log.length === 0) && <div className="text-gray-500 italic p-4 text-center">No activity yet.</div>}
+        {(!log || log.length === 0) && <div className="text-wl-muted italic p-4 text-center">No activity yet.</div>}
         {log?.map((l: string, i: number) => <LogItem key={i} text={l} />)}
       </div>
     </Card>

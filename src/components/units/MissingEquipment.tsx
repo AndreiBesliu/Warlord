@@ -6,8 +6,8 @@ export default function MissingEquipment({ unit }: { unit: Unit }) {
   return (
     <div className="mt-1 text-xs">
       {missing.length
-        ? <span className="text-red-700">Missing: {missing.join(', ')}</span>
-        : <span className="text-green-700">Fully equipped</span>}
+        ? <span className="text-wl-bad">Missing: {missing.join(', ')}</span>
+        : <span className="text-wl-good">Fully equipped</span>}
     </div>
   )
 }

@@ -22,7 +22,7 @@ export default function ReplenishForm({
   const miss  = useMemo(()=> missingFromInventory(inv, need), [inv, need])
 
   return (
-    <div className="mt-2 border rounded p-2 bg-gray-50">
+    <div className="mt-2 border border-wl-line rounded p-2 bg-wl-panel-muted">
       <div className="text-sm font-semibold mb-1">Replenish from Pools</div>
 
       <div className="grid grid-cols-5 gap-2 text-sm">
@@ -30,9 +30,9 @@ export default function ReplenishForm({
           const avail = pool[unitType][r].count
           return (
             <div key={r} className="flex flex-col">
-              <label className="text-xs text-gray-500">{r} (avail {avail})</label>
+              <label className="text-xs text-wl-muted">{r} (avail {avail})</label>
               <input
-                className="border rounded px-2 py-1"
+                className="border border-wl-line rounded px-2 py-1"
                 type="number"
                 min={0}
                 max={avail}
@@ -56,7 +56,7 @@ export default function ReplenishForm({
         {' | '}
         {Object.entries(need.horses).map(([k,v])=>`${k}:${v}`).join(' ') || '—'}
       </div>
-      {!autoBuy && miss.any && <div className="text-xs text-red-600 mt-1">Missing gear in stock.</div>}
+      {!autoBuy && miss.any && <div className="text-xs text-wl-bad mt-1">Missing gear in stock.</div>}
 
       <div className="mt-2 flex items-center gap-3">
         <label className="text-sm flex items-center gap-2">
@@ -64,7 +64,7 @@ export default function ReplenishForm({
           Auto-buy missing gear
         </label>
         <button
-          className="px-3 py-1 border rounded text-sm disabled:opacity-50"
+          className="px-3 py-1 border border-wl-line rounded text-sm disabled:opacity-50"
           disabled={total===0 || (!autoBuy && miss.any)}
           onClick={()=>onReplenish(plan, { autoBuy })}
         >

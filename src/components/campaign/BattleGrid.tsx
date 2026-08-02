@@ -7,10 +7,10 @@ import { getIconForGameItem } from '../../logic/iconHelpers'
 const TILE = 46
 
 const TERRAIN_CLASS: Record<TerrainType, string> = {
-  PLAINS: 'bg-lime-100',
-  FOREST: 'bg-green-700/60',
-  HILL: 'bg-amber-300/70',
-  RIVER: 'bg-sky-300',
+  PLAINS: 'bg-wl-good-surface',
+  FOREST: 'bg-wl-good/60',
+  HILL: 'bg-wl-accent-surface',
+  RIVER: 'bg-wl-info/30',
 }
 
 const TERRAIN_LABEL: Record<TerrainType, string> = {
@@ -23,16 +23,16 @@ function Token({ c, selected, dim }: { c: Combatant; selected: boolean; dim: boo
   return (
     <div
       className={`absolute inset-0.5 rounded-md border-2 flex flex-col items-center justify-center overflow-hidden
-        ${isPlayer ? 'border-blue-600 bg-blue-50' : 'border-red-600 bg-red-50'}
-        ${selected ? 'ring-2 ring-yellow-400 ring-offset-1' : ''}
+        ${isPlayer ? 'border-wl-info bg-wl-info/10' : 'border-wl-bad bg-wl-bad-surface'}
+        ${selected ? 'ring-2 ring-wl-accent ring-offset-1' : ''}
         ${dim ? 'opacity-50' : ''}
         ${c.routed ? 'grayscale opacity-60' : ''}`}
       title={`${c.name} — ${c.hp}/${c.hpStart} soldiers, morale ${Math.round(c.morale)}${c.routed ? ' (routed)' : ''}`}
     >
       <GameIcon name={getIconForGameItem(c.type) || 'sword'} size={20} />
-      <span className={`text-[10px] font-mono leading-none font-bold ${isPlayer ? 'text-blue-800' : 'text-red-800'}`}>{c.hp}</span>
-      <div className="absolute top-0 left-0 right-0 h-0.5 bg-black/10">
-        <div className={`h-full ${pct > 50 ? 'bg-green-500' : pct > 25 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
+      <span className={`text-[10px] font-mono leading-none font-bold ${isPlayer ? 'text-wl-info' : 'text-wl-bad'}`}>{c.hp}</span>
+      <div className="absolute top-0 left-0 right-0 h-0.5 bg-wl-ink/10">
+        <div className={`h-full ${pct > 50 ? 'bg-wl-good' : pct > 25 ? 'bg-wl-warn' : 'bg-wl-bad'}`} style={{ width: `${pct}%` }} />
       </div>
       {c.routed && <span className="absolute bottom-0 right-0 text-[9px]">🏳</span>}
     </div>
@@ -80,14 +80,14 @@ export default function BattleGrid({ battle, selectedId, onSelect, onMove, onAtt
         <div
           key={`${x},${y}`}
           onClick={onClick}
-          className={`relative ${TERRAIN_CLASS[t]} border border-black/10
+          className={`relative ${TERRAIN_CLASS[t]} border border-wl-line
             ${isMove ? 'cursor-pointer' : occ ? 'cursor-pointer' : ''}
-            ${isMove ? 'outline outline-2 outline-green-500/70 -outline-offset-2' : ''}
-            ${isTarget ? 'outline outline-2 outline-red-500 -outline-offset-2' : ''}`}
+            ${isMove ? 'outline outline-2 outline-wl-good/70 -outline-offset-2' : ''}
+            ${isTarget ? 'outline outline-2 outline-wl-bad -outline-offset-2' : ''}`}
           style={{ width: TILE, height: TILE }}
           title={TERRAIN_LABEL[t]}
         >
-          {isMove && !occ && <div className="absolute inset-0 flex items-center justify-center"><div className="w-2.5 h-2.5 rounded-full bg-green-600/70" /></div>}
+          {isMove && !occ && <div className="absolute inset-0 flex items-center justify-center"><div className="w-2.5 h-2.5 rounded-full bg-wl-good/70" /></div>}
           {occ && <Token c={occ} selected={selected} dim={dim} />}
         </div>,
       )
@@ -97,15 +97,15 @@ export default function BattleGrid({ battle, selectedId, onSelect, onMove, onAtt
   return (
     <div className="inline-block">
       <div
-        className="grid select-none shadow-inner rounded-lg overflow-hidden border border-stone-700"
+        className="grid select-none shadow-inner rounded-lg overflow-hidden border border-wl-line-strong"
         style={{ gridTemplateColumns: `repeat(${battle.width}, ${TILE}px)` }}
       >
         {cells}
       </div>
-      <div className="flex flex-wrap gap-3 mt-2 text-xs text-stone-600">
+      <div className="flex flex-wrap gap-3 mt-2 text-xs text-wl-muted">
         {(['PLAINS', 'FOREST', 'HILL', 'RIVER'] as TerrainType[]).map((t) => (
           <span key={t} className="inline-flex items-center gap-1">
-            <span className={`inline-block w-3 h-3 rounded ${TERRAIN_CLASS[t]} border border-black/20`} />
+            <span className={`inline-block w-3 h-3 rounded ${TERRAIN_CLASS[t]} border border-wl-line`} />
             {TERRAIN_LABEL[t]}
           </span>
         ))}

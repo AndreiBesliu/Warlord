@@ -48,29 +48,29 @@ export default function CampaignTab({ state }: { state: GameStateShape }) {
     return (
       <Card title={`Battle — ${state.MISSION_PRESETS[battle.difficulty].name}`} className="relative">
         <div className="flex flex-wrap items-center gap-3 mb-3">
-          <span className={`px-2 py-1 rounded text-sm font-semibold ${battle.side === 'PLAYER' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'}`}>
+          <span className={`px-2 py-1 rounded text-sm font-semibold ${battle.side === 'PLAYER' ? 'bg-wl-info/10 text-wl-info' : 'bg-wl-bad-surface text-wl-bad'}`}>
             {over ? 'Battle over' : battle.side === 'PLAYER' ? 'Your turn' : 'Enemy turn…'}
           </span>
-          <span className="text-sm text-stone-600 font-mono">Turn {battle.turn}</span>
-          <span className="text-sm text-blue-700 font-mono">🛡 {playerCount}</span>
-          <span className="text-sm text-red-700 font-mono">⚔ {enemyCount}</span>
+          <span className="text-sm text-wl-muted font-mono">Turn {battle.turn}</span>
+          <span className="text-sm text-wl-info font-mono">🛡 {playerCount}</span>
+          <span className="text-sm text-wl-bad font-mono">⚔ {enemyCount}</span>
           <div className="ml-auto flex gap-2">
             {!over && (
               <>
                 <button
                   onClick={() => { state.battleCommand({ kind: 'END_TURN' }); setSelectedId(null) }}
                   disabled={!canControl}
-                  className={`px-3 py-1 rounded text-white ${canControl ? 'bg-black hover:bg-stone-800' : 'bg-stone-300 cursor-not-allowed'}`}
+                  className={`px-3 py-1 rounded ${canControl ? 'bg-wl-accent text-wl-accent-ink hover:opacity-90' : 'bg-wl-panel-muted text-wl-subtle cursor-not-allowed'}`}
                 >
                   End turn ▶
                 </button>
-                <button onClick={() => { if (confirm('Retreat? Casualties taken so far are permanent and this counts as a loss.')) state.abandonBattle() }} className="px-3 py-1 rounded border border-red-300 text-red-700">
+                <button onClick={() => { if (confirm('Retreat? Casualties taken so far are permanent and this counts as a loss.')) state.abandonBattle() }} className="px-3 py-1 rounded border border-wl-bad text-wl-bad">
                   Retreat
                 </button>
               </>
             )}
             {over && (
-              <button onClick={() => { state.finishBattle(); setSelectedId(null) }} className="px-4 py-1 rounded bg-green-700 text-white hover:bg-green-800">
+              <button onClick={() => { state.finishBattle(); setSelectedId(null) }} className="px-4 py-1 rounded bg-wl-good text-wl-inverse hover:opacity-90">
                 Collect result →
               </button>
             )}
@@ -89,18 +89,18 @@ export default function CampaignTab({ state }: { state: GameStateShape }) {
           </div>
 
           <div className="w-56 space-y-3">
-            <div className="border rounded-lg p-3 bg-white min-h-[92px]">
+            <div className="border border-wl-line rounded-lg p-3 bg-wl-panel min-h-[92px]">
               {sel ? (
                 <div className="space-y-1">
                   <div className="font-semibold text-sm">{sel.name}</div>
-                  <div className="text-xs font-mono text-stone-600">{sel.hp}/{sel.hpStart} soldiers</div>
-                  <div className="text-xs font-mono text-stone-600">morale {Math.round(sel.morale)}</div>
-                  <div className="text-xs text-stone-500">
+                  <div className="text-xs font-mono text-wl-muted">{sel.hp}/{sel.hpStart} soldiers</div>
+                  <div className="text-xs font-mono text-wl-muted">morale {Math.round(sel.morale)}</div>
+                  <div className="text-xs text-wl-muted">
                     {sel.hasMoved ? '● moved' : '○ can move'} · {sel.hasActed ? '● acted' : '○ can attack'}
                   </div>
                 </div>
               ) : (
-                <div className="text-xs text-stone-500">
+                <div className="text-xs text-wl-muted">
                   {canControl ? 'Select one of your units (blue), then click a green tile to move or a highlighted enemy to attack.' : 'Waiting for the enemy…'}
                 </div>
               )}
@@ -113,30 +113,30 @@ export default function CampaignTab({ state }: { state: GameStateShape }) {
                 .filter((f): f is NonNullable<typeof f> => !!f)
               if (forecasts.length === 0) return null
               return (
-                <div className="border rounded-lg p-3 bg-red-50/60">
-                  <div className="text-xs uppercase tracking-wide text-stone-500 mb-1">Attack forecast</div>
+                <div className="border border-wl-line rounded-lg p-3 bg-wl-bad-surface/60">
+                  <div className="text-xs uppercase tracking-wide text-wl-muted mb-1">Attack forecast</div>
                   <div className="space-y-1">
                     {forecasts.map((f) => (
                       <button
                         key={f.targetId}
                         onClick={() => state.battleCommand({ kind: 'ATTACK', id: sel.id, targetId: f.targetId })}
-                        className="w-full text-left text-xs border rounded px-2 py-1 bg-white hover:bg-red-100 transition-colors"
+                        className="w-full text-left text-xs border border-wl-line rounded px-2 py-1 bg-wl-panel hover:bg-wl-bad-surface transition-colors"
                         title={f.melee ? 'Melee attack (may take retaliation)' : 'Ranged attack (no retaliation)'}
                       >
                         <span className="font-semibold">{f.targetName}</span>{' '}
-                        <span className="text-red-700 font-mono">~{f.kills} kills{f.lethal ? ' ☠' : ''}</span>
+                        <span className="text-wl-bad font-mono">~{f.kills} kills{f.lethal ? ' ☠' : ''}</span>
                         {f.melee && f.retalKills > 0 && (
-                          <span className="text-stone-500 font-mono"> / lose ~{f.retalKills}</span>
+                          <span className="text-wl-muted font-mono"> / lose ~{f.retalKills}</span>
                         )}
-                        {!f.melee && <span className="text-stone-400"> (ranged)</span>}
+                        {!f.melee && <span className="text-wl-subtle"> (ranged)</span>}
                       </button>
                     ))}
                   </div>
                 </div>
               )
             })()}
-            <div className="border rounded-lg p-3 bg-stone-50">
-              <div className="text-xs uppercase tracking-wide text-stone-500 mb-1">Battle log</div>
+            <div className="border border-wl-line rounded-lg p-3 bg-wl-panel-muted">
+              <div className="text-xs uppercase tracking-wide text-wl-muted mb-1">Battle log</div>
               <BattleLog battle={battle} />
             </div>
           </div>
