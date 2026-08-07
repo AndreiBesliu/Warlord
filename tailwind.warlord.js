@@ -44,4 +44,9 @@ export const warlordColors = {
   'wl-campaign-surface': v('campaign-surface'),
   'wl-doctrine': v('doctrine'),
   'wl-doctrine-surface': v('doctrine-surface'),
+
+  'wl-plains': v('plains'),
+  'wl-forest': v('forest'),
+  'wl-hill': v('hill'),
+  'wl-river': v('river'),
 }

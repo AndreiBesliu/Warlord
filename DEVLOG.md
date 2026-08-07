@@ -84,6 +84,20 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-02 - Task Completed (revamp UI felia 2: costurile spun ce-ți lipsește)**
+> Prompt: „continua cu revamp-ul".
+> Model: Claude Opus 5
+> - **Cea mai mare gaură de informație din interfață era „Cannot afford".** Jocul știa răspunsul — fiecare cale de cumpărare compară deja costul cu punga și cu depozitele — dar UI-ul afișa doar un buton gri mort. Jucătorul era refuzat fără să afle DE CE și trebuia să umble prin taburi ca să deducă.
+> - **NOU `logic/costs.ts`** (pur, testat): `evaluateCost(cost, holdings)` întoarce, pentru fiecare linie, `need / have / short`, plus o etichetă gata de pus pe buton („Need 28 Iron Ingot + 2g"). Acoperă monede, resurse, arme, armuri și cai — iar la cai numără doar pe cei **activi**, pentru că doar aceia se pot cheltui.
+> - **NOU `components/common/CostList.tsx`** — un preț se citește și se învață: fiecare intrare are numele lângă iconiță, iar ce-ți lipsește apare roșu cu „(have N)". Rândurile vechi erau șiruri de pictograme fără etichetă („🪙1 ⚙50 ▪40 ◪4"), imposibil de învățat: nu puteai spune care e cărbunele și care minereul de cupru.
+> - **Research:** aceeași evaluare alimentează rândul de preț, starea butonului și eticheta lui — deci cardul nu poate promite una și butonul alta. „Cannot afford" a devenit „Need 2 Iron Ingot". Zilele au ieșit din șirul de resurse într-o linie proprie („Takes 3 days"): înainte badge-ul `3d` arăta exact ca încă o resursă.
+> - **Magazinul de clădiri:** fiecare dală se dezactivează când nu-ți permiți și spune exact ce-ți lipsește, în dală și în tooltip. Înainte apăsai și nu se întâmpla nimic — refuzul ajungea doar în log.
+> - **Reset nu-ți mai poate șterge regatul dintr-un click.** Stătea lipit de Load, fără confirmare; acum e separat, colorat ca acțiune distructivă și cere confirmare care numește ziua pierdută.
+> - **Terenul din grila de luptă are tokenuri proprii** (`wl-plains/forest/hill/river`). Împrumuta culori de status, alese pentru alarmă, nu ca să semene cu iarbă și pădure — iar în dark ordinea de luminanță se inversa și harta se descompunea. Acum ordinea (plains > hill > river > forest) e **identică în ambele teme**, verificat prin măsurare.
+> - **Două regresii de contrast prinse de audit, nu de ochi:** (1) `Card` impunea `text-wl-ink` pe wrapper, așa că un apelant care inversează suprafața (ResourcesTab) ajungea cu două culori de text pe același element, iar câștigătorul era ordinea din stylesheet — titlul ieșea 1.32:1, practic invizibil; (2) `subtle` era cu un fir prea deschis pe suprafața muted (2.95:1). Ambele reparate la sursă.
+> - 104 teste verzi (8 noi în `logic/costs.test.ts`), typecheck + build verzi, audit de contrast pe toate cele 9 taburi în ambele teme: zero perechi sub 3:1.
+> - **Rămâne din revamp:** gruparea celor 9 taburi, filtrele din Log, ierarhia tipografică, culoarea ramurilor care se oprește la tier 1, mobilul (nemăsurat) și panoul de admin.
+
 **2026-08-02 - Task Completed (revamp UI felia 1: tokenuri semantice + temă dark)**
 > Prompt: „continua cu ce urma de facut la joc" — următorul lucru din ordinea agreată era revamp-ul UI + tema dark („mă dor ochii încercând să testez, dar să mai și joc").
 > Model: Claude Opus 5

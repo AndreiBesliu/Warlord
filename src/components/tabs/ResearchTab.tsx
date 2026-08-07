@@ -1,10 +1,9 @@
 import Card from '../common/Card'
-import MoneyDisplay from '../common/MoneyDisplay'
-import GameIcon from '../common/GameIcon'
+import CostList from '../common/CostList'
 import type { GameStateShape } from '../../state/useGameState'
 import type { Branch, Modifiers } from '../../logic/research/effects'
 import { BRANCH_LABEL, prereqsMet, missingBuildings, techById, type TechDef } from '../../logic/research/catalog'
-import { getIconForGameItem, formatGameTooltip } from '../../logic/iconHelpers'
+import { evaluateCost } from '../../logic/costs'
 
 const BRANCHES: Branch[] = ['ECONOMY', 'ARMY', 'CAMPAIGN', 'UNLOCKS']
 
@@ -44,9 +43,10 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
   const { research, mods, catalog, startResearch, wallet, resources, buildings } = state
   const inProgress = new Map(research.queue.map((p) => [p.id, p]))
 
-  const canAfford = (t: TechDef) =>
-    wallet >= t.costCopper &&
-    Object.entries(t.costResources).every(([r, amt]) => (resources[r as keyof typeof resources] || 0) >= (amt as number))
+  // One evaluation per tech: the SAME object drives the price row, the button label and
+  // the disabled state, so the card can never claim one thing and the button another.
+  const priceOf = (t: TechDef) =>
+    evaluateCost({ copper: t.costCopper, resources: t.costResources }, { wallet, resources })
 
   const effects = effectLines(mods)
 
@@ -102,7 +102,7 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
                 const busy = inProgress.get(t.id)
                 const missingB = missingBuildings(t, buildings ?? [])
                 const ready = prereqsMet(t, research.unlocked) && missingB.length === 0
-                const affordable = canAfford(t)
+                const price = priceOf(t)
                 const missingReq = t.requires
                   .filter((r) => !research.unlocked.includes(r))
                   .map((r) => techById(catalog, r)?.name ?? r)
@@ -130,15 +130,9 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
 
                     {!done && !busy && (
                       <>
-                        <div className="flex flex-wrap items-center gap-2 text-xs mt-1">
-                          <MoneyDisplay amount={t.costCopper} size={14} />
-                          {Object.entries(t.costResources).map(([r, amt]) => (
-                            <span key={r} className="inline-flex items-center gap-1" title={formatGameTooltip(r)}>
-                              <GameIcon name={getIconForGameItem(r) || 'wood'} size={14} />
-                              <span className="font-mono">{amt as number}</span>
-                            </span>
-                          ))}
-                          <span className="text-wl-muted font-mono">{t.days}d</span>
+                        <div className="mt-1 space-y-1">
+                          <CostList lines={price.lines} />
+                          <div className="text-[11px] text-wl-subtle">Takes {t.days} day{t.days === 1 ? '' : 's'}</div>
                         </div>
                         {!ready ? (
                           <div className="text-xs text-wl-muted mt-1">
@@ -148,10 +142,10 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
                         ) : (
                           <button
                             onClick={() => startResearch(t.id)}
-                            disabled={!affordable}
-                            className={`mt-2 w-full px-3 py-1 rounded text-sm ${affordable ? 'bg-wl-accent text-wl-accent-ink hover:bg-wl-accent/90' : 'bg-wl-panel-muted text-wl-subtle cursor-not-allowed'}`}
+                            disabled={!price.ok}
+                            className={`mt-2 w-full px-3 py-1 rounded text-sm ${price.ok ? 'bg-wl-accent text-wl-accent-ink hover:bg-wl-accent/90' : 'bg-wl-panel-muted text-wl-subtle cursor-not-allowed'}`}
                           >
-                            {affordable ? 'Research 🔬' : 'Cannot afford'}
+                            {price.ok ? 'Research 🔬' : price.shortfallLabel}
                           </button>
                         )}
                       </>

@@ -7,10 +7,10 @@ import { getIconForGameItem } from '../../logic/iconHelpers'
 const TILE = 46
 
 const TERRAIN_CLASS: Record<TerrainType, string> = {
-  PLAINS: 'bg-wl-good-surface',
-  FOREST: 'bg-wl-good/60',
-  HILL: 'bg-wl-accent-surface',
-  RIVER: 'bg-wl-info/30',
+  PLAINS: 'bg-wl-plains',
+  FOREST: 'bg-wl-forest',
+  HILL: 'bg-wl-hill',
+  RIVER: 'bg-wl-river',
 }
 
 const TERRAIN_LABEL: Record<TerrainType, string> = {

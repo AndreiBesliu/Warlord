@@ -151,7 +151,17 @@ export default function App({
             <span className="px-2 py-1 bg-wl-panel-muted text-wl-ink rounded font-mono">{day}</span>
           </div>
           <button className="px-3 py-2 border border-wl-line bg-wl-panel text-wl-ink rounded hover:bg-wl-panel-muted" onClick={loadSave}>Load</button>
-          <button className="px-3 py-2 border border-wl-line bg-wl-panel text-wl-ink rounded hover:bg-wl-panel-muted" onClick={resetAll}>Reset</button>
+          {/* Reset wipes the kingdom. It used to sit flush against Load with no
+              confirmation — one mis-click on day 159 and everything was gone. */}
+          <button
+            className="px-3 py-2 border border-wl-bad/50 text-wl-bad rounded hover:bg-wl-bad-surface ml-2"
+            title="Delete this kingdom and start over"
+            onClick={() => {
+              if (confirm(`Reset the kingdom? Day ${day}, and everything you have built, is deleted. This cannot be undone.`)) resetAll()
+            }}
+          >
+            Reset
+          </button>
           <div className="ml-auto flex gap-2 items-center">
             <div className="text-sm text-wl-muted">
               Next day in <span className="font-mono">{mmss(remaining)}</span>

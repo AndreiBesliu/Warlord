@@ -12,7 +12,7 @@ export default function Card({
   titleClassName?: string
 }) {
   return (
-    <div className={`rounded-2xl shadow-sm border border-wl-line bg-wl-panel text-wl-ink overflow-hidden ${className || ''}`}>
+    <div className={`rounded-2xl shadow-sm border border-wl-line bg-wl-panel overflow-hidden ${className || ''}`}>
       <div className={`text-xl font-bold p-3 text-center uppercase tracking-wide border-b border-wl-line ${titleClassName || ''}`}>
         {title}
       </div>

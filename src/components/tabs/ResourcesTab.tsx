@@ -16,7 +16,7 @@ export default function ResourcesTab({ resources }: Props) {
 
     return (
         <div className="space-y-4">
-            <Card title="Raw Resources" className="bg-wl-panel-contrast text-wl-contrast-ink">
+            <Card title="Raw Resources" className="bg-wl-panel-contrast text-wl-contrast-ink" titleClassName="text-wl-contrast-ink">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {raw.map(r => {
                         const val = resources[r as keyof ResourceMap] || 0
@@ -34,7 +34,7 @@ export default function ResourcesTab({ resources }: Props) {
                 </div>
             </Card>
 
-            <Card title="Refined Materials" className="bg-wl-panel-contrast text-wl-contrast-ink">
+            <Card title="Refined Materials" className="bg-wl-panel-contrast text-wl-contrast-ink" titleClassName="text-wl-contrast-ink">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {ingots.map(r => {
                         const val = resources[r as keyof ResourceMap] || 0

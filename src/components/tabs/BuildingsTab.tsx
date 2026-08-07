@@ -5,6 +5,8 @@ import type { GameStateShape } from '../../state/useGameState'
 import { buildingUpgradeCostCopper, buildingLevelMult, BUILDING_MAX_LEVEL } from '../../logic/economy'
 import { formatGameTooltip } from '../../logic/iconHelpers'
 import MoneyDisplay from '../common/MoneyDisplay'
+import CostList from '../common/CostList'
+import { evaluateCost } from '../../logic/costs'
 import parchmentBg from '../../assets/parchment_bg.png'
 import ProductionModal from '../buildings/ProductionModal'
 
@@ -77,20 +79,10 @@ function BuildingImg({ type }: { type: string }) {
   )
 }
 
-function PriceTag({ cost, resCost }: { cost: number, resCost?: Partial<ResourceMap> }) {
-  const resources = Object.entries(resCost || {})
+function PriceTag({ lines }: { lines: import('../../logic/costs').CostLine[] }) {
   return (
-    <div className="flex flex-col items-center gap-1.5 text-xs">
-      <MoneyDisplay amount={cost} size={12} className="inline-flex font-bold" />
-      {resources.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-1">
-          {resources.map(([r, amt]) => (
-            <span key={r} className="bg-wl-panel-muted px-1.5 py-0.5 rounded text-wl-muted font-mono font-bold">
-              {amt} {formatGameTooltip(r)}
-            </span>
-          ))}
-        </div>
-      )}
+    <div className="flex flex-col items-center gap-1.5">
+      <CostList lines={lines} size={12} />
     </div>
   )
 }
@@ -107,7 +99,14 @@ export default function BuildingsTab({ state, setTab }: Props) {
     upgradeBarracks,
     upgradeBuilding,
     mods,
+    wallet,
+    resources,
   } = state
+
+  // Evaluated once per shop entry and reused for the tile, its tooltip and its enabled
+  // state — the shop can't advertise a price the button then refuses for another reason.
+  const priceOf = (t: Building['type']) =>
+    evaluateCost({ copper: buildingPrice(t), resources: buildingResCost(t) }, { wallet, resources })
 
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null)
 
@@ -238,13 +237,23 @@ export default function BuildingsTab({ state, setTab }: Props) {
                 <div>
                   <h4 className="font-bold text-wl-ink mb-2 uppercase text-xs tracking-wider">Production & Military</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {prodConstruction.map(t => (
-                      <button key={t} onClick={() => buyBuilding(t)} className="flex flex-col items-center p-3 rounded border border-wl-accent-line bg-wl-accent-surface/40 hover:bg-wl-accent-surface transition-colors">
+                    {prodConstruction.map(t => {
+                      const price = priceOf(t)
+                      return (
+                      <button
+                        key={t}
+                        onClick={() => buyBuilding(t)}
+                        disabled={!price.ok}
+                        title={price.ok ? `Build ${t.replace(/_/g, ' ')}` : price.shortfallLabel}
+                        className={`flex flex-col items-center p-3 rounded border transition-colors ${price.ok ? 'border-wl-accent-line bg-wl-accent-surface/40 hover:bg-wl-accent-surface' : 'border-wl-line bg-wl-panel-muted opacity-70 cursor-not-allowed'}`}
+                      >
                         <div className="wl-art w-24 h-24 mb-3 rounded"><img src={BuildingImages[t]} className="w-full h-full object-contain mix-blend-multiply" alt={t} /></div>
-                        <span className="font-bold text-sm text-wl-ink mb-2">{t}</span>
-                        <PriceTag cost={buildingPrice(t)} resCost={buildingResCost(t)} />
+                        <span className="font-bold text-sm text-wl-ink mb-2">{t.replace(/_/g, ' ')}</span>
+                        <PriceTag lines={price.lines} />
+                        {!price.ok && <span className="mt-1 text-[10px] text-wl-bad text-center leading-tight">{price.shortfallLabel}</span>}
                       </button>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -254,18 +263,28 @@ export default function BuildingsTab({ state, setTab }: Props) {
                 <div>
                   <h4 className="font-bold text-wl-ink mb-2 uppercase text-xs tracking-wider">Resource Management</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {resConstruction.map(t => (
-                      <button key={t} onClick={() => buyBuilding(t)} className="flex flex-col items-center p-3 rounded border border-wl-accent-line bg-wl-panel-muted/40 hover:bg-wl-panel-muted transition-colors">
+                    {resConstruction.map(t => {
+                      const price = priceOf(t)
+                      return (
+                      <button
+                        key={t}
+                        onClick={() => buyBuilding(t)}
+                        disabled={!price.ok}
+                        title={price.ok ? `Build ${t.replace(/_/g, ' ')}` : price.shortfallLabel}
+                        className={`flex flex-col items-center p-3 rounded border transition-colors ${price.ok ? 'border-wl-accent-line bg-wl-panel-muted/40 hover:bg-wl-panel-muted' : 'border-wl-line bg-wl-panel-muted opacity-70 cursor-not-allowed'}`}
+                      >
                         <div className="wl-art w-24 h-24 mb-3 rounded flex items-center justify-center">
                           {BuildingImages[t] ?
                             <img src={BuildingImages[t]} className="w-full h-full object-contain mix-blend-multiply" alt={t} />
                             : <span className="text-4xl text-wl-subtle font-bold">{t[0]}</span>
                           }
                         </div>
-                        <span className="font-bold text-sm text-wl-ink mb-2">{t.replace('_', ' ')}</span>
-                        <PriceTag cost={buildingPrice(t)} resCost={buildingResCost(t)} />
+                        <span className="font-bold text-sm text-wl-ink mb-2">{t.replace(/_/g, ' ')}</span>
+                        <PriceTag lines={price.lines} />
+                        {!price.ok && <span className="mt-1 text-[10px] text-wl-bad text-center leading-tight">{price.shortfallLabel}</span>}
                       </button>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}
