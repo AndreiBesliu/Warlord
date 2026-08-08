@@ -143,7 +143,7 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
                           <button
                             onClick={() => startResearch(t.id)}
                             disabled={!price.ok}
-                            className={`mt-2 w-full px-3 py-1 rounded text-sm ${price.ok ? 'bg-wl-accent text-wl-accent-ink hover:bg-wl-accent/90' : 'bg-wl-panel-muted text-wl-subtle cursor-not-allowed'}`}
+                            className={`mt-2 w-full px-3 py-2 min-h-[36px] rounded text-sm ${price.ok ? 'bg-wl-accent text-wl-accent-ink hover:bg-wl-accent/90' : 'bg-wl-panel-muted text-wl-subtle cursor-not-allowed'}`}
                           >
                             {price.ok ? 'Research 🔬' : price.shortfallLabel}
                           </button>

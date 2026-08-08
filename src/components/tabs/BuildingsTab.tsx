@@ -180,23 +180,23 @@ export default function BuildingsTab({ state, setTab }: Props) {
                     <span className="font-bold text-wl-ink text-sm">{b.type.replace('_', ' ')}</span>
                     {b.type === 'BARRACKS' ? (
                       <div className="flex items-center gap-1">
-                        <span className="text-[10px] bg-wl-accent-surface/50 px-1 rounded text-wl-accent font-mono">L{barracksLevel}</span>
+                        <span className="text-[11px] bg-wl-accent-surface/50 px-1 rounded text-wl-accent font-mono">L{barracksLevel}</span>
                         {barracksLevel < 5 && (
-                          <button onClick={(e) => { e.stopPropagation(); upgradeBarracks() }} className="text-[9px] bg-wl-bad text-wl-inverse px-1.5 py-0.5 rounded shadow hover:bg-wl-bad/90">
+                          <button onClick={(e) => { e.stopPropagation(); upgradeBarracks() }} className="text-[11px] font-bold bg-wl-bad text-wl-inverse px-2 rounded shadow hover:bg-wl-bad/90 min-w-[34px] min-h-[34px] inline-flex items-center justify-center">
                             UP
                           </button>
                         )}
                       </div>
                     ) : ['MARKET', 'STABLE'].includes(b.type) ? (
-                      <span className="text-[10px] bg-wl-accent-surface/50 px-1 rounded text-wl-accent font-mono">L{b.level ?? 1}</span>
+                      <span className="text-[11px] bg-wl-accent-surface/50 px-1 rounded text-wl-accent font-mono">L{b.level ?? 1}</span>
                     ) : (
                       <div className="flex items-center gap-1">
-                        <span className="text-[10px] bg-wl-accent-surface/50 px-1 rounded text-wl-accent font-mono">L{b.level ?? 1}</span>
+                        <span className="text-[11px] bg-wl-accent-surface/50 px-1 rounded text-wl-accent font-mono">L{b.level ?? 1}</span>
                         {(b.level ?? 1) < BUILDING_MAX_LEVEL && (
                           <button
                             onClick={(e) => { e.stopPropagation(); upgradeBuilding(b.id) }}
                             title={`Upgrade to L${(b.level ?? 1) + 1} — ${fmtCopper(buildingUpgradeCostCopper(b.type, b.level ?? 1, mods?.buildCostMult ?? 1))} (output ×${buildingLevelMult((b.level ?? 1) + 1).toFixed(1)})`}
-                            className="text-[9px] bg-wl-bad text-wl-inverse px-1.5 py-0.5 rounded shadow hover:bg-wl-bad/90"
+                            className="text-[11px] font-bold bg-wl-bad text-wl-inverse px-2 rounded shadow hover:bg-wl-bad/90 min-w-[34px] min-h-[34px] inline-flex items-center justify-center"
                           >
                             UP
                           </button>
@@ -209,7 +209,7 @@ export default function BuildingsTab({ state, setTab }: Props) {
 
                   <div className="space-y-2 mt-auto pt-2" onClick={(e) => e.stopPropagation()}>
                     {!['STABLE', 'MARKET', 'BARRACKS'].includes(b.type) && (
-                      <div className="text-[10px] text-wl-muted px-1 bg-wl-accent-surface/30 rounded py-1 border border-wl-accent-line">
+                      <div className="text-[11px] text-wl-muted px-1 bg-wl-accent-surface/30 rounded py-1 border border-wl-accent-line">
                         <div className="flex justify-between">
                           <span>{b.focusCoinPct}% Tax</span>
                           {b.outputItem && (
@@ -249,7 +249,7 @@ export default function BuildingsTab({ state, setTab }: Props) {
                         <div className="wl-art w-24 h-24 mb-3 rounded"><img src={BuildingImages[t]} className="w-full h-full object-contain mix-blend-multiply" alt={t} /></div>
                         <span className="font-bold text-sm text-wl-ink mb-2">{t.replace(/_/g, ' ')}</span>
                         <PriceTag lines={price.lines} />
-                        {!price.ok && <span className="mt-1 text-[10px] text-wl-bad text-center leading-tight">{price.shortfallLabel}</span>}
+                        {!price.ok && <span className="mt-1 text-[11px] text-wl-bad text-center leading-tight">{price.shortfallLabel}</span>}
                       </button>
                       )
                     })}
@@ -280,7 +280,7 @@ export default function BuildingsTab({ state, setTab }: Props) {
                         </div>
                         <span className="font-bold text-sm text-wl-ink mb-2">{t.replace(/_/g, ' ')}</span>
                         <PriceTag lines={price.lines} />
-                        {!price.ok && <span className="mt-1 text-[10px] text-wl-bad text-center leading-tight">{price.shortfallLabel}</span>}
+                        {!price.ok && <span className="mt-1 text-[11px] text-wl-bad text-center leading-tight">{price.shortfallLabel}</span>}
                       </button>
                       )
                     })}

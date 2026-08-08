@@ -84,6 +84,17 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-02 - Task Completed (revamp UI felia 3: jocul e utilizabil pe telefon)**
+> Prompt: „ok, continua".
+> Model: Claude Opus 5
+> - **Am măsurat înainte să repar**, la 375×812 cu un domeniu populat, pe toate cele 9 taburi. Nu erau probleme cosmetice, erau structurale.
+> - **111 px de overflow orizontal pe FIECARE tab.** Cauza: antetul ținea ~460 px de controale (Day / Load / Reset / numărătoare / Pause / Run Day) într-un `ml-auto flex` imbricat care **nu putea să se împacheteze**. Într-un viewport de 375 px, tot jocul se mișca lateral — pe orice ecran, nu doar pe unul. Rescris în două rânduri care se împachetează: identitate + ziua pe primul, ceasul și acțiunile lui pe al doilea, iar acțiunile distructive (Load / Reset) împinse la capăt. Padding-ul paginii a scăzut la 12 px sub `sm` — 24 px din 375 e prea mult din lățime.
+> - **Ținte de atingere sub orice prag:** butoanele „UP" de upgrade erau **23×18 px**. Acum 34×34 minim, cu text de 11 px în loc de 9. Butonul de acțiune din Research avea 28 px înălțime — acum minim 36.
+> - **Text sub pragul de citit pe telefon:** 12 locuri la 10 px (badge-urile de nivel, eticheta de deficit din magazin, badge-urile de dificultate din Campaign) — ridicate la 11 px, cel mai mic corp folosit de restul jocului.
+> - **Verificat după reparație:** overflow 0 pe toate taburile la 375 px, zero ținte sub 32 px, zero text sub 11 px. Apoi înapoi la 1280 px, în ambele teme, pe 6 taburi: overflow 0, zero perechi de contrast sub 3:1 — deci reparația pentru telefon n-a stricat desktopul.
+> - 104 teste + typecheck + build verzi.
+> - **Rămâne din revamp:** gruparea celor 9 taburi (se împachetează pe 3 rânduri pe telefon), filtrele din Log, ierarhia tipografică, culoarea ramurilor care se oprește la tier 1, și panoul de admin (OurDaysApp).
+
 **2026-08-02 - Task Completed (revamp UI felia 2: costurile spun ce-ți lipsește)**
 > Prompt: „continua cu revamp-ul".
 > Model: Claude Opus 5

@@ -51,7 +51,7 @@ export default function MissionList({ presets, difficulties, record, streak, cle
             <div key={d} className="border border-wl-line rounded-xl p-4 bg-wl-panel flex flex-col gap-2 shadow-sm">
               <div className="flex items-center justify-between">
                 <h3 className="font-serif text-lg font-bold">{p.name}</h3>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full border uppercase tracking-wide ${BADGE[d]}`}>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full border uppercase tracking-wide ${BADGE[d]}`}>
                   {d === 'BANDIT_RAID' ? 'Easy' : d === 'RIVAL_BARON' ? 'Medium' : 'Hard'}
                 </span>
               </div>

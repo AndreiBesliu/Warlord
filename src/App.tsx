@@ -141,20 +141,52 @@ export default function App({
   const [tab, setTab] = useState<'overview' | 'resources' | 'buildings' | 'barracks' | 'units' | 'market' | 'research' | 'campaign' | 'log'>('overview')
 
   return (
-    <div className={`warlord${dark ? ' dark' : ''} min-h-screen p-6 space-y-4`}>
+    <div className={`warlord${dark ? ' dark' : ''} min-h-screen p-3 sm:p-6 space-y-4`}>
       <div className="max-w-6xl mx-auto space-y-4">
-      <div className="flex gap-2 items-center flex-wrap">
-        <h1 className="text-3xl font-bold text-wl-ink">Warlord</h1>
-        <div className="ml-auto flex gap-2">
-          <div className="ml-4 flex items-center gap-3">
-            <span className="text-lg text-wl-muted">Day:</span>
-            <span className="px-2 py-1 bg-wl-panel-muted text-wl-ink rounded font-mono">{day}</span>
-          </div>
+      {/* Two wrapping rows. The controls used to live in a nested `ml-auto` flex that
+          could not shrink: ~460px of buttons in a 375px viewport, so every screen in the
+          game scrolled sideways. Identity + day on one line, the clock and its actions on
+          the next, destructive actions last and separated. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-wl-ink">Warlord</h1>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-sm text-wl-muted">Day</span>
+          <span className="px-2 py-1 bg-wl-panel-muted text-wl-ink rounded font-mono">{day}</span>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-wl-muted">
+          Next day in <span className="font-mono">{mmss(remaining)}</span>
+        </span>
+        <button
+          className="px-3 py-2 border border-wl-line bg-wl-panel text-wl-ink rounded hover:bg-wl-panel-muted"
+          onClick={() => setAutoTick(a => !a)}
+        >
+          {autoTick ? 'Pause Auto' : 'Resume Auto'}
+        </button>
+        <button
+          className="px-3 py-2 bg-wl-accent text-wl-accent-ink rounded font-semibold hover:opacity-90"
+          onClick={runDayNow}
+        >
+          Run Day ▶
+        </button>
+        {!theme && (
+          <button
+            className="px-3 py-2 border border-wl-line bg-wl-panel text-wl-ink rounded hover:bg-wl-panel-muted"
+            onClick={() => setSelfDark(d => !d)}
+            title={dark ? 'Switch to light' : 'Switch to dark'}
+          >
+            {dark ? '☀' : '☾'}
+          </button>
+        )}
+
+        <span className="ml-auto flex items-center gap-2">
           <button className="px-3 py-2 border border-wl-line bg-wl-panel text-wl-ink rounded hover:bg-wl-panel-muted" onClick={loadSave}>Load</button>
           {/* Reset wipes the kingdom. It used to sit flush against Load with no
               confirmation — one mis-click on day 159 and everything was gone. */}
           <button
-            className="px-3 py-2 border border-wl-bad/50 text-wl-bad rounded hover:bg-wl-bad-surface ml-2"
+            className="px-3 py-2 border border-wl-bad/50 text-wl-bad rounded hover:bg-wl-bad-surface"
             title="Delete this kingdom and start over"
             onClick={() => {
               if (confirm(`Reset the kingdom? Day ${day}, and everything you have built, is deleted. This cannot be undone.`)) resetAll()
@@ -162,34 +194,7 @@ export default function App({
           >
             Reset
           </button>
-          <div className="ml-auto flex gap-2 items-center">
-            <div className="text-sm text-wl-muted">
-              Next day in <span className="font-mono">{mmss(remaining)}</span>
-            </div>
-            <button
-              className="px-3 py-2 border border-wl-line bg-wl-panel text-wl-ink rounded hover:bg-wl-panel-muted"
-              onClick={() => setAutoTick(a => !a)}
-            >
-              {autoTick ? 'Pause Auto' : 'Resume Auto'}
-            </button>
-            <button
-              className="px-3 py-2 bg-wl-accent text-wl-accent-ink rounded font-semibold hover:opacity-90"
-              onClick={runDayNow}
-            >
-              Run Day ▶
-            </button>
-            {!theme && (
-              <button
-                className="px-3 py-2 border border-wl-line bg-wl-panel text-wl-ink rounded hover:bg-wl-panel-muted"
-                onClick={() => setSelfDark(d => !d)}
-                title={dark ? 'Switch to light' : 'Switch to dark'}
-              >
-                {dark ? '☀' : '☾'}
-              </button>
-            )}
-          </div>
-
-        </div>
+        </span>
       </div>
 
       {/* Stores and what tomorrow does to them — visible from every tab, so a change to a
