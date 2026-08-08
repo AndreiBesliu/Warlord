@@ -51,6 +51,7 @@ export default function ProductionModal({ building, onClose, onSetOutput, onSetF
 
     {
         const out = passiveIncomeAndProduction({
+            type: building.type,
             costCopper: buildingCostCopper(building.type),
             focusCoinPct: building.focusCoinPct,
             outputItem: building.outputItem || options[0] || '',

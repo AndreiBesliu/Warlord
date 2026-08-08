@@ -37,6 +37,11 @@ export interface MissionOverride {
 export interface GameConfigOverrides {
   buildingCost?: Partial<Record<BuildingType, number>>
   buildingResourceCost?: Partial<Record<BuildingType, Partial<ResourceMap>>>
+  /** Copper of value a building turns out per day at level 1 — the primary output axis. */
+  buildingOutputValue?: Partial<Record<BuildingType, number>>
+  /** What an item costs in materials to craft. */
+  recipes?: Record<string, Partial<ResourceMap>>
+  /** Legacy: output keyed by the produced resource. Still honoured, see buildingOutputValue. */
   resourceBaseValue?: Partial<Record<string, number>>
   upkeepBase?: Partial<Record<SoldierType, number>>
   upkeepRankMult?: Partial<Record<Rank, number>>
@@ -81,6 +86,27 @@ class GameConfigStore {
   buildingResourceCost(type: BuildingType, base: Partial<ResourceMap>): Partial<ResourceMap> {
     const ov = this.o.buildingResourceCost?.[type]
     return ov && typeof ov === 'object' ? { ...base, ...ov } : base
+  }
+
+  buildingOutputValue(type: BuildingType): number | undefined {
+    const v = this.o.buildingOutputValue?.[type]
+    return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined
+  }
+
+  /** The raw legacy override, with no default folded in — the caller decides precedence. */
+  resourceBaseValueOverride(item: string): number | undefined {
+    const v = this.o.resourceBaseValue?.[item]
+    return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined
+  }
+
+  recipe(item: string, base: Partial<ResourceMap> | undefined): Partial<ResourceMap> | undefined {
+    const ov = this.o.recipes?.[item]
+    if (!ov || typeof ov !== 'object') return base
+    const out: Partial<ResourceMap> = {}
+    for (const [k, v] of Object.entries(ov)) {
+      if (typeof v === 'number' && Number.isFinite(v) && v >= 0) (out as Record<string, number>)[k] = v
+    }
+    return Object.keys(out).length > 0 ? out : base
   }
 
   resourceBaseValue(item: string, base: number | undefined): number | undefined {

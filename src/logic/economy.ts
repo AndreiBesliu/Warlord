@@ -101,20 +101,51 @@ export const BuildingOutputChoices: Record<string, { options: string[] }> = {
   SCRIPTORIUM: { options: [] },
 }
 
+// How much VALUE a building turns out per day at level 1, in copper.
+//
+// This used to be "10% of the building's price", which made the scale of a workshop an
+// accident of what it cost to build: a blacksmith at 100g printed 100,000c of goods a day
+// and ate 2,379 wood doing it, while a lumber mill produced 14. One workshop outpaced a
+// hundred mills. Output is now its own axis — comparable across buildings and tunable
+// from the admin without touching prices, which gate construction instead.
+export const BUILDING_OUTPUT_VALUE: Partial<Record<BuildingType, number>> = {
+  // Extraction — unchanged from the old resource table.
+  LUMBER_MILL: 500,
+  QUARRY: 500,
+  FARM: 800,
+  IRON_MINE: 5_000,
+  COAL_MINE: 3_000,
+  COPPER_MINE: 3_000,
+  SILVER_MINE: 10_000,
+  // Refining — unchanged (was already 10% of a sane price).
+  SMELTER: 4_000,
+  MINTER: 8_000,
+  // Workshops — these are the corrections. Sized so one workshop's appetite for raw
+  // material is within reach of one or two extraction buildings.
+  WOODWORKER: 1_200,
+  TAILOR: 2_000,
+  BLACKSMITH: 3_000,
+  ARMORY: 20_000, // heavy armour is a luxury good; even here that is one piece every ~3 days
+}
+
 export const SmelterRecipes: Record<string, { input: Partial<ResourceMap> }> = {
   'IRON_INGOT': { input: { IRON_ORE: 2, COAL: 1 } },
   'COPPER_INGOT': { input: { COPPER_ORE: 2, COAL: 1 } },
   'SILVER_INGOT': { input: { SILVER_ORE: 2, COAL: 1 } },
 }
 
+// What an item costs in materials. Every one of these used to cost MORE than the item was
+// worth — a bow took 500c of wood to make 70c of bow — so crafting destroyed value and any
+// workshop was a wood sink. Materials now sit at roughly 40-75% of the item's market value,
+// so a workshop turns raw material into something worth more than it consumed.
 export const ManufacturingRecipes: Record<string, Partial<ResourceMap>> = {
   // Woodworker
-  BOW: { WOOD: 10 },
-  SHIELD: { WOOD: 15 },
-  // Blacksmith (optional for now, but good for completeness)
-  SPEAR: { WOOD: 5, IRON_INGOT: 2 },
-  HALBERD: { WOOD: 10, IRON_INGOT: 5 },
-  SWORD: { IRON_INGOT: 10, COAL: 2 },
+  BOW: { WOOD: 1 }, // 50c -> 70c
+  SHIELD: { WOOD: 1 }, // 50c -> 100c
+  // Blacksmith
+  SPEAR: { WOOD: 2 }, // 100c -> 300c (mostly a stick)
+  HALBERD: { WOOD: 3, IRON_INGOT: 2 }, // 750c -> 1200c
+  SWORD: { IRON_INGOT: 3, COAL: 2 }, // 1100c -> 1500c
 }
 
 /**
@@ -174,11 +205,32 @@ export function buildingCostCopper(type: BuildingType, costMult = 1): number {
 
 // Resource price of a building after admin config (research discounts don't apply to
 // materials today — only to copper).
+// Precedence, most specific first:
+//  1. an admin override for THIS building
+//  2. a legacy admin override keyed by the produced resource (kept working on purpose —
+//     an existing configuration must not silently stop applying)
+//  3. the built-in per-building value
+//  4. the old 10%-of-price rule, for anything a mod adds without a table entry
+export function buildingOutputValue(type: BuildingType, outputItem: string, costCopper: number): number {
+  const perBuilding = GameConfig.buildingOutputValue(type)
+  if (perBuilding !== undefined) return perBuilding
+  const legacy = GameConfig.resourceBaseValueOverride(outputItem)
+  if (legacy !== undefined) return legacy
+  const table = BUILDING_OUTPUT_VALUE[type]
+  if (table !== undefined) return table
+  return 0.1 * costCopper
+}
+
+export function manufacturingRecipe(item: string): Partial<ResourceMap> | undefined {
+  return GameConfig.recipe(item, ManufacturingRecipes[item])
+}
+
 export function buildingResourceCost(type: BuildingType): Partial<ResourceMap> {
   return GameConfig.buildingResourceCost(type, ResourceBuildingCosts[type] || {})
 }
 
 export function passiveIncomeAndProduction(args: {
+  type: BuildingType
   costCopper: number
   focusCoinPct: (typeof FocusOptions)[number]
   outputItem: string
@@ -189,8 +241,7 @@ export function passiveIncomeAndProduction(args: {
 }): { coinGain: number; items: number; newBuffer: number } {
   const { costCopper, focusCoinPct, outputItem, fractionalBuffer } = args
 
-  const configured = GameConfig.resourceBaseValue(outputItem, RESOURCE_BUILDING_BASE_VALUE[outputItem])
-  const basePerDay = (configured ?? (0.10 * costCopper))
+  const basePerDay = buildingOutputValue(args.type, outputItem, costCopper)
     * buildingLevelMult(args.level ?? 1) * (args.outputMult ?? 1)
   if (!basePerDay) return { coinGain: 0, items: 0, newBuffer: fractionalBuffer }
 
@@ -285,6 +336,7 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
     const outItem = row.outputItem ?? BuildingOutputChoices[row.type].options[0] ?? ''
     const bufferBefore = row.fractionalBuffer ?? 0
     const { coinGain, items, newBuffer } = passiveIncomeAndProduction({
+      type: row.type,
       costCopper: cost,
       focusCoinPct: row.focusCoinPct,
       outputItem: outItem,
@@ -346,7 +398,7 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
       }
     } else {
       if (items > 0 && outItem) {
-        const recipe = ManufacturingRecipes[outItem]
+        const recipe = manufacturingRecipe(outItem)
         let actualItems = items
 
         if (recipe) {

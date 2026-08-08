@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { simulateEconomyDay, ResourceBuildingCosts, buildingResourceCost } from './economy'
+import { simulateEconomyDay, ResourceBuildingCosts, buildingResourceCost, ManufacturingRecipes } from './economy'
 import { GameConfig } from './config'
 import { makeEmptyInventories } from './helpers'
 import { Registry } from './registry'
@@ -54,26 +54,64 @@ describe('what a level-3 lumber mill actually yields', () => {
   })
 })
 
-// This is the actual imbalance: one crafting building can eat a week of milling in a day.
-describe('what consumes wood, measured against that mill', () => {
+// These pinned the imbalance while it existed. They now pin the fix: a workshop's
+// appetite has to be something an extraction building can actually feed.
+describe('a workshop can now be fed by the buildings that supply it', () => {
   const millL3 = build('LUMBER_MILL', 0, 'WOOD', 3)
 
-  it('a woodworker making bows outspends the mill many times over', () => {
+  it('one level-3 mill sustains one woodworker — the balance that was missing', () => {
     const net = woodPerDay([millL3, build('WOODWORKER', 0, 'BOW', 1)])
-    expect(net).toBeLessThan(0)
-    // The mill adds ~23; the net tells us the workshop's appetite.
-    expect(Math.abs(net)).toBeGreaterThan(100)
+    expect(Math.abs(net)).toBeLessThanOrEqual(5) // was -376 before the rebalance
   })
 
-  it('a blacksmith making spears is in a different league entirely', () => {
-    const net = woodPerDay([millL3, build('BLACKSMITH', 0, 'SPEAR', 1)])
-    expect(net).toBeLessThan(-1000)
+  it('a blacksmith on spears is within reach of a mill or two, not a hundred', () => {
+    const alone = woodPerDay([build('BLACKSMITH', 0, 'SPEAR', 1)])
+    expect(alone).toBeGreaterThan(-40) // was -2379
+    expect(Math.abs(alone) / 23).toBeLessThan(2) // under two level-3 mills
   })
 
-  it('the buildings themselves are cheap by comparison — days, not weeks', () => {
-    const perDay = woodPerDay([millL3])
-    const dearest = Math.max(...Object.values(ResourceBuildingCosts).map((c) => c.WOOD ?? 0))
-    expect(dearest).toBe(200) // SILVER_MINE
-    expect(dearest / perDay).toBeLessThan(10) // under ten days of milling for the priciest
+  it('one smelter covers several blacksmiths worth of iron', () => {
+    const smelted = simulateEconomyDay({
+      buildings: [build('SMELTER', 0, 'IRON_INGOT', 1)],
+      resources: res({ IRON_ORE: 1000, COAL: 1000 }),
+      inv: makeEmptyInventories(), units: [],
+    })
+    const produced = (smelted.resources.IRON_INGOT ?? 0)
+    const consumed = -(simulateEconomyDay({
+      buildings: [build('BLACKSMITH', 0, 'SWORD', 1)],
+      resources: res({ IRON_INGOT: 1000, COAL: 1000 }),
+      inv: makeEmptyInventories(), units: [],
+    }).resources.IRON_INGOT - 1000)
+    expect(produced).toBeGreaterThan(consumed)
+  })
+
+  it('crafting ADDS value instead of destroying it', () => {
+    // Every recipe used to cost more in materials than the item was worth, which made a
+    // workshop a way to convert resources into less than you started with.
+    const price: Record<string, number> = { WOOD: 50, COAL: 100, IRON_INGOT: 300 }
+    const item: Record<string, number> = { BOW: 70, SHIELD: 100, SPEAR: 300, HALBERD: 1200, SWORD: 1500 }
+    for (const [name, recipe] of Object.entries(ManufacturingRecipes)) {
+      const cost = Object.entries(recipe).reduce((n, [r, q]) => n + (price[r] ?? 0) * (q as number), 0)
+      expect(cost, `${name} costs ${cost}c of materials but is worth ${item[name]}c`).toBeLessThan(item[name])
+    }
+  })
+})
+
+describe('the new output axis is admin-tunable', () => {
+  it('buildingOutputValue overrides what a workshop turns out', () => {
+    const base = woodPerDay([build('LUMBER_MILL', 0, 'WOOD', 1)])
+    GameConfig.init({ buildingOutputValue: { LUMBER_MILL: 2000 } })
+    expect(woodPerDay([build('LUMBER_MILL', 0, 'WOOD', 1)])).toBeGreaterThan(base * 2)
+  })
+
+  it('a legacy resourceBaseValue override still applies — an existing config must not go quiet', () => {
+    GameConfig.init({ resourceBaseValue: { WOOD: 5000 } })
+    expect(woodPerDay([build('LUMBER_MILL', 0, 'WOOD', 1)])).toBeGreaterThan(100)
+  })
+
+  it('recipes are tunable too', () => {
+    const before = woodPerDay([build('WOODWORKER', 0, 'BOW', 1)])
+    GameConfig.init({ recipes: { BOW: { WOOD: 10 } } })
+    expect(woodPerDay([build('WOODWORKER', 0, 'BOW', 1)])).toBeLessThan(before)
   })
 })
