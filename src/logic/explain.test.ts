@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { explainBuilding, buildingFormula, compareConfigs, referenceDomain } from './explain'
+import {
+  explainBuilding, buildingFormula, compareConfigs, referenceDomain,
+  explainRecipe, explainBuildingCost, explainCompany, explainMission,
+} from './explain'
 import { GameConfig } from './config'
 import { Registry } from './registry'
 
@@ -100,5 +103,102 @@ describe('the reference domain', () => {
     expect(types).toContain('LUMBER_MILL')
     expect(types).toContain('BLACKSMITH')
     expect(new Set(types).size).toBe(types.length)
+  })
+})
+
+describe('effects are shown for the configuration being EDITED', () => {
+  it('explainBuilding evaluates under a supplied config, not the live one', () => {
+    GameConfig.init(null)
+    const base = explainBuilding('LUMBER_MILL', { focusCoinPct: 0 }).itemsPerDay
+    const proposed = explainBuilding('LUMBER_MILL', {
+      focusCoinPct: 0,
+      config: { buildingOutputValue: { LUMBER_MILL: 2000 } },
+    }).itemsPerDay
+    expect(proposed).toBeCloseTo(base * 4, 1)
+  })
+
+  it('the formula quotes the value actually in force', () => {
+    const lines = buildingFormula('LUMBER_MILL', 1, 0, { buildingOutputValue: { LUMBER_MILL: 2000 } })
+    expect(lines[0]).toContain('20s') // 2000c, not the built-in 500
+  })
+
+  it('previewing under a config never leaves it applied', () => {
+    GameConfig.init({ buildingOutputValue: { LUMBER_MILL: 777 } })
+    explainBuilding('LUMBER_MILL', { config: { buildingOutputValue: { LUMBER_MILL: 999 } } })
+    buildingFormula('LUMBER_MILL', 1, 0, { buildingOutputValue: { LUMBER_MILL: 111 } })
+    expect(GameConfig.buildingOutputValue('LUMBER_MILL')).toBe(777)
+  })
+})
+
+describe('explainRecipe measures the trap the panel warns about', () => {
+  it('flags a recipe whose materials cost more than the item', () => {
+    const r = explainRecipe('BOW', { recipes: { BOW: { WOOD: 50 } } })
+    expect(r.destroysValue).toBe(true)
+    expect(r.ratio).toBeGreaterThan(1)
+  })
+
+  it('does not flag the shipped recipes', () => {
+    for (const item of ['BOW', 'SPEAR', 'SHIELD', 'SWORD', 'HALBERD']) {
+      expect(explainRecipe(item).destroysValue).toBe(false)
+    }
+  })
+
+  it('prices the materials at the values the game uses', () => {
+    const r = explainRecipe('BOW')
+    const sum = r.materials.reduce((s, m) => s + m.qty * m.unitValue, 0)
+    expect(r.materialsValue).toBe(sum)
+  })
+})
+
+describe('explainBuildingCost', () => {
+  it('quotes the price being edited, not the built-in one', () => {
+    const c = explainBuildingCost('LUMBER_MILL', { buildingCost: { LUMBER_MILL: 12_345 } })
+    expect(c.build).toBe(12_345)
+  })
+
+  it('adds up the road to max level', () => {
+    const c = explainBuildingCost('LUMBER_MILL')
+    const last = c.upgrades[c.upgrades.length - 1]
+    expect(last.cumulative).toBe(c.build + c.upgrades.reduce((s, u) => s + u.cost, 0))
+  })
+
+  it('reports the resources a building also costs', () => {
+    const c = explainBuildingCost('BLACKSMITH', { buildingResourceCost: { BLACKSMITH: { WOOD: 40 } } })
+    expect(c.resources.WOOD).toBe(40)
+  })
+})
+
+describe('explainCompany prices an army at the size one actually reaches', () => {
+  it('scales with the number of soldiers', () => {
+    const ten = explainCompany('HEAVY_INF_SWORD', 'NOVICE', 10)
+    const twenty = explainCompany('HEAVY_INF_SWORD', 'NOVICE', 20)
+    expect(twenty.copperPerDay).toBe(ten.copperPerDay * 2)
+    expect(twenty.foodPerDay).toBe(ten.foodPerDay * 2)
+  })
+
+  it('a veteran costs more to keep than a novice', () => {
+    const novice = explainCompany('HEAVY_INF_SWORD', 'NOVICE', 10).copperPerDay
+    const veteran = explainCompany('HEAVY_INF_SWORD', 'VETERAN', 10).copperPerDay
+    expect(veteran).toBeGreaterThan(novice)
+  })
+
+  it('uses the edited upkeep, not the default', () => {
+    const c = explainCompany('LIGHT_INF_SWORD', 'NOVICE', 10, { upkeepBase: { LIGHT_INF_SWORD: 100 } })
+    expect(c.copperPerDay).toBe(1000)
+  })
+})
+
+describe('explainMission', () => {
+  it('sizes the enemy off the army you deploy', () => {
+    const m = explainMission('BANDIT_RAID', 100)
+    expect(m.enemyStrength).toBe(60)
+  })
+
+  it('pays out under the reward being edited', () => {
+    const base = explainMission('BANDIT_RAID', 100).rewardCopper
+    const richer = explainMission('BANDIT_RAID', 100, {
+      missions: { BANDIT_RAID: { rewardCopperPerStrength: 400 } },
+    }).rewardCopper
+    expect(richer).toBe(base * 10)
   })
 })

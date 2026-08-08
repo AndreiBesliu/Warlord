@@ -84,6 +84,17 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-08 - Task Completed (logic/explain.ts: ce face fiecare valoare de balans, cu formula ei)**
+> Prompt: „se pare ca valoarea pe care o trecusem deja pentru costul unei cladiri a fost actualizat, si se pare ca si productia de lemn a crescut. o sa vreau in admin sa se vada mai clar ce efect au si vor avea in viitor modificarile pe care le face. vreau sa se vada formula de calcul etc."
+> Model: Claude Opus 5
+> - **`logic/explain.ts` răspunde la „ce face valoarea asta?" RULÂND jocul, nu re-derivand formula.** Fiecare funcție cheamă exact codul pe care îl cheamă tick-ul zilnic (`simulateEconomyDay`, `dailyUpkeepCopper`, `dailyFoodConsumption`, `buildingCostCopper`, `computeReward`). Regula asta nu e stil: bug-ul „UI-ul reimplementează formula și afișează numere pe care jocul nu le plătește" s-a livrat de trei ori în codul ăsta.
+> - **Cheia noii felii: fiecare explicație se evaluează SUB configurarea care se editează**, nu sub cea salvată — `under(cfg, fn)` schimbă singleton-ul, rulează, și îl pune la loc în `finally`. Fără asta, linia de efect ar fi mințit exact acolo unde trebuie să explice: ridici producția de lemn în formular și linia de sub câmp îți arată vechea valoare.
+> - Funcții noi: `explainRecipe` (materialele valorează mai mult decât obiectul? — exact capcana pe care panoul o avertiza în proză, acum măsurată), `explainBuildingCost` (construcție + drumul până la L3 + resursele), `explainCompany` (ce costă pe zi o companie întreagă, nu un soldat), `explainMission` (ce armată scoate în față și cât plătește), plus parametrul `config` pe `explainBuilding`/`buildingFormula`.
+> - `buildingFormula` citește `GameConfig.buildingOutputValue(type) ?? BUILDING_OUTPUT_VALUE[type]` — formula arată numărul aflat în vigoare, nu default-ul din tabel.
+> - **Testele acoperă și scurgerea:** o previzualizare nu trebuie să lase NICIODATĂ configurarea globală pe valorile previzualizate, nici când simularea aruncă.
+> - 153 teste verzi (25 în `logic/explain.test.ts`), typecheck + build verzi.
+
+
 **2026-08-02 - Task Completed (revamp UI felia 4: navigație grupată + log filtrabil)**
 > Prompt: „fa ca tine" — adică mai departe pe ordinea recomandată, fără să mai întreb.
 > Model: Claude Opus 5
