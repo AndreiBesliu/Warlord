@@ -78,6 +78,12 @@ export interface BuildingEffect {
   consumesPerDay: Partial<Record<string, number>>
   /** True when the building wanted to produce but had nothing to produce from. */
   blocked: boolean
+  /**
+   * Value the building turns out and then throws away, per day. A building with no item to
+   * make (the Minter) converts only the coin share of its output; everything the focus
+   * slider leaves on the material side simply ceases to exist.
+   */
+  valueLostPerDay: number
 }
 
 /**
@@ -112,6 +118,15 @@ function explainBuildingNow(
     units: [],
   })
   const line = day.breakdown[0]
+  // The same building at full coin focus turns out its whole value as coin, which is the
+  // only honest way to ask "how much value did this day actually turn out?" — the answer
+  // at any other focus can be smaller, and for a building with no item to make it is.
+  const fullValue = focusCoinPct === 100 ? (line?.coinGain ?? 0) : simulateEconomyDay({
+    buildings: [{ id: 'x', type, focusCoinPct: 100, outputItem, fractionalBuffer: 0, level }],
+    resources: fullStores(),
+    inv: makeEmptyInventories(),
+    units: [],
+  }).breakdown[0]?.coinGain ?? 0
   const consumes: Partial<Record<string, number>> = {}
   for (const r of ResourceTypes) {
     const used = (before[r] ?? 0) - (day.resources[r] ?? 0)
@@ -119,14 +134,16 @@ function explainBuildingNow(
     const adjusted = r === 'WOOD' ? used + 1 : used
     if (adjusted > 0) consumes[r] = adjusted
   }
+  const delivered = Math.round((line?.coinGain ?? 0) + (line?.itemsFloat ?? 0) * 0.7 * priceOf(outputItem))
   return {
     type,
     outputItem,
-    valuePerDay: Math.round((line?.coinGain ?? 0) + (line?.itemsFloat ?? 0) * 0.7 * (priceOf(outputItem))),
+    valuePerDay: delivered,
     coinPerDay: line?.coinGain ?? 0,
     itemsPerDay: +(line?.itemsFloat ?? 0).toFixed(2),
     consumesPerDay: consumes,
     blocked: !!line?.blocked,
+    valueLostPerDay: Math.max(0, Math.round(fullValue) - delivered),
   }
 }
 
@@ -166,7 +183,12 @@ function buildingFormulaNow(type: BuildingType, level: number, focusCoinPct: num
       lines.push(`each ${outputItem} consumes ${per}`)
     }
   } else {
-    lines.push(`this building produces no item — all of its value is coin`)
+    // Not "all of its value is coin": the engine converts only the coin share and drops the
+    // rest, so a Minter left on the default material focus turns out nothing at all.
+    lines.push(`this building has NO item to make — only the coin share is paid`)
+    if (focusCoinPct < 100) {
+      lines.push(`the other ${100 - focusCoinPct}% (${fmtCopper(Math.round(value - coin))}/day) is DESTROYED — set its focus to 100% coin`)
+    }
   }
   lines.push(`research multiplies value (production ×) and item yield (crafting ×) on top`)
   return lines

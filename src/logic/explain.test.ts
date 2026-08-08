@@ -56,8 +56,8 @@ describe('buildingFormula spells out the arithmetic with real numbers', () => {
     expect(buildingFormula('WOODWORKER').join(' | ')).toMatch(/consumes/)
   })
 
-  it('says plainly when a building yields only coin', () => {
-    expect(buildingFormula('MINTER').join(' | ')).toContain('no item')
+  it('says plainly when a building has no item to make', () => {
+    expect(buildingFormula('MINTER').join(' | ')).toContain('NO item to make')
   })
 })
 
@@ -200,5 +200,29 @@ describe('explainMission', () => {
       missions: { BANDIT_RAID: { rewardCopperPerStrength: 400 } },
     }).rewardCopper
     expect(richer).toBe(base * 10)
+  })
+})
+
+describe('a building with no item to make does not quietly eat its own output', () => {
+  it('the Minter loses everything the focus slider leaves on the material side', () => {
+    const e = explainBuilding('MINTER', { focusCoinPct: 0 })
+    expect(e.coinPerDay).toBe(0)
+    expect(e.itemsPerDay).toBe(0)
+    expect(e.valueLostPerDay).toBeGreaterThan(0)
+  })
+
+  it('loses nothing at full coin focus', () => {
+    expect(explainBuilding('MINTER', { focusCoinPct: 100 }).valueLostPerDay).toBe(0)
+  })
+
+  it('a building that makes an item loses nothing at either end', () => {
+    expect(explainBuilding('LUMBER_MILL', { focusCoinPct: 0 }).valueLostPerDay).toBe(0)
+    expect(explainBuilding('LUMBER_MILL', { focusCoinPct: 100 }).valueLostPerDay).toBe(0)
+  })
+
+  it('says so in the formula rather than claiming the value becomes coin', () => {
+    const lines = buildingFormula('MINTER', 1, 0).join(' | ')
+    expect(lines).toMatch(/DESTROYED/)
+    expect(buildingFormula('MINTER', 1, 100).join(' | ')).not.toMatch(/DESTROYED/)
   })
 })
