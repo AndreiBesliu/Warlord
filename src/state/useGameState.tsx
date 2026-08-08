@@ -285,25 +285,25 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
   function startResearch(techId: TechId) {
     const t = techById(catalog, techId)
     if (!t) { addLog('Unknown technology.'); return }
-    if (rsc.research.unlocked.includes(techId)) { addLog(`${t.name} is already researched.`); return }
-    if (rsc.research.queue.some(p => p.id === techId)) { addLog(`${t.name} is already being researched.`); return }
+    if (rsc.research.unlocked.includes(techId)) { addLog(`🔬 ${t.name} is already researched.`); return }
+    if (rsc.research.queue.some(p => p.id === techId)) { addLog(`🔬 ${t.name} is already being researched.`); return }
     if (!hasResearchBuilding(econ.buildings)) {
-      addLog('You need a Scriptorium before anything can be researched.')
+      addLog('🔬 You need a Scriptorium before anything can be researched.')
       return
     }
     const missingB = missingBuildings(t, econ.buildings)
     if (missingB.length > 0) {
-      addLog(`${t.name} needs: ${missingB.join(', ')}.`)
+      addLog(`🔬 ${t.name} needs: ${missingB.join(', ')}.`)
       return
     }
     if (!prereqsMet(t, rsc.research.unlocked)) {
       const missing = t.requires.filter(r => !rsc.research.unlocked.includes(r))
         .map(r => techById(catalog, r)?.name ?? r)
-      addLog(`${t.name} requires: ${missing.join(', ')}.`)
+      addLog(`🔬 ${t.name} requires: ${missing.join(', ')}.`)
       return
     }
     if (econ.wallet < t.costCopper) {
-      addLog(`Not enough funds for ${t.name}. Need ${fmtCopper(t.costCopper)}.`)
+      addLog(`🔬 Not enough funds for ${t.name}. Need ${fmtCopper(t.costCopper)}.`)
       return
     }
     const missingRes: string[] = []

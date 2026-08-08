@@ -208,29 +208,38 @@ export default function App({
         mods={state.mods}
       />
 
-      <nav className="flex flex-wrap gap-2">
-        {[
-          ['overview', 'Overview'],
-          ['resources', 'Resources'],
-          ['buildings', 'Buildings'],
-          ['barracks', 'Barracks'],
-          ['units', 'Units'],
-          ['market', 'Market'],
-          ...(state.hasResearchBuilding ? [['research', 'Research'] as const] : []),
-          ['campaign', 'Campaign'],
-          ['log', 'Log']
-        ].map(([k, label]) => (
-          <button
-            key={k}
-            onClick={() => setTab(k as any)}
-            className={`px-3 py-1 rounded border transition-colors ${
-              tab === k
-                ? 'bg-wl-accent text-wl-accent-ink border-wl-accent font-semibold'
-                : 'bg-wl-panel text-wl-ink border-wl-line hover:bg-wl-panel-muted'
-            }`}
-          >
-            {label}
-          </button>
+      {/* Nine equal pills in one row gave no map of the game. Grouped by what you are
+          actually doing — run the domain, run the army, look things up — with proximity
+          doing the work instead of extra chrome. Icons make each one findable at a glance,
+          which matters most on a phone where the row wraps. */}
+      {/* On a phone the wrapped rows ate 172px — a fifth of the screen for navigation.
+          One swipeable band instead; the labels stay, which icon-only would have cost. */}
+      <nav className="flex flex-nowrap overflow-x-auto sm:flex-wrap items-center gap-x-5 gap-y-2 -mx-3 px-3 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {([
+          ['Domain', [['overview', 'Overview', '\u{1F3F0}'], ['resources', 'Resources', '\u{1F4E6}'], ['buildings', 'Buildings', '\u{1F3D7}'], ['market', 'Market', '\u2696']]],
+          ['Army', [['barracks', 'Barracks', '\u{1F6E1}'], ['units', 'Units', '\u2694'], ['campaign', 'Campaign', '\u{1F5FA}']]],
+          ['Records', [
+            ...(state.hasResearchBuilding ? [['research', 'Research', '\u{1F52C}'] as const] : []),
+            ['log', 'Log', '\u{1F4DC}'] as const,
+          ]],
+        ] as const).map(([groupName, items], gi) => (
+          <div key={groupName} className="flex flex-nowrap sm:flex-wrap items-center gap-1 shrink-0">
+            {gi > 0 && <span aria-hidden className="hidden sm:block w-px h-6 bg-wl-line mr-4" />}
+            {items.map(([k, label, icon]) => (
+              <button
+                key={k}
+                onClick={() => setTab(k as any)}
+                title={`${groupName}: ${label}`}
+                className={`px-3 py-1.5 min-h-[36px] whitespace-nowrap shrink-0 rounded border transition-colors ${
+                  tab === k
+                    ? 'bg-wl-accent text-wl-accent-ink border-wl-accent font-semibold'
+                    : 'bg-wl-panel text-wl-ink border-wl-line hover:bg-wl-panel-muted'
+                }`}
+              >
+                <span aria-hidden className="mr-1">{icon}</span>{label}
+              </button>
+            ))}
+          </div>
         ))}
       </nav>
 

@@ -84,6 +84,18 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-02 - Task Completed (revamp UI felia 4: navigație grupată + log filtrabil)**
+> Prompt: „fa ca tine" — adică mai departe pe ordinea recomandată, fără să mai întreb.
+> Model: Claude Opus 5
+> - **Navigația:** nouă pastile egale, într-un singur rând, nu dădeau nicio hartă a jocului. Acum sunt trei grupuri după ce faci efectiv — **Domain** (Overview / Resources / Buildings / Market), **Army** (Barracks / Units / Campaign), **Records** (Research / Log) — cu proximitatea făcând treaba în locul unui chenar în plus, plus o iconiță pe fiecare tab.
+> - **Pe telefon, navigația mânca 172 px** (o cincime din ecran) fiindcă grupurile se împachetau pe patru rânduri. Acum e **o singură bandă derulabilă lateral: 38 px**. Am ales derularea în locul variantei doar-cu-iconițe pentru că pe touch nu există hover, deci o iconiță fără etichetă e o ghicitoare.
+> - **Log-ul avea un singur flux nediferențiat.** Ca să afli de ce ți-a scăzut trezoreria trebuia să citești pe lângă fiecare linie de antrenament și de luptă. Acum: **șase categorii cu chip-uri de filtrare** (Days / Economy / Army / Battles / Research / Warnings), fiecare cu numărul de intrări — numărul rămâne vizibil chiar și când categoria e ascunsă, ca filtrarea să nu ascundă niciodată faptul că s-a întâmplat ceva. Plus căutare și un rând „Showing 6 of 8 entries".
+> - **NOU `logic/logKind.ts`** (pur, testat): categoria e INFERATĂ din linie, nu înregistrată, pentru că `addLog` e chemat din vreo douăzeci de locuri iar textele sunt scrise tot de noi. `stripTimestamp` scoate prefixul de ceas de pe fiecare rând — era zgomot pe absolut toate.
+> - **Un test a prins o problemă reală de proiectare:** linia „X requires: Y" din `startResearch` nu conținea niciun marcaj că e despre cercetare, deci nu putea fi clasificată. Reparat la sursă — cele șase mesaje de research își pun acum singure eticheta `🔬`. Un mesaj de log trebuie să-și spună subiectul; clasificatorul nu trebuie să ghicească.
+> - **Verificat:** categoriile clasifică corect toate cele 8 linii-tip (1 zi, 2 economie, 2 armată, 1 luptă, 1 research, 1 avertisment); mutarea unei categorii scade lista de la 8 la 6; căutarea „research" lasă exact 1. Pe 375 px: overflow 0, zero contraste sub 3:1, zero ținte sub 32 px. Pe 1280 px, ambele teme: la fel.
+> - 114 teste verzi (10 noi în `logic/logKind.test.ts`), typecheck + build verzi.
+> - **Rămâne din revamp:** ierarhia tipografică din carduri, culoarea ramurilor care se oprește la tier 1 în arborele de research, și panoul de admin (OurDaysApp) — care e și punctul meu orb, fiind în spatele autentificării.
+
 **2026-08-02 - Task Completed (revamp UI felia 3: jocul e utilizabil pe telefon)**
 > Prompt: „ok, continua".
 > Model: Claude Opus 5
