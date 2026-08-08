@@ -14,8 +14,15 @@ import {
   manufacturingRecipe, BuildingOutputChoices,
 } from './economy'
 import { makeEmptyInventories } from './helpers'
+import { Registry } from './registry'
 import { itemValueCopper } from './items'
 import { fmtCopper, ResourceTypes, type Building, type BuildingType, type ResourceMap } from './types'
+
+// Item prices come from the Registry, and this module is imported by hosts that never
+// mount the game (the balance admin). Without this, every item value reads 0, every
+// items/day comes out 0, and the panel silently reports that nothing produces anything.
+// `init` is guarded, so calling it here is free when the game already did.
+Registry.init()
 
 /** A domain with one of every building, so a change anywhere shows up somewhere. */
 export function referenceDomain(level = 1, focusCoinPct: Building['focusCoinPct'] = 0): Building[] {
