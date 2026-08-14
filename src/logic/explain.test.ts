@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   explainBuilding, buildingFormula, compareConfigs, referenceDomain,
-  explainRecipe, explainBuildingCost, explainCompany, explainMission,
+  explainRecipe, explainBuildingCost, explainCompany, explainMission, explainStudy,
 } from './explain'
+import { scriptoriumStudy } from './research/study'
 import { GameConfig } from './config'
 import { Registry } from './registry'
 
@@ -224,5 +225,30 @@ describe('a building with no item to make does not quietly eat its own output', 
     const lines = buildingFormula('MINTER', 1, 0).join(' | ')
     expect(lines).toMatch(/DESTROYED/)
     expect(buildingFormula('MINTER', 1, 100).join(' | ')).not.toMatch(/DESTROYED/)
+  })
+})
+
+describe('explainStudy answers "what does this pace mean?"', () => {
+  it('quotes the pace the game actually produces, not a claim about it', () => {
+    const e = explainStudy(1)
+    expect(e.perBranch.ECONOMY).toBe(scriptoriumStudy(1))
+    expect(e.perBranch.UNLOCKS).toBe(scriptoriumStudy(1))
+  })
+
+  it('shows that a lone Scriptorium is slower than the tech\'s Effort suggests', () => {
+    const e = explainStudy(1)
+    const threeDay = e.examples.find((x) => x.days === 3)!
+    expect(threeDay.daysAtPace).toBeGreaterThan(3)
+  })
+
+  it('answers under the config being EDITED', () => {
+    const fast = explainStudy(1, { study: { scriptoriumPerLevel: 1000 } })
+    expect(fast.examples[0].daysAtPace).toBeLessThan(explainStudy(1).examples[0].daysAtPace!)
+  })
+
+  it('never leaves the previewed config applied', () => {
+    GameConfig.init({ study: { scriptoriumPerLevel: 7 } })
+    explainStudy(1, { study: { scriptoriumPerLevel: 999 } })
+    expect(GameConfig.study().scriptoriumPerLevel).toBe(7)
   })
 })

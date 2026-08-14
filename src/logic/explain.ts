@@ -19,6 +19,7 @@ import { makeEmptyInventories } from './helpers'
 import { Registry } from './registry'
 import { itemValueCopper } from './items'
 import { missionPresets, computeReward } from './combat/enemies'
+import { studyPerDay, studyCostOf, daysAtRate } from './research/study'
 import type { Difficulty } from './combat/types'
 import {
   fmtCopper, ResourceTypes,
@@ -367,6 +368,45 @@ export function explainMission(
           ? `resources = base × (enemy strength ÷ 50) = ${res.map(([r, q]) => `${q} ${r}`).join(' + ')}`
           : 'no resource reward',
         'a win streak and research loot × multiply the reward on top',
+      ],
+    }
+  })
+}
+
+export interface StudyEffect {
+  /** Study per branch per day on the reference domain, at the configured rates. */
+  perBranch: Record<string, number>
+  /** What a 3-day and a 10-day tech cost, and how long each takes at that pace. */
+  examples: { days: number; cost: number; daysAtPace: number | null }[]
+  lines: string[]
+}
+
+/**
+ * What the study settings mean in practice. Answered by running `studyPerDay` — the same
+ * function the tick banks with — over a reference domain, so the panel cannot quote a pace
+ * the game does not produce.
+ */
+export function explainStudy(scriptoriumLevel = 1, config?: GameConfigOverrides | null): StudyEffect {
+  return under(config, () => {
+    const cfg = GameConfig.study()
+    const domain: Building[] = [{
+      id: 'scr', type: 'SCRIPTORIUM', focusCoinPct: 100, fractionalBuffer: 0, level: scriptoriumLevel,
+    }]
+    const perBranch = studyPerDay(domain)
+    const pace = perBranch.ECONOMY
+    const examples = [3, 10].map((days) => {
+      const cost = studyCostOf({ days })
+      return { days, cost, daysAtPace: daysAtRate(cost, pace) }
+    })
+    return {
+      perBranch,
+      examples,
+      lines: [
+        `a tech's cost = its Effort × ${cfg.baselinePerDay} study = the reference pace for that many days`,
+        `Scriptorium L${scriptoriumLevel} = ${cfg.scriptoriumPerLevel} × ${buildingLevelMult(scriptoriumLevel).toFixed(1)} = ${pace} study/day, to EVERY branch`,
+        `a diverted building = its daily value ÷ ${fmtCopper(cfg.copperPerStudy)} per study point`,
+        ...examples.map((e) => `an Effort-${e.days} tech costs ${e.cost} study — ${e.daysAtPace} days on the Scriptorium alone`),
+        `a branch banks at most ${cfg.poolCap} study while nothing is running there`,
       ],
     }
   })
