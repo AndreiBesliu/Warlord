@@ -2,12 +2,25 @@ import { useState } from 'react'
 import Card from '../common/Card'
 import RecruitForm from '../barracks/RecruitForm'
 import MoneyDisplay from '../common/MoneyDisplay'
-import { type SoldierType, } from '../../logic/types'
+import { type Rank, type SoldierType, } from '../../logic/types'
 import type { GameStateShape } from '../../state/useGameState'
 import { Registry } from '../../logic/registry'
 import GameIcon from '../common/GameIcon'
 import { getIconForGameItem } from '../../logic/iconHelpers'
 import barracksScene from '../../assets/barracks_scene.png'
+import { checkLightTraining, checkConversion } from '../../logic/barracks'
+import type { ActionCheck } from '../../logic/barracks'
+
+// Every refusal in this tab used to exist only as a line in the Log tab: the button stayed
+// enabled, nothing moved on screen, and pressing Train Batch with an empty armoury was
+// indistinguishable from a broken game. Same treatment as Research and Buildings now —
+// the button goes dead and says what is missing, in place.
+function Blocked({ check }: { check: ActionCheck }) {
+  if (check.ok) return null
+  return (
+    <div className="mt-1 text-[11px] text-wl-bad leading-tight">{check.reasons.filter(Boolean).join(' · ')}</div>
+  )
+}
 
 type ViewMode = 'SCENE' | 'RECRUIT' | 'TRAINING' | 'MANAGEMENT'
 
@@ -98,7 +111,16 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
   }
 
   if (view === 'MANAGEMENT') {
-    const { barracksLevel, barracksUpgradeCost, upgradeBarracks, batches, batchSlots, batchDurationDays } = state
+    const { barracksLevel, barracksUpgradeCost, upgradeBarracks, batches, batchSlots, batchDurationDays, barracks } = state
+    // Trained soldiers land in this pool and used to be invisible from here — the middle
+    // step of the whole loop existed only inside a form on another tab, so a finished batch
+    // looked like it had gone nowhere.
+    const trained = (Object.entries(barracks) as [SoldierType, Record<Rank, { count: number; avgXP: number }>][])
+      .map(([type, ranks]) => ({
+        type,
+        ranks: (Object.entries(ranks) as [Rank, { count: number; avgXP: number }][]).filter(([, v]) => v.count > 0),
+      }))
+      .filter((r) => r.ranks.length > 0)
     const hasCostFn = typeof barracksUpgradeCost === 'function'
     const nextCost = hasCostFn ? barracksUpgradeCost(barracksLevel) : 0
 
@@ -113,6 +135,29 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
               <div>Batch Slots: {batchSlots(barracksLevel)}</div>
               <div>Batch Duration: {batchDurationDays(barracksLevel)} days</div>
             </div>
+            <div className="mt-4 border-t border-wl-line pt-3">
+              <h4 className="text-xs uppercase tracking-wide text-wl-muted mb-2">Trained soldiers, waiting to be formed</h4>
+              {trained.length === 0 ? (
+                <p className="text-xs text-wl-muted">
+                  None yet. Finished training batches gather here; form them into units at the
+                  Commander's Tent in the Units tab.
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {trained.map((row) => (
+                    <div key={row.type} className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                      <span className="font-semibold text-wl-ink">{row.type.replace(/_/g, ' ')}</span>
+                      {row.ranks.map(([r, v]) => (
+                        <span key={r} className="text-xs text-wl-muted">
+                          <span className="font-mono text-wl-ink">{v.count}</span> {r.toLowerCase()}
+                        </span>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="mt-4">
               <button
                 className="px-4 py-2 bg-wl-info text-wl-inverse rounded disabled:opacity-50 disabled:bg-wl-subtle flex items-center gap-2 shadow hover:bg-wl-info/90 transition"
@@ -158,8 +203,14 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
 // Extracted Training View for cleanliness
 function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => void }) {
   const {
-    queueLightTraining, queueHeavyConversion, queueLightCavConversion, queueHorseArcherConversion
+    queueLightTraining, queueHeavyConversion, queueLightCavConversion, queueHorseArcherConversion,
+    recruits, barracks, batches, batchSlots, barracksLevel, wallet, resources, inv,
   } = state
+
+  const have = { wallet, resources, inv }
+  const slotFree = batches.length < batchSlots(barracksLevel)
+  const poolOf = (t: SoldierType, ranks: Rank[]) =>
+    ranks.reduce((a, r) => a + (barracks[t]?.[r]?.count ?? 0), 0)
 
   const [lightType, setLightType] = useState<SoldierType>('LIGHT_INF_SPEAR')
   const [lightQty, setLightQty] = useState(20)
@@ -168,6 +219,23 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
   const [lcSrc, setLcSrc] = useState<SoldierType>('LIGHT_INF_SPEAR')
   const [lcQty, setLcQty] = useState(10)
   const [haQty, setHaQty] = useState(10)
+
+  const trainCheck = checkLightTraining({ target: lightType, qty: lightQty, recruits: recruits.count, slotFree, have })
+  const lcCheck = checkConversion({
+    target: 'LIGHT_CAV', qty: lcQty, slotFree, have,
+    availableFromPool: poolOf(lcSrc, ['NOVICE', 'TRAINED', 'ADVANCED', 'VETERAN', 'ELITE']),
+    sourceLabel: `${lcSrc.replace(/_/g, ' ').toLowerCase()} (novice or better)`,
+  })
+  const haCheck = checkConversion({
+    target: 'HORSE_ARCHER', qty: haQty, slotFree, have,
+    availableFromPool: poolOf('LIGHT_ARCHER', ['ADVANCED', 'VETERAN', 'ELITE']),
+    sourceLabel: 'advanced light archers',
+  })
+  const heavyCheck = checkConversion({
+    target: 'HEAVY_CAV', qty: heavyQty, slotFree, have,
+    availableFromPool: poolOf(heavySrc, ['ADVANCED', 'VETERAN', 'ELITE']),
+    sourceLabel: `advanced ${heavySrc.replace(/_/g, ' ').toLowerCase()}`,
+  })
 
   // Reused Requirement Helper
   const renderReqs = (qty: number, type?: string | undefined, unitId?: string, _isHeavy?: boolean, heavySrcVal?: string) => {
@@ -286,11 +354,12 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
               <input className="border border-wl-line rounded px-2 py-1 w-24 bg-wl-panel-muted" type="number" min={1} max={50}
                 value={lightQty} onChange={e => setLightQty(Math.max(1, Math.min(50, parseInt(e.target.value || '1'))))} />
             </div>
-            <button className="px-4 py-1 bg-wl-good text-wl-inverse rounded hover:bg-wl-good/90" onClick={() => queueLightTraining(lightType, lightQty)}>
+            <button className="px-4 py-1 bg-wl-good text-wl-inverse rounded hover:bg-wl-good/90 disabled:opacity-60 disabled:cursor-not-allowed" disabled={!trainCheck.ok} onClick={() => queueLightTraining(lightType, lightQty)}>
               Train Batch
             </button>
           </div>
           {renderReqs(lightQty, undefined, lightType)}
+          <Blocked check={trainCheck} />
         </div>
 
         {/* Conversions Grid */}
@@ -312,11 +381,12 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
                 <input className="border border-wl-line rounded px-2 py-1 w-16 text-sm" type="number" min={1} max={50}
                   value={lcQty} onChange={e => setLcQty(Math.max(1, Math.min(50, parseInt(e.target.value || '1'))))} />
               </div>
-              <button className="px-3 py-1 border border-wl-line rounded hover:bg-wl-panel-muted text-sm" onClick={() => queueLightCavConversion(lcSrc, lcQty)}>
+              <button className="px-3 py-1 border border-wl-line rounded hover:bg-wl-panel-muted text-sm disabled:opacity-60 disabled:cursor-not-allowed" disabled={!lcCheck.ok} onClick={() => queueLightCavConversion(lcSrc, lcQty)}>
                 Queue
               </button>
             </div>
             {renderReqs(lcQty, 'LIGHT_CAV')}
+            <Blocked check={lcCheck} />
           </div>
 
           {/* Horse Archer */}
@@ -331,11 +401,12 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
                 <input className="border border-wl-line rounded px-2 py-1 w-16 text-sm" type="number" min={1} max={50}
                   value={haQty} onChange={e => setHaQty(Math.max(1, Math.min(50, parseInt(e.target.value || '1'))))} />
               </div>
-              <button className="px-3 py-1 border border-wl-line rounded hover:bg-wl-panel-muted text-sm" onClick={() => queueHorseArcherConversion(haQty)}>
+              <button className="px-3 py-1 border border-wl-line rounded hover:bg-wl-panel-muted text-sm disabled:opacity-60 disabled:cursor-not-allowed" disabled={!haCheck.ok} onClick={() => queueHorseArcherConversion(haQty)}>
                 Queue
               </button>
             </div>
             {renderReqs(haQty, 'HORSE_ARCHER')}
+            <Blocked check={haCheck} />
           </div>
         </div>
 
@@ -355,11 +426,12 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
               <input className="border border-wl-line rounded px-2 py-1 w-20 text-sm bg-wl-panel-muted" type="number" min={1} max={50}
                 value={heavyQty} onChange={e => setHeavyQty(Math.max(1, Math.min(50, parseInt(e.target.value || '1'))))} />
             </div>
-            <button className="px-4 py-1 bg-wl-accent text-wl-accent-ink rounded hover:bg-wl-accent/90 text-sm" onClick={() => queueHeavyConversion(heavySrc, heavyQty)}>
+            <button className="px-4 py-1 bg-wl-accent text-wl-accent-ink rounded hover:bg-wl-accent/90 text-sm disabled:opacity-60 disabled:cursor-not-allowed" disabled={!heavyCheck.ok} onClick={() => queueHeavyConversion(heavySrc, heavyQty)}>
               Initialize Conversion
             </button>
           </div>
           {renderReqs(heavyQty, 'HEAVY_CAV', undefined, true, heavySrc)}
+          <Blocked check={heavyCheck} />
         </div>
 
       </div>

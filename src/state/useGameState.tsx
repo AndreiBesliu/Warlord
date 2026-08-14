@@ -5,7 +5,7 @@ import { GOLD, fmtCopper, Ranks, type Rank, type SoldierType, type Building, typ
 import type { Unit } from '../logic/types'
 import { BuildingOutputChoices, FocusOptions } from '../logic/economy'
 import { makeEmptyInventories, isHorseKey, type HorseKey } from '../logic/helpers'
-import { demandFor, ensureEquipOrBuy } from '../logic/equipment'
+import { demandFor, ensureEquipOrBuy, equipFromDemand, addEquip, releaseEquip } from '../logic/equipment'
 import { itemValueCopper } from '../logic/items'  // if you use buy/sell here
 import { batchSlots, batchDurationDays } from '../logic/batches' // or from your batches helper
 import {
@@ -16,11 +16,12 @@ import {
 //state
 import { dailyUpkeepCopper, dailyFoodConsumption, buildingUpgradeCostCopper, buildingCostCopper, buildingResourceCost, buildingLevelMult, BUILDING_MAX_LEVEL } from '../logic/economy'
 import { useEconomy } from './useEconomy'
-import { useUnits } from './useUnits'
+import { useUnits, hydrateUnits } from './useUnits'
 import useBarracks, { emptyBarracks } from './useBarracks'
 import { computeReady, mergeUnits, splitUnit, applyMoraleChange, trainingGainPerDay, promoteBuckets, computeUnitAvgXP } from '../logic/units'
 import { Registry } from '../logic/registry'
 import { rollDailyEvent } from '../logic/events'
+import { recruitCostCopper } from '../logic/barracks'
 import { forecastDay } from '../logic/forecast'
 import { loadSampleMod } from '../mods/sampleMod';
 import { GameConfig, type GameConfigOverrides } from '../logic/config'
@@ -158,7 +159,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       barr.setBarracksLevel(s.barracksLevel ?? 1)
       barr.setRecruits(s.recruits ?? { count: 0, avgXP: 0 })
       barr.setBatches(s.batches ?? [])
-      unit.setUnits(s.units ?? [])
+      unit.setUnits(hydrateUnits(s.units))
       camp.setCampaign(hydrateCampaign(s.campaign))
       rsc.setResearch(hydrateResearch(s.research, cfg?.catalog))
       addLog('Loaded save.')
@@ -629,7 +630,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       }
       const { kind, target, qty } = b
       if (kind === 'LIGHT_TRAIN' && target) {
-        finished.push({ pool: target, qty, note: `Training finished: ${qty} ${target} (ROOKIE).` })
+        finished.push({ pool: target, qty, note: `Training finished: ${qty} ${target} (NOVICE).` })
       } else if (kind === 'LIGHT_CAV') {
         finished.push({ pool: 'LIGHT_CAV', qty, note: `Conversion finished: ${qty} LIGHT_CAV.` })
       } else if (kind === 'HEAVY_CAV') {
@@ -694,12 +695,43 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       avgXP,
       training: false,
       morale: 100,
-      equip: { weapons: {}, armors: {}, horses: {} },
+      // The gear these soldiers just took out of the stores stays with them, so
+      // `computeEquipped` measures something real and "Ready N/N" stops lying.
+      equip: equipFromDemand(need),
       loadout: { kind: type } as any
     }
     unit.setUnits(us => [unitObj, ...us])
 
     addLog(`Equipped & created ${total} ${type} ${res.spent > 0 ? `(auto-bought ${fmtCopper(res.spent)})` : '(used stock)'}. AvgXP ${avgXP}.`)
+  }
+
+  /**
+   * Disband a unit: the soldiers go back to the barracks pool at their rank, and the gear
+   * they carried goes back to the stores. Without this, equipment only ever flows one way
+   * and "the unit holds its gear" would be a cost with no way back.
+   */
+  function disbandUnit(unitId: string) {
+    const u = unit.units.find(x => x.id === unitId)
+    if (!u) { addLog('Disband failed: unit not found.'); return }
+    const type = u.type as SoldierType
+
+    const pool = structuredClone(barr.barracks)
+    let total = 0
+    for (const b of u.buckets) {
+      if (b.count <= 0) continue
+      const slot = pool[type][b.r]
+      const merged = slot.count + b.count
+      // Blend the XP the returning soldiers bring into the pool they rejoin.
+      slot.avgXP = merged ? Math.floor((slot.count * slot.avgXP + b.count * b.avgXP) / merged) : 0
+      slot.count = merged
+      total += b.count
+    }
+
+    econ.setInv(releaseEquip(econ.inv, u.equip))
+    barr.setBarracks(pool)
+    unit.setUnits(us => us.filter(x => x.id !== unitId))
+    setMergePick(p => p.filter(id => id !== unitId))
+    addLog(`Disbanded ${u.id}: ${total} ${type} returned to the barracks, gear back in stores.`)
   }
 
   function replenishUnit(
@@ -757,7 +789,9 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     const wx = newBuckets.reduce((a, b) => a + b.count * b.avgXP, 0)
     const newAvgXP = totalCount ? Math.floor(wx / totalCount) : 0
 
-    unit.setUnits(us => us.map(x => x.id === unitId ? { ...x, buckets: newBuckets, avgXP: newAvgXP } : x))
+    unit.setUnits(us => us.map(x => x.id === unitId
+      ? { ...x, buckets: newBuckets, avgXP: newAvgXP, equip: addEquip(x.equip, equipFromDemand(need)) }
+      : x))
 
     addLog(`Replenished ${total} → ${u.id} (${type}) ${res.spent > 0 ? `(auto-bought ${fmtCopper(res.spent)})` : '(used stock)'}. +XP bonus ${xpBonus}. New size ${totalCount}, avgXP ${newAvgXP}.`)
   }
@@ -766,8 +800,16 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
 
   function recruit(qty: number) {
     const n = Math.max(1, Math.floor(qty || 0))
+    // Recruits used to be free: fifty men appeared and the treasury never moved, so the
+    // first step of the whole army loop was not a decision at all.
+    const cost = recruitCostCopper(n)
+    if (econ.wallet < cost) {
+      addLog(`Cannot afford ${n} recruits (${fmtCopper(cost)}).`)
+      return
+    }
+    if (cost > 0) econ.setWallet(w => w - cost)
     barr.recruit(n)
-    addLog(`Recruited ${n} untyped recruits.`)
+    addLog(`Recruited ${n} untyped recruits for ${fmtCopper(cost)}.`)
   }
 
   // ---- Campaign / Combat ----
@@ -946,7 +988,8 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     doMergeIfReady,
     toggleTraining,
     // units slice passthroughs you had before…
-    createUnitFromBarracks,   // <-- add this
+    createUnitFromBarracks,
+    disbandUnit,   // <-- add this
     replenishUnit,            // <-- and this
 
     // research / momentum

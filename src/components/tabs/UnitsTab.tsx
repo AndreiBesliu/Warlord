@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Card from '../common/Card'
 import MissingEquipment from '../units/MissingEquipment'
 import SplitMergeControls from '../units/SplitMergeControls'
+import ReplenishForm from '../units/ReplenishForm'
 import type { GameStateShape } from '../../state/useGameState'
 import CreateUnitForm from '../barracks/CreateUnitForm'
 import { type Unit } from '../../logic/types'
@@ -12,24 +13,26 @@ type ViewMode = 'SCENE' | 'FORMATION' | 'INSPECTION'
 export default function UnitsTab({ state }: { state: GameStateShape }) {
   const [view, setView] = useState<ViewMode>('SCENE')
 
+  // Destructured off the REAL shape, not `state as any`. The cast is how the army came to
+  // be un-startable on live: this file asked for `createUnit`, the state exports
+  // `createUnitFromBarracks`, and the button threw `onCreate is not a function` on every
+  // press — silently, past a green typecheck. The `safe*` no-op fallbacks that used to sit
+  // here made the same class of mistake degrade to "nothing happens" by design; they are
+  // gone too, so a missing handler is a compile error instead of a shrug.
   const {
-    units = [],
-    mergePick = [],
+    units,
+    mergePick,
     computeReady,
     doSplit,
     togglePickForMerge,
     doMergeIfReady,
     toggleTraining,
-    createUnit,
+    createUnitFromBarracks,
+    replenishUnit,
+    disbandUnit,
     inv,
-    barracks
-  } = state as any
-
-  const safeComputeReady = (computeReady ?? ((_u: Unit) => 0)) as (u: Unit) => number
-  const safeDoSplit = (doSplit ?? (() => { })) as (id: string, n: number) => void
-  const safeTogglePick = (togglePickForMerge ?? (() => { })) as (id: string) => void
-  const safeDoMerge = (doMergeIfReady ?? (() => { })) as () => void
-  const safeToggleTraining = (toggleTraining ?? (() => { })) as (id: string) => void
+    barracks,
+  } = state
 
   // Wrapper for sub-views
   const BackBtn = () => (
@@ -94,7 +97,7 @@ export default function UnitsTab({ state }: { state: GameStateShape }) {
           <CreateUnitForm
             barracks={barracks}
             inv={inv}
-            onCreate={createUnit}
+            onCreate={createUnitFromBarracks}
           />
         </div>
       </Card>
@@ -112,9 +115,9 @@ export default function UnitsTab({ state }: { state: GameStateShape }) {
             {Array.isArray(mergePick) && mergePick.length ? mergePick.join(' + ') : 'None selected'}
           </span>
           <button
-            className="ml-auto px-3 py-1 bg-wl-accent text-wl-accent-ink rounded disabled:opacity-50 disabled:bg-wl-subtle text-xs shadow-sm hover:bg-wl-accent/90 transition"
+            className="ml-auto px-3 py-1 bg-wl-accent text-wl-accent-ink rounded disabled:bg-wl-panel-muted disabled:text-wl-muted disabled:cursor-not-allowed text-xs shadow-sm hover:bg-wl-accent/90 transition"
             disabled={!Array.isArray(mergePick) || mergePick.length !== 2}
-            onClick={safeDoMerge}
+            onClick={doMergeIfReady}
           >
             Merge Selected
           </button>
@@ -150,7 +153,7 @@ export default function UnitsTab({ state }: { state: GameStateShape }) {
                 </div>
 
                 <div className="mt-3 flex items-center justify-between bg-wl-panel-muted p-2 rounded text-xs text-wl-muted">
-                  <div>Ready: <span className="font-bold text-wl-ink">{safeComputeReady(u)}</span> / {size}</div>
+                  <div>Ready: <span className="font-bold text-wl-ink">{computeReady(u)}</span> / {size}</div>
                   <MissingEquipment unit={u} />
                 </div>
 
@@ -163,7 +166,7 @@ export default function UnitsTab({ state }: { state: GameStateShape }) {
                       type="checkbox"
                       className="hidden"
                       checked={isTraining}
-                      onChange={() => safeToggleTraining(u.id)}
+                      onChange={() => toggleTraining(u.id)}
                     />
                     <span className={`text-sm font-medium ${isTraining ? 'text-wl-warn' : 'text-wl-muted'}`}>Training Mode (XP++)</span>
                   </label>
@@ -171,11 +174,35 @@ export default function UnitsTab({ state }: { state: GameStateShape }) {
                   <div className="ml-auto w-full max-w-[50%]">
                     <SplitMergeControls
                       size={size}
-                      onSplit={(n) => safeDoSplit(u.id, n)}
+                      onSplit={(n) => doSplit(u.id, n)}
                       selectedForMerge={Array.isArray(mergePick) && mergePick.includes(u.id)}
-                      onToggleMergeSelect={() => safeTogglePick(u.id)}
+                      onToggleMergeSelect={() => togglePickForMerge(u.id)}
                     />
                   </div>
+                </div>
+
+                {/* Replenish has existed as a finished form and an exported function since
+                    a UI refactor dropped it — unreachable code on both sides. With gear now
+                    held by the unit, topping up losses is the natural thing to reach for. */}
+                <div className="mt-3 border-t border-wl-line pt-3">
+                  <ReplenishForm
+                    unitId={u.id}
+                    unitType={u.type}
+                    pool={barracks}
+                    inv={inv}
+                    onReplenish={(plan, opts) => replenishUnit(u.id, plan, opts)}
+                  />
+                  <button
+                    className="mt-2 px-3 py-1.5 text-xs rounded border border-wl-bad/50 text-wl-bad hover:bg-wl-bad-surface"
+                    title="Send these soldiers back to the barracks and their gear back to the stores"
+                    onClick={() => {
+                      if (confirm(`Disband ${u.id}? The ${size} soldiers return to the barracks and their gear goes back to the stores.`)) {
+                        disbandUnit(u.id)
+                      }
+                    }}
+                  >
+                    Disband
+                  </button>
                 </div>
               </div>
             )

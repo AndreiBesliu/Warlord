@@ -1,7 +1,9 @@
 // src/logic/equipment.ts
-import type { SoldierType } from './types'
+import type { Inventories, SoldierType, Unit } from './types'
 import { WeaponTypes, ArmorTypes, HorseTypes } from './types'
 import { itemValueCopper } from './items'
+
+export type UnitEquip = Unit['equip']
 
 export type EquipDemand = {
   weapons: Partial<Record<(typeof WeaponTypes)[number], number>>
@@ -107,4 +109,64 @@ export function ensureEquipOrBuy(
   for (const k in need.horses)  inv.horses[k].active -= (need.horses as any)[k]
 
   return { inv, wallet, ok:true, spent }
+}
+
+// ── Gear that a unit HOLDS ────────────────────────────────────────────────
+// Equipment used to be consumed at unit creation and then vanish: `u.equip` stayed
+// empty forever, so `computeEquipped` reported 0 and a fully paid-for unit displayed
+// "Ready 0/20" next to a red Missing list. Gear now stays with the soldiers who carry
+// it, which is what every readiness readout in the UI already claimed to measure.
+
+/** A demand (what N soldiers need) becomes the gear those soldiers carry. */
+export function equipFromDemand(d: EquipDemand): UnitEquip {
+  return {
+    weapons: { ...(d.weapons as Record<string, number>) },
+    armors: { ...(d.armors as Record<string, number>) },
+    horses: { ...(d.horses as Record<string, number>) },
+  }
+}
+
+/** Fold more gear into what a unit already carries (replenishment). */
+export function addEquip(a: UnitEquip, b: UnitEquip): UnitEquip {
+  const merge = (x: Record<string, number>, y: Record<string, number>) => {
+    const out: Record<string, number> = { ...x }
+    for (const [k, v] of Object.entries(y)) out[k] = (out[k] ?? 0) + v
+    return out
+  }
+  return {
+    weapons: merge(a.weapons, b.weapons),
+    armors: merge(a.armors, b.armors),
+    horses: merge(a.horses, b.horses),
+  }
+}
+
+/**
+ * Hand a unit's gear back to the stores — disbanding. Pure: returns a new inventory.
+ * Horses come back as ACTIVE, which is where they were taken from.
+ */
+export function releaseEquip(inv: Inventories, equip: UnitEquip): Inventories {
+  const out: Inventories = structuredClone(inv)
+  for (const [k, n] of Object.entries(equip.weapons)) {
+    if (n > 0) out.weapons[k] = (out.weapons[k] ?? 0) + n
+  }
+  for (const [k, n] of Object.entries(equip.armors)) {
+    if (n > 0) out.armors[k] = (out.armors[k] ?? 0) + n
+  }
+  for (const [k, n] of Object.entries(equip.horses)) {
+    if (n > 0) {
+      const stall = out.horses[k as keyof Inventories['horses']]
+      if (stall) stall.active += n
+    }
+  }
+  return out
+}
+
+/**
+ * A unit saved before gear was tracked carries nothing, and would suddenly read as
+ * unequipped. It was paid for at creation, so it gets exactly what its headcount needs.
+ */
+export function equipIsEmpty(equip: UnitEquip | undefined): boolean {
+  if (!equip) return true
+  return [equip.weapons, equip.armors, equip.horses]
+    .every((rec) => !rec || Object.values(rec).every((n) => !n))
 }

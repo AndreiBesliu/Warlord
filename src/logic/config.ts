@@ -69,6 +69,8 @@ export interface GameConfigOverrides {
   training?: Partial<TrainingConfig>
   tick?: Partial<TickConfig>
   study?: Partial<StudyConfig>
+  /** Copper per untyped recruit. Men who cost nothing cannot be a decision. */
+  recruitCost?: number
   missions?: Record<string, MissionOverride>
   catalog?: CatalogOverrides
   buffs?: Record<string, Partial<Omit<BuffDef, 'id'>>>
@@ -89,6 +91,10 @@ export const DEFAULT_TICK: TickConfig = { minutesPerDay: 5, maxOfflineDays: 24 }
 // - 50 copper per Study point puts a fully diverted lumber mill (500c/day) at 10/day and
 //   a blacksmith (3000c/day) at 60 — diverting a real workshop roughly doubles your pace,
 //   and you feel it in the coin and goods you stop getting.
+// A recruit costs about a fifth of what a lumber mill turns out in a day, so raising
+// fifty men is a real bite out of the treasury rather than a free click.
+export const DEFAULT_RECRUIT_COST = 100
+
 export const DEFAULT_STUDY: StudyConfig = {
   baselinePerDay: 100,
   scriptoriumPerLevel: 50,
@@ -183,6 +189,10 @@ class GameConfigStore {
 
   tickMs(): number {
     return Math.round(this.tick().minutesPerDay * 60_000)
+  }
+
+  recruitCost(): number {
+    return num(this.o.recruitCost, DEFAULT_RECRUIT_COST)
   }
 
   study(): StudyConfig {

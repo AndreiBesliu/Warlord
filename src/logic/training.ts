@@ -92,7 +92,7 @@ export function queueLightTraining(ctx: Ctx, target: SoldierType, qty: number) {
   }
 
   const demand = demandFor(target, n)
-  const res = ensureEquipOrBuy(ctx.econ.inv, ctx.econ.wallet, demand, false)
+  const res = ensureEquipOrBuy(structuredClone(ctx.econ.inv), ctx.econ.wallet, demand, false)
   if (!res.ok) {
     ctx.addLog('Not enough equipment to train these troops.')
     return
