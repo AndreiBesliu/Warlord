@@ -14,7 +14,7 @@
 **Felia 1 ✅ LIVRATĂ** (vezi Session Log): clădirea **Scriptorium** ca poartă a cercetării + cerințe de infrastructură per tehnologie (`TechDef.requiresBuildings`, tip + nivel).
 
 **Modelul agreat pentru feliile următoare** — progresul nu mai e o numărătoare de zile, ci **Studiu, resursă produsă zilnic**:
-- **Felia 2 — Studiu ca producție.** Rezervoare pe ramuri (Economy/Army/Campaign/Doctrine), alimentate de Scriptorium (nivel) + clădirile relevante fiecărei ramuri. **Fiecare clădire primește un al treilea slider: Research%**, care ia din producția curentă (monede vs. iteme) — logica lui Andrei: o clădire contribuie la cercetare fie prin resursele ei, fie prin timpul dedicat studiului în locul producției. Plus: **fonduri** (bani, randament descrescător, plafon zilnic) și **materiale dedicate** (pachet de resurse ⇒ multiplicator temporar pe proiectul activ).
+- **Felia 2 — Studiu ca producție.** ✅ **NUCLEUL LIVRAT 08.08** (rezervoare + slider Research%). RĂMASE ca **felia 2b**: fondurile (bani → Studiu, randament descrescător, plafon zilnic) și materialele dedicate. Rezervoare pe ramuri (Economy/Army/Campaign/Doctrine), alimentate de Scriptorium (nivel) + clădirile relevante fiecărei ramuri. **Fiecare clădire primește un al treilea slider: Research%**, care ia din producția curentă (monede vs. iteme) — logica lui Andrei: o clădire contribuie la cercetare fie prin resursele ei, fie prin timpul dedicat studiului în locul producției. Plus: **fonduri** (bani, randament descrescător, plafon zilnic) și **materiale dedicate** (pachet de resurse ⇒ multiplicator temporar pe proiectul activ).
 - **Felia 3 — Oameni.** Două roluri DISTINCTE: (a) **Head of Research / erou** — unul singur, permanent, care ridică șansa zilnică de *big leap* (salt mare de progres), influențată și de domeniul cercetat; (b) **experți angajați per proiect** — salariu zilnic în bucla de upkeep + **randament dramatic descrescător dacă îngrămădești mai mulți pe același domeniu** (cerință explicită Andrei), tot cu trăsături (Pedant / Alchimist / Veteran de campanie).
 - **Felia 4 — Consecințe.** Probe de teren (tehnologiile militare cer o bătălie purtată), eșecuri și eureka legate de buff-ul `BREAKTHROUGH` existent, și **deblocările din Doctrine să blocheze ceva real** (`GRAND_ARMORY`, `ELITE_DRILL` sunt azi promisiuni goale).
 - **Felia 5 (viziune Andrei, de detaliat) — Doctrine & Tradiții.** Jucătorul *impune* o doctrină; dacă o ține destul de mult, ea *naște o tradiție* permanentă (ex. Apprenticeship). Direcția: un sistem prin care jucătorul își personalizează regatul, nu doar un arbore de bonusuri. De proiectat separat, după felia 3.
@@ -83,6 +83,20 @@
 ## 📅 Session Log
 
 ### Session 4 — 2026-08-01
+
+**Task Completed (Warlord Research Felia 2: Studiul ca resursă produsă)**
+> Prompt: „continua" — următorul lucru din roadmap după ce revamp-ul s-a golit.
+> Model: Claude Opus 5
+> - **Cercetarea nu mai e o coadă de așteptare, e un cost.** Un proiect număra zile și nu costa nimic din ce producea domeniul. Acum consumă **Studiu**, acumulat pe ramuri (Economy/Army/Campaign/Doctrine), produs de Scriptorium și de cât din producția zilnică a unei clădiri dedici studiului. Ziua rămâne unitatea de timp a jocului — venituri, upkeep, hrană, antrenament, campanie: neatinse.
+> - **Al treilea slider NU e o împărțire în trei.** Research ia prima felie din valoarea zilei; `focusCoinPct` împarte apoi ce rămâne, exact ca înainte. Un slider cu trei capete însumând 100 ar fi rescris tăcut intenția fiecărei clădiri din fiecare save existent. Câmp absent ⇒ 0 ⇒ comportament bit-identic (test de regresie explicit).
+> - **Calibrat ca sliderul să fie o decizie:** un Scriptorium singur e mai LENT decât vechiul ceas de zile la orice nivel (50/65/80 față de un ritm de referință de 100). Viteza veche e ceva ce cumperi deviind producție. Altfel sliderul ar fi doar un bonus.
+> - **Două lucruri din plan au picat la contactul cu codul:** (a) Scriptorium-ul **rămâne** în afara economiei de cupru — studiul lui e funcție de nivel, nu o valoare în cupru convertită; i-aș fi dat venit în monede la focus-ul implicit de 100%; (b) `GameConfig.init` rula **după** ce se hidratau feliile, deci migrarea unui proiect vechi ar fi folosit baseline-ul implicit în loc de cel din admin. Mutat.
+> - **Capcana care șterge stare în tăcere:** `hydrateResearch` enumeră câmpuri (spre deosebire de `hydrateCampaign`, care face spread), deci `pools` scris în localStorage ar fi dispărut la fiecare reload, fără nicio eroare. Adăugat acolo și testat direct, plus verificat live cu dublu reload.
+> - **Save-urile vechi se convertesc proporțional:** 2 zile din 3 ⇒ 2/3 din costul în Studiu. Verificat pe un save real forjat în forma pre-Studiu.
+> - **Adminul:** secțiune nouă „Study — the pace of research" cu linie de efect + formulă (prin `explainStudy`, care RULEAZĂ `studyPerDay`, nu redescrie formula); `days` reetichetat **Effort**; textul „Research already in progress keeps the days it was queued with" reparat — nu mai era adevărat.
+> - **Verificat în browser, nu doar la typecheck:** bara a promis Economy +56.4/zi, ziua a livrat exact +56.4; registrele se închid la virgulă (106,4 + 56,4 − 162,8 = 0); celelalte ramuri neatinse. 0 contraste sub 3:1 în ambele teme, în joc și în admin. Două „defecte" măsurate s-au dovedit artefacte ale panoului de browser cu lățime 0 — verificate a doua oară la 1280 real.
+> - 182 teste verzi (25 noi), `tsc -b` + build verzi în ambele proiecte. Fondurile și materialele dedicate rămân felia 2b.
+
 
 **2026-08-08 - Task Completed (revamp felia 5: ce a mai rămas din listă, după ce am verificat ce mai e adevărat)**
 > Prompt: „am salvat si merge, continua cu revamp-ul"
