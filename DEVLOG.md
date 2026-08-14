@@ -84,6 +84,20 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-14 - Task Completed (bucla de armată: reparată și onestă)**
+> Prompt: „vreau sa imbunatatim sistemul de recrutare si de training, plus ca nu functioneaza sistemul de creare unitati"
+> Model: Claude Opus 5
+> - **Defectul, reprodus și izolat:** „Create Unit" arunca `TypeError: onCreate is not a function` la fiecare apăsare. `UnitsTab` cerea `createUnit`, state-ul exportă `createUnitFromBarracks`. A trecut de typecheck fiindcă props-urile veneau prin `state as any`, și de teste fiindcă traseul ăsta **nu avea niciunul**. Cum e SINGURA cale de la 0 unități la 1 (`splitUnit`/`mergeUnits` cer una existentă), armata nu putea fi pornită deloc. Regresie din `96c1b92`.
+> - **Redenumirea e jumătatea mică.** Am scos `as any` — tab-urile destructurează `GameStateShape` — și fallback-urile `?? (() => {})` care transformau un handler lipsă în „nu se întâmplă nimic" prin construcție. Următoarea greșeală de forma asta e eroare de compilare (a și fost, pe `disbandUnit`, cât am lucrat).
+> - **Am parcurs bucla întreagă în browser și restul a ieșit la iveală:** recrutarea era GRATIS (50 de oameni, trezoreria neatinsă); fiecare refuz exista doar în tabul Log cât butonul rămânea activ; rezervorul de soldatți antrenați era invizibil din cazarmă; iar echipamentul dispărea la creare, deci o unitate plătită integral arăta „Ready 0/20" cu listă roșie.
+> - **Unitatea își ține acum gearul.** `computeEquipped` avea chiar comentariul că așteaptă asta. Save-urile vechi primesc kitul cerut de efectiv (altfel o armată întreagă apărea dezbrăcată de un patch), iar un test de regresie fixează că o unitate complet echipată câmpuiește EXACT cât înainte — altfel felia ar fi rebalansat tăcut fiecare luptă. Replenish (formular finit, inaccesibil) reactivat, Disband adăugat: registrul se închide la fir (20 sulitțe/armuri/scuturi înapoi, 20 soldatți înapoi în cazarmă).
+> - **Defect latent reparat:** `training.ts` pasa inventarul VIU unei funcții care mutează, apoi îl punea înapoi prin aceeași referință — React sărea peste actualizare; mergea doar fiindcă un `setState` vecin forța randarea.
+> - **O constatare din teste:** cerința de echipament e definită în DOUĂ locuri (`perSoldierRequirement` pentru ce plătești, Registry `def.req` pentru ce ți se măsoară). Coincid azi; am pus o gardă să nu divergeze tăcut. Plus: un Registry ne-inițializat întoarce cerință GOALĂ, adică orice unitate pare complet echipată — testele cheamă `Registry.init()`.
+> - Șters cod mort (`ConvertCavForm`, `TrainRow`), reparat butonul „Merge Selected" dezactivat (1,49:1, aceeași capcană de opacitate ca la revamp), „(ROOKIE)" → NOVICE.
+> - 197 teste verzi (15 noi în `logic/army.test.ts`, prima acoperire de vreodată pe bucla asta), typecheck + build verzi, 0 contraste sub 3:1.
+> - **RĂMÂNE, agreat cu Andrei:** adâncimea — intensitate de antrenament, surse de recruți cu calitate diferită, instructori cu salariu și randament descrescător, capacitate de cazarmă.
+
+
 **Task Completed (Warlord Research Felia 2: Studiul ca resursă produsă)**
 > Prompt: „continua" — următorul lucru din roadmap după ce revamp-ul s-a golit.
 > Model: Claude Opus 5
