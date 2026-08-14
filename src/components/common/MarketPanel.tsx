@@ -28,7 +28,7 @@ export default function MarketPanel({
             <div key={k} className="border border-wl-line rounded p-2 flex items-center gap-2">
               <GameIcon name={getIconForGameItem(k) || 'sword'} size={32} />
               <div className="flex-1">
-                <div className="font-medium">{formatGameTooltip(k)}</div>
+                <div className="font-bold">{formatGameTooltip(k)}</div>
                 <div className="text-xs text-wl-muted flex items-center gap-2">
                   <span className="flex items-center gap-1">
                     Price: <MoneyDisplay amount={price} size={12} />
@@ -44,8 +44,8 @@ export default function MarketPanel({
                 value={qty}
                 onChange={(e) => setQty(Math.max(1, parseInt(e.target.value || '1')))}
               />
-              <button className="px-3 py-1 border border-wl-line rounded" onClick={() => onSell(kind, k, qty)}>Sell</button>
-              <button className="px-3 py-1 bg-wl-accent text-wl-accent-ink rounded" onClick={() => onBuy(kind, k, qty)}>Buy</button>
+              <button className="px-3 py-1 text-sm border border-wl-line rounded" onClick={() => onSell(kind, k, qty)}>Sell</button>
+              <button className="px-3 py-1 text-sm bg-wl-accent text-wl-accent-ink rounded" onClick={() => onBuy(kind, k, qty)}>Buy</button>
             </div>
           )
         })}

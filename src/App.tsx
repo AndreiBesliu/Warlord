@@ -149,9 +149,12 @@ export default function App({
           the next, destructive actions last and separated. */}
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-2xl sm:text-3xl font-bold text-wl-ink">Warlord</h1>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-sm text-wl-muted">Day</span>
-          <span className="px-2 py-1 bg-wl-panel-muted text-wl-ink rounded font-mono">{day}</span>
+        {/* The day is the number a player checks constantly; the title is a word that never
+            changes. Sizing them the other way round made the masthead the loudest thing on
+            screen and the actual state the quietest. */}
+        <div className="ml-auto flex items-baseline gap-2">
+          <span className="text-xs uppercase tracking-wide text-wl-muted">Day</span>
+          <span className="px-2 py-0.5 bg-wl-panel-muted text-wl-ink rounded font-mono text-2xl sm:text-3xl font-bold leading-tight">{day}</span>
         </div>
       </div>
 

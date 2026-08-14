@@ -56,7 +56,7 @@ export function BuildingIcon({ type, size = 24 }: { type: string, size?: number 
       className="wl-art inline-block shrink-0 relative overflow-hidden rounded shadow-sm border border-wl-accent-line"
       style={{ width: size, height: size }}
     >
-      {imgSrc ? <img src={imgSrc} className="w-full h-full object-cover mix-blend-multiply" alt={type} /> : <div className="w-full h-full bg-stone-300"></div>}
+      {imgSrc ? <img src={imgSrc} className="w-full h-full object-cover mix-blend-multiply" alt={type} /> : <div className="w-full h-full bg-wl-panel-muted"></div>}
     </div>
   )
 }
@@ -72,7 +72,7 @@ function BuildingImg({ type }: { type: string }) {
           alt={type}
         />
       ) : (
-        <span className="text-amber-900/20 font-bold text-lg">{type[0]}</span>
+        <span className="text-wl-subtle font-bold text-lg">{type[0]}</span>
       )}
     </div>
   )
@@ -166,7 +166,7 @@ export default function BuildingsTab({ state, setTab }: Props) {
 
           {/* Established Buildings */}
           <div>
-            <h3 className="font-serif text-2xl text-wl-ink mb-4 border-b border-wl-accent-line pb-2">Established Buildings</h3>
+            <h3 className="font-serif text-2xl font-bold text-wl-ink mb-4 border-b border-wl-accent-line pb-2">Established Buildings</h3>
             {buildingsArr.length === 0 && <div className="text-wl-muted italic">Empty. Build below.</div>}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -229,7 +229,7 @@ export default function BuildingsTab({ state, setTab }: Props) {
           {/* Construction Plans */}
           {(prodConstruction.length > 0 || resConstruction.length > 0) && (
             <div className="space-y-6">
-              <h3 className="font-serif text-2xl text-wl-ink border-b border-wl-accent-line pb-2">Construction Plans</h3>
+              <h3 className="font-serif text-2xl font-bold text-wl-ink border-b border-wl-accent-line pb-2">Construction Plans</h3>
 
               {/* Production */}
               {prodConstruction.length > 0 && (
@@ -244,9 +244,13 @@ export default function BuildingsTab({ state, setTab }: Props) {
                         onClick={() => buyBuilding(t)}
                         disabled={!price.ok}
                         title={price.ok ? `Build ${t.replace(/_/g, ' ')}` : price.shortfallLabel}
-                        className={`flex flex-col items-center p-3 rounded border transition-colors ${price.ok ? 'border-wl-accent-line bg-wl-accent-surface/40 hover:bg-wl-accent-surface' : 'border-wl-line bg-wl-panel-muted opacity-70 cursor-not-allowed'}`}
+                        className={`flex flex-col items-center p-3 rounded border transition-colors ${price.ok ? 'border-wl-accent-line bg-wl-accent-surface/40 hover:bg-wl-accent-surface' : 'border-dashed border-wl-line bg-wl-panel-muted cursor-not-allowed'}`}
                       >
-                        <div className="wl-art w-24 h-24 mb-3 rounded"><img src={BuildingImages[t]} className="w-full h-full object-contain mix-blend-multiply" alt={t} /></div>
+                        <div className="wl-art w-24 h-24 mb-3 rounded flex items-center justify-center">
+                          {BuildingImages[t]
+                            ? <img src={BuildingImages[t]} className="w-full h-full object-contain mix-blend-multiply" alt={t} />
+                            : <span className="text-3xl text-wl-subtle font-bold">{t[0]}</span>}
+                        </div>
                         <span className="font-bold text-sm text-wl-ink mb-2">{t.replace(/_/g, ' ')}</span>
                         <PriceTag lines={price.lines} />
                         {!price.ok && <span className="mt-1 text-[11px] text-wl-bad text-center leading-tight">{price.shortfallLabel}</span>}
@@ -270,7 +274,7 @@ export default function BuildingsTab({ state, setTab }: Props) {
                         onClick={() => buyBuilding(t)}
                         disabled={!price.ok}
                         title={price.ok ? `Build ${t.replace(/_/g, ' ')}` : price.shortfallLabel}
-                        className={`flex flex-col items-center p-3 rounded border transition-colors ${price.ok ? 'border-wl-accent-line bg-wl-panel-muted/40 hover:bg-wl-panel-muted' : 'border-wl-line bg-wl-panel-muted opacity-70 cursor-not-allowed'}`}
+                        className={`flex flex-col items-center p-3 rounded border transition-colors ${price.ok ? 'border-wl-accent-line bg-wl-panel-muted/40 hover:bg-wl-panel-muted' : 'border-dashed border-wl-line bg-wl-panel-muted cursor-not-allowed'}`}
                       >
                         <div className="wl-art w-24 h-24 mb-3 rounded flex items-center justify-center">
                           {BuildingImages[t] ?

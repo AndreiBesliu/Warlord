@@ -1,3 +1,4 @@
+import React from 'react'
 import Card from '../common/Card'
 import CostList from '../common/CostList'
 import type { GameStateShape } from '../../state/useGameState'
@@ -97,7 +98,8 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
             {catalog
               .filter((t) => t.branch === branch)
               .sort((a, b) => a.tier - b.tier)
-              .map((t) => {
+              .map((t, i, sorted) => {
+                const newTier = i === 0 || sorted[i - 1].tier !== t.tier
                 const done = research.unlocked.includes(t.id)
                 const busy = inProgress.get(t.id)
                 const missingB = missingBuildings(t, buildings ?? [])
@@ -108,15 +110,27 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
                   .map((r) => techById(catalog, r)?.name ?? r)
 
                 return (
+                  <React.Fragment key={t.id}>
+                    {/* The list is sorted by tier; saying so turns three anonymous cards into a
+                        chain the eye can climb. It replaces the T1/T2/T3 corner pill, which was
+                        the only tier signal and too small to group anything. */}
+                    {newTier && (
+                      <div className="flex items-center gap-2 pt-2 first:pt-0 text-[11px] uppercase tracking-wide text-wl-subtle">
+                        <span>Tier {t.tier}</span>
+                        <span aria-hidden className="flex-1 h-px bg-wl-line" />
+                      </div>
+                    )}
                   <div
-                    key={t.id}
-                    className={`border rounded-lg p-3 ${done ? 'bg-wl-good-surface border-wl-good' : busy ? 'bg-wl-warn-surface border-wl-warn' : ready ? BRANCH_STYLE[branch] : 'bg-wl-panel-muted border-wl-line opacity-70'}`}
+                    // A locked card used to be dimmed whole with `opacity-70`, which composited
+                    // the very line that explains the lock down to 2.93:1 — below the 3:1 floor,
+                    // and invisible to a token audit because the DECLARED pair is 5.28:1. The
+                    // de-emphasis now lives in the border and the title, where nothing is read.
+                    className={`border rounded-lg p-3 ${done ? 'bg-wl-good-surface border-wl-good' : busy ? 'bg-wl-warn-surface border-wl-warn' : ready ? BRANCH_STYLE[branch] : 'bg-wl-panel-muted border-dashed border-wl-line'}`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="font-semibold text-sm">
+                      <div className={`font-bold text-base ${ready || done || busy ? 'text-wl-ink' : 'text-wl-muted'}`}>
                         {done ? '✔ ' : busy ? '⏳ ' : !ready ? '🔒 ' : ''}{t.name}
                       </div>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-wl-panel/70 border border-wl-line font-mono">T{t.tier}</span>
                     </div>
                     <p className="text-xs text-wl-muted mt-1 min-h-[32px]">{t.desc}</p>
 
@@ -135,7 +149,7 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
                           <div className="text-[11px] text-wl-subtle">Takes {t.days} day{t.days === 1 ? '' : 's'}</div>
                         </div>
                         {!ready ? (
-                          <div className="text-xs text-wl-muted mt-1">
+                          <div className="text-xs text-wl-ink mt-1">
                             {missingReq.length > 0 && <div>Requires: {missingReq.join(', ')}</div>}
                             {missingB.length > 0 && <div>Needs: {missingB.join(', ')}</div>}
                           </div>
@@ -151,6 +165,7 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
                       </>
                     )}
                   </div>
+                  </React.Fragment>
                 )
               })}
           </div>

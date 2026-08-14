@@ -84,6 +84,18 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-08 - Task Completed (revamp felia 5: ce a mai rămas din listă, după ce am verificat ce mai e adevărat)**
+> Prompt: „am salvat si merge, continua cu revamp-ul"
+> Model: Claude Opus 5
+> - **Lista de observații era din 01.08 și patru felii trecuseră peste ea, așa că am verificat-o înainte să implementez** (cinci verificări paralele în cod + o pasă adversarială pe fiecare). **Trei observații au picat cu argumente bune și le-am lăsat în pace:** culoarea ramurilor (identitatea ramurii o dă titlul secțiunii, nu fundalul cardului — fundalul e canal de STARE, iar colorarea celor blocate ar șterge granița dintre ce poți și ce nu poți face), antetul (Reset e deja separat, cu tokenuri de acțiune distructivă și confirmare) și caseta de Momentum (starea ei goală e SINGURUL loc unde jocul explică mecanica — pliată, ar ascunde sistemul exact de jucătorul care nu știe de el).
+> - **`opacity-70` era un defect de contrast pe care auditul de tokenuri nu avea cum să-l vadă.** Pe un card de research blocat, perechea DECLARATĂ de tokenuri dă 5,28:1 — dar opacitatea compune și textul, și fundalul, iar linia „Requires: ..." randă la **2,93:1**, sub prag. Adică exact explicația lacătului era cel mai greu de citit lucru din card. Acum de-emfaza stă în **bordură punctată + titlu estompat**, iar cerința se citește la contrast plin. Același tratament la cardurile de clădiri pe care nu ți le permiți (unde textul „Need 90g + 100 Stone" cădea de la 5,65:1 la 3,54:1).
+> - **Tier-ul a devenit structură, nu o pastilă de 10px.** Lista era deja sortată pe tier, dar nu spunea asta nimănui: acum are separatoare „Tier 1 / 2 / 3", iar pastila din colț a dispărut ca redundantă.
+> - **Ierarhia tipografică — partea care mai rămăsese:** numele nu învingea niciodată butonul. În research numele era `text-sm` ca butonul plin cu accent; în piață, numele obiectului și butoanele Buy/Sell erau toate la dimensiunea de bază. Acum numele e cel mai mare text din card. Plus două inversiuni: titlurile de secțiune din Clădiri erau 24px REGULAR sub un titlu de card 20px BOLD, iar **numărul zilei** — lucrul pe care îl verifici constant — era 16px/400 lângă un „Warlord" de 30px/700 care nu se schimbă niciodată.
+> - **Două defecte găsite cu ochii, nu din listă:** `SCRIPTORIUM` (clădirea care deschide TOATĂ cercetarea) randă `<img>` fără `src` — iconiță de imagine ruptă, pentru că doar grila de resurse avea garda de fallback; și textul din Overview spunea încă „Coin/day scales with the building price", fals de la rebalansare. Plus două culori hardcodate rămase din fallback-urile de artă (`bg-stone-300`, `text-amber-900/20`), acum pe tokenuri.
+> - **Verificat în browser, nu doar la typecheck:** audit de contrast care ține cont de opacitate (asta lipsea data trecută) — **0 eșecuri în ambele teme**, pe Research/Clădiri/Piață, desktop și 375px; 0 overflow orizontal; 0 imagini rupte; 12 separatoare de tier; numele obiectului 16px/700 vs butoane 14px/400.
+> - 157 teste verzi, typecheck + build verzi.
+
+
 **2026-08-08 - Task Completed (logic/explain.ts: ce face fiecare valoare de balans, cu formula ei)**
 > Prompt: „se pare ca valoarea pe care o trecusem deja pentru costul unei cladiri a fost actualizat, si se pare ca si productia de lemn a crescut. o sa vreau in admin sa se vada mai clar ce efect au si vor avea in viitor modificarile pe care le face. vreau sa se vada formula de calcul etc."
 > Model: Claude Opus 5
