@@ -15,6 +15,7 @@
 import { GameConfig } from './config'
 import { evaluateCost, type CostReport, type CostSpec, type Holdings } from './costs'
 import { demandFor } from './equipment'
+import { drillPayFor, type Intensity } from './batches'
 import type { Rank, SoldierType } from './types'
 
 /** A blocker that is not about affording something — no recruits, no free slot. */
@@ -72,9 +73,13 @@ export function checkLightTraining(args: {
   recruits: number
   slotFree: boolean
   have: Holdings
+  intensity?: Intensity
 }): ActionCheck {
   const n = Math.max(0, Math.floor(args.qty || 0))
-  return checkAction(gearCost(args.target, n), args.have, [
+  // Drill pay belongs in the same check as the gear: a button that allows a batch the
+  // logic then refuses is a silent refusal by another route.
+  const cost = { ...gearCost(args.target, n), copper: drillPayFor(n, args.intensity) }
+  return checkAction(cost, args.have, [
     { ok: n > 0, says: 'Enter a quantity' },
     { ok: args.slotFree, says: 'Training queue is full' },
     { ok: args.recruits >= n, says: `Need ${n - args.recruits} more untyped recruits` },

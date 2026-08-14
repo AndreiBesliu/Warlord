@@ -45,6 +45,17 @@ export interface StudyConfig {
   copperPerStudy: number
 }
 
+export interface IntensityConfig {
+  /** Multiplies the base batch duration. */
+  dayMult: number
+  /** Copper per soldier, charged when the batch is queued. */
+  payPerSoldier: number
+  /** XP each finished soldier carries out, before research/momentum multipliers. */
+  xpGranted: number
+  /** Percent of the batch that never finishes. Rushed training loses men. */
+  washoutPct: number
+}
+
 export interface MissionOverride {
   ratio?: number
   rewardCopperPerStrength?: number
@@ -71,6 +82,8 @@ export interface GameConfigOverrides {
   study?: Partial<StudyConfig>
   /** Copper per untyped recruit. Men who cost nothing cannot be a decision. */
   recruitCost?: number
+  /** Per-intensity training knobs, keyed by 'RUSHED' | 'STANDARD' | 'DRILLED'. */
+  intensity?: Record<string, Partial<IntensityConfig>>
   missions?: Record<string, MissionOverride>
   catalog?: CatalogOverrides
   buffs?: Record<string, Partial<Omit<BuffDef, 'id'>>>
@@ -94,6 +107,22 @@ export const DEFAULT_TICK: TickConfig = { minutesPerDay: 5, maxOfflineDays: 24 }
 // A recruit costs about a fifth of what a lumber mill turns out in a day, so raising
 // fifty men is a real bite out of the treasury rather than a free click.
 export const DEFAULT_RECRUIT_COST = 100
+
+// STANDARD is today's behaviour EXACTLY (×1 days, no pay, no XP, no washout) so an
+// existing save and every conversion are untouched.
+//
+// DRILLED grants 120 XP: the NOVICE threshold is 100, so a drilled batch comes out
+// TRAINED with 20 carried over. Deliberately short of ADVANCED (which needs another
+// 250) — intensity buys a head start, not a shortcut past the 22-day climb through
+// Training Mode. Its pay is ~half a recruit per soldier per batch.
+//
+// RUSHED halves the wait and loses a fifth of the men. Without a real loss the fast
+// option would strictly dominate and STANDARD would be dead.
+export const DEFAULT_INTENSITY: Record<string, IntensityConfig> = {
+  RUSHED: { dayMult: 0.5, payPerSoldier: 0, xpGranted: 0, washoutPct: 20 },
+  STANDARD: { dayMult: 1, payPerSoldier: 0, xpGranted: 0, washoutPct: 0 },
+  DRILLED: { dayMult: 1.75, payPerSoldier: 50, xpGranted: 120, washoutPct: 0 },
+}
 
 export const DEFAULT_STUDY: StudyConfig = {
   baselinePerDay: 100,
@@ -193,6 +222,19 @@ class GameConfigStore {
 
   recruitCost(): number {
     return num(this.o.recruitCost, DEFAULT_RECRUIT_COST)
+  }
+
+  intensity(key: string): IntensityConfig {
+    const base = DEFAULT_INTENSITY[key] ?? DEFAULT_INTENSITY.STANDARD
+    const o = this.o.intensity?.[key] ?? {}
+    return {
+      // A zero multiplier would make every batch instant; the floor keeps a batch a batch.
+      dayMult: Math.max(0.1, num(o.dayMult, base.dayMult, 0.1)),
+      payPerSoldier: num(o.payPerSoldier, base.payPerSoldier),
+      xpGranted: num(o.xpGranted, base.xpGranted),
+      // Above 99 a batch could finish with nobody in it.
+      washoutPct: Math.min(99, num(o.washoutPct, base.washoutPct)),
+    }
   }
 
   study(): StudyConfig {

@@ -9,6 +9,8 @@ import GameIcon from '../common/GameIcon'
 import { getIconForGameItem } from '../../logic/iconHelpers'
 import barracksScene from '../../assets/barracks_scene.png'
 import { checkLightTraining, checkConversion } from '../../logic/barracks'
+import { batchDaysAt, survivorsOf, trainingXpFor, drillPayFor, type Intensity } from '../../logic/batches'
+import { promoteBuckets } from '../../logic/units'
 import type { ActionCheck } from '../../logic/barracks'
 
 // Every refusal in this tab used to exist only as a line in the Log tab: the button stayed
@@ -204,7 +206,7 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
 function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => void }) {
   const {
     queueLightTraining, queueHeavyConversion, queueLightCavConversion, queueHorseArcherConversion,
-    recruits, barracks, batches, batchSlots, barracksLevel, wallet, resources, inv,
+    recruits, barracks, batches, batchSlots, barracksLevel, wallet, resources, inv, mods,
   } = state
 
   const have = { wallet, resources, inv }
@@ -214,13 +216,14 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
 
   const [lightType, setLightType] = useState<SoldierType>('LIGHT_INF_SPEAR')
   const [lightQty, setLightQty] = useState(20)
+  const [lightIntensity, setLightIntensity] = useState<Intensity>('STANDARD')
   const [heavySrc, setHeavySrc] = useState<SoldierType>('LIGHT_CAV')
   const [heavyQty, setHeavyQty] = useState(10)
   const [lcSrc, setLcSrc] = useState<SoldierType>('LIGHT_INF_SPEAR')
   const [lcQty, setLcQty] = useState(10)
   const [haQty, setHaQty] = useState(10)
 
-  const trainCheck = checkLightTraining({ target: lightType, qty: lightQty, recruits: recruits.count, slotFree, have })
+  const trainCheck = checkLightTraining({ target: lightType, qty: lightQty, recruits: recruits.count, slotFree, have, intensity: lightIntensity })
   const lcCheck = checkConversion({
     target: 'LIGHT_CAV', qty: lcQty, slotFree, have,
     availableFromPool: poolOf(lcSrc, ['NOVICE', 'TRAINED', 'ADVANCED', 'VETERAN', 'ELITE']),
@@ -354,11 +357,41 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
               <input className="border border-wl-line rounded px-2 py-1 w-24 bg-wl-panel-muted" type="number" min={1} max={50}
                 value={lightQty} onChange={e => setLightQty(Math.max(1, Math.min(50, parseInt(e.target.value || '1'))))} />
             </div>
-            <button className="px-4 py-1 bg-wl-good text-wl-inverse rounded hover:bg-wl-good/90 disabled:opacity-60 disabled:cursor-not-allowed" disabled={!trainCheck.ok} onClick={() => queueLightTraining(lightType, lightQty)}>
+            <div className="flex flex-col">
+              <label className="text-sm font-medium">Intensity</label>
+              <select
+                className="border border-wl-line rounded px-2 py-1 bg-wl-panel-muted"
+                value={lightIntensity}
+                onChange={e => setLightIntensity(e.target.value as Intensity)}
+              >
+                <option value="RUSHED">Rushed — fast, some wash out</option>
+                <option value="STANDARD">Standard</option>
+                <option value="DRILLED">Drilled — slower, costs pay, better troops</option>
+              </select>
+            </div>
+            <button className="px-4 py-1 bg-wl-good text-wl-inverse rounded hover:bg-wl-good/90 disabled:opacity-60 disabled:cursor-not-allowed" disabled={!trainCheck.ok} onClick={() => queueLightTraining(lightType, lightQty, lightIntensity)}>
               Train Batch
             </button>
           </div>
           {renderReqs(lightQty, undefined, lightType)}
+          <div className="mt-2 text-xs text-wl-muted">
+            {(() => {
+              const days = batchDaysAt(barracksLevel, lightIntensity, mods.trainDaysDelta)
+              const out = survivorsOf(lightQty, lightIntensity)
+              const xp = trainingXpFor(lightIntensity, mods.trainXpMult)
+              const { buckets } = promoteBuckets([{ r: 'NOVICE', count: out, avgXP: xp }])
+              const ranks = buckets.map(b => `${b.count} ${b.r}`).join(', ')
+              const pay = drillPayFor(lightQty, lightIntensity)
+              return (
+                <>
+                  <span className="font-mono text-wl-ink">{days}</span> day{days === 1 ? '' : 's'} →{' '}
+                  <span className="font-mono text-wl-ink">{ranks}</span>
+                  {out < lightQty && <span className="text-wl-bad"> ({lightQty - out} wash out)</span>}
+                  {pay > 0 && <span> · drill pay <MoneyDisplay amount={pay} size={12} className="inline-flex" /></span>}
+                </>
+              )
+            })()}
+          </div>
           <Blocked check={trainCheck} />
         </div>
 

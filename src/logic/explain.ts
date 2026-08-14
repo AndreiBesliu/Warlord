@@ -20,6 +20,8 @@ import { Registry } from './registry'
 import { itemValueCopper } from './items'
 import { missionPresets, computeReward } from './combat/enemies'
 import { studyPerDay, studyCostOf, daysAtRate } from './research/study'
+import { batchDaysAt, batchDurationDays, survivorsOf, trainingXpFor, drillPayFor, type Intensity } from './batches'
+import { promoteBuckets } from './units'
 import type { Difficulty } from './combat/types'
 import {
   fmtCopper, ResourceTypes,
@@ -410,4 +412,48 @@ export function explainStudy(scriptoriumLevel = 1, config?: GameConfigOverrides 
       ],
     }
   })
+}
+
+export interface IntensityEffect {
+  key: string
+  days: number
+  survivors: number
+  rank: string
+  payCopper: number
+  lines: string[]
+}
+
+/**
+ * What each training intensity actually produces, at a given barracks level and batch size.
+ * Runs the same functions the tick and the barracks card run, so the panel cannot advertise
+ * a batch the game will not deliver.
+ */
+export function explainIntensity(
+  level = 1, qty = 20, xpMult = 1, config?: GameConfigOverrides | null,
+): IntensityEffect[] {
+  return under(config, () =>
+    (['RUSHED', 'STANDARD', 'DRILLED'] as Intensity[]).map((key) => {
+      const cfg = GameConfig.intensity(key)
+      const days = batchDaysAt(level, key)
+      const survivors = survivorsOf(qty, key)
+      const xp = trainingXpFor(key, xpMult)
+      const { buckets } = promoteBuckets([{ r: 'NOVICE', count: survivors, avgXP: xp }])
+      const rank = buckets.map((b) => `${b.count} ${b.r}`).join(', ')
+      const payCopper = drillPayFor(qty, key)
+      return {
+        key, days, survivors, rank, payCopper,
+        lines: [
+          `days = base ${batchDurationDays(level)} (level ${level}) × ${cfg.dayMult} = ${days}`,
+          cfg.washoutPct > 0
+            ? `${cfg.washoutPct}% wash out → ${survivors} of ${qty} finish`
+            : `every one of the ${qty} finishes`,
+          cfg.payPerSoldier > 0
+            ? `drill pay = ${fmtCopper(cfg.payPerSoldier)} × ${qty} = ${fmtCopper(payCopper)}, charged when queued`
+            : `no drill pay`,
+          `they finish with ${xp} XP → ${rank}`,
+          `a batch promotes at most ONE rank, whatever research adds — intensity is a head start, not a shortcut`,
+        ],
+      }
+    }),
+  )
 }

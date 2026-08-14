@@ -7,7 +7,7 @@ import { BuildingOutputChoices, FocusOptions } from '../logic/economy'
 import { makeEmptyInventories, isHorseKey, type HorseKey } from '../logic/helpers'
 import { demandFor, ensureEquipOrBuy, equipFromDemand, addEquip, releaseEquip } from '../logic/equipment'
 import { itemValueCopper } from '../logic/items'  // if you use buy/sell here
-import { batchSlots, batchDurationDays } from '../logic/batches' // or from your batches helper
+import { batchSlots, batchDurationDays, survivorsOf, trainingXpFor, drillPayFor, batchDaysAt, type Intensity } from '../logic/batches' // or from your batches helper
 import {
   queueLightTraining as qLight, queueLightCavConversion as qLC,
   queueHeavyConversion as qHC, queueHorseArcherConversion as qHA
@@ -467,8 +467,8 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     setMergePick([])
   }
 
-  function queueLightTraining(target: SoldierType, qty: number) {
-    qLight({ econ, barr, addLog, mods }, target, qty)
+  function queueLightTraining(target: SoldierType, qty: number, intensity?: Intensity) {
+    qLight({ econ, barr, addLog, mods }, target, qty, intensity)
   }
   function queueLightCavConversion(fromType: SoldierType, qty: number) {
     qLC({ econ, barr, addLog, mods }, fromType, qty)
@@ -621,29 +621,56 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     // snapshot (nothing else in this tick touches batches), so every setState below is
     // a pure, side-effect-free updater — per the hard rule: no setState inside setState.
     const keptBatches: typeof barr.batches = []
-    const finished: { pool: SoldierType; qty: number; note: string }[] = []
+    // A finished batch is a set of arrivals, each at a RANK — not a lump of NOVICE.
+    const finished: { pool: SoldierType; arrivals: { r: Rank; count: number; avgXP: number }[]; note: string }[] = []
     for (const b of barr.batches) {
       const nextDays = b.daysRemaining - 1
       if (nextDays > 0) {
         keptBatches.push({ ...b, daysRemaining: nextDays })
         continue
       }
-      const { kind, target, qty } = b
+      const { kind, target, qty, intensity, takeByRank } = b
       if (kind === 'LIGHT_TRAIN' && target) {
-        finished.push({ pool: target, qty, note: `Training finished: ${qty} ${target} (NOVICE).` })
-      } else if (kind === 'LIGHT_CAV') {
-        finished.push({ pool: 'LIGHT_CAV', qty, note: `Conversion finished: ${qty} LIGHT_CAV.` })
-      } else if (kind === 'HEAVY_CAV') {
-        finished.push({ pool: 'HEAVY_CAV', qty, note: `Conversion finished: ${qty} HEAVY_CAV.` })
-      } else if (kind === 'HORSE_ARCHER') {
-        finished.push({ pool: 'HORSE_ARCHER', qty, note: `Conversion finished: ${qty} HORSE_ARCHER.` })
+        // Rushed drilling loses men; drilled training sends them out with XP, which the
+        // SAME promotion logic units use turns into a rank. No parallel rank maths here.
+        const out = survivorsOf(qty, intensity)
+        const xp = trainingXpFor(intensity, mods.trainXpMult)
+        const { buckets } = promoteBuckets([{ r: 'NOVICE', count: out, avgXP: xp }])
+        const ranks = buckets.map(x => `${x.count} ${x.r}`).join(', ')
+        const lost = qty - out
+        finished.push({
+          pool: target,
+          arrivals: buckets.map(x => ({ r: x.r, count: x.count, avgXP: x.avgXP })),
+          note: `Training finished: ${ranks} ${target}${lost > 0 ? ` (${lost} washed out)` : ''}.`,
+        })
+      } else if (kind === 'LIGHT_CAV' || kind === 'HEAVY_CAV' || kind === 'HORSE_ARCHER') {
+        // A conversion used to consume ADVANCED+ soldiers and hand back NOVICE: the rank
+        // they were gated on was destroyed by the very step that required it. `takeByRank`
+        // was recorded at enqueue and never read. It is read now.
+        const pool = kind as SoldierType
+        const kept = Object.entries(takeByRank ?? {})
+          .filter((e): e is [Rank, number] => typeof e[1] === 'number' && e[1] > 0)
+          .map(([r, count]) => ({ r, count, avgXP: 0 }))
+        const arrivals = kept.length ? kept : [{ r: 'NOVICE' as Rank, count: qty, avgXP: 0 }]
+        const ranks = arrivals.map(x => `${x.count} ${x.r}`).join(', ')
+        finished.push({ pool, arrivals, note: `Conversion finished: ${ranks} ${pool}.` })
       }
     }
     barr.setBatches(keptBatches)
     if (finished.length) {
       barr.setBarracks(prev => {
         const pool = structuredClone(prev)
-        for (const f of finished) pool[f.pool]['NOVICE'].count += f.qty
+        for (const f of finished) {
+          for (const a of f.arrivals) {
+            const slot = pool[f.pool][a.r]
+            const merged = slot.count + a.count
+            // Blend the arrivals' XP into the slot, count-weighted — the recruit pool and
+            // disband already do this; batch completion used to add the count alone, so a
+            // fresh intake silently inherited the average of whoever was already there.
+            slot.avgXP = merged ? Math.floor((slot.count * slot.avgXP + a.count * a.avgXP) / merged) : 0
+            slot.count = merged
+          }
+        }
         return pool
       })
       finished.forEach(f => addLog(f.note))

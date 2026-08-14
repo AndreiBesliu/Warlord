@@ -1,7 +1,7 @@
 // src/logic/training.ts
 import type { Rank, SoldierType } from './types'
 import { demandFor, ensureEquipOrBuy } from './equipment'
-import { enqueueBatch, canEnqueue } from './batches'
+import { enqueueBatch, canEnqueue, drillPayFor, type Intensity } from './batches'
 
 type Ctx = {
   econ: {
@@ -79,7 +79,7 @@ export interface BarracksSlice {
 }
 
 // recruits (untyped) -> light troop type
-export function queueLightTraining(ctx: Ctx, target: SoldierType, qty: number) {
+export function queueLightTraining(ctx: Ctx, target: SoldierType, qty: number, intensity?: Intensity) {
   const n = assertQty(qty)
   if (!requireSlot(ctx)) return
   if (!target.startsWith('LIGHT_')) {
@@ -88,6 +88,13 @@ export function queueLightTraining(ctx: Ctx, target: SoldierType, qty: number) {
   }
   if (ctx.barr.recruits.count < n) {
     ctx.addLog('Not enough untyped recruits.')
+    return
+  }
+  // Drill pay is charged up front, like every other cost in the game — so a batch can
+  // never fail halfway through for want of money.
+  const pay = drillPayFor(n, intensity)
+  if (pay > ctx.econ.wallet) {
+    ctx.addLog(`Not enough copper for drill pay (${pay}c).`)
     return
   }
 
@@ -102,10 +109,11 @@ export function queueLightTraining(ctx: Ctx, target: SoldierType, qty: number) {
   ctx.barr.setRecruits(prev => ({ ...prev, count: prev.count - n }))
   ctx.econ.setInv(() => res.inv)
   if (res.spent > 0) ctx.econ.setWallet(w => w - res.spent)
+  if (pay > 0) ctx.econ.setWallet(w => w - pay)
   ctx.barr.setBatches(prev =>
-    enqueueBatch(prev, { level: ctx.barr.barracksLevel, kind: 'LIGHT_TRAIN', target, qty: n }, ctx.mods?.trainDaysDelta ?? 0)
+    enqueueBatch(prev, { level: ctx.barr.barracksLevel, kind: 'LIGHT_TRAIN', target, qty: n, intensity }, ctx.mods?.trainDaysDelta ?? 0)
   )
-  ctx.addLog(`Queued LIGHT training: ${n} → ${target}.`)
+  ctx.addLog(`Queued ${intensity ?? 'STANDARD'} training: ${n} → ${target}${pay > 0 ? ` (drill pay ${pay}c)` : ''}.`)
 }
 
 // light inf -> light cav (consumes light horses immediately)
