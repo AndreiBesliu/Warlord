@@ -84,6 +84,19 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-14 - Task Completed (intensitatea de antrenament — prima din cele patru mecanici de adâncime)**
+> Prompt: „cu care crezi ca e mai eficient" → „e ok" (intensitatea, recomandată de mine și acceptată)
+> Model: Claude Opus 5
+> - **De ce asta prima:** rangurile există complet și sunt deja valoroase (+10% atac / +8% apărare pe treaptă, **mor primii cei verzi** la pierderi, iar ADVANCED e poartă dură pentru heavy cav și horse archers), dar antrenamentul nu putea produce decât NOVICE. Sistemul zăcea.
+> - **Trei intensități:** RUSHED (jumătate din zile, o cincime din oameni nu termină), STANDARD (**bit-identic cu azi**, câmp absent ⇒ STANDARD, deci save-urile și conversiile rămân neatinse), DRILLED (mai lung, soldă plătită la punerea în coadă, ies TRAINED).
+> - **Un lot promovează CEL MULT UN RANG.** Testul scris ca REGULĂ, nu ca număr, a prins gaura înainte să ajungă pe live: cu tehnologiile de antrenament stivuite (`trainXpMult` ajunge la ×3), un lot DRILLED ar fi scos ADVANCED direct — adică tot urcușul de ~22 de zile prin Training Mode sărit dintr-o cumpărătură. `trainingXpFor` e acum sursa unică a plafonului, citită și de tick, și de prognoza de dinainte de apăsare.
+> - **Rangul de aterizare vine din `promoteBuckets`** — aceeași funcție pe care o folosesc unitățile. Zero matematică paralelă de rang.
+> - **Două defecte care locuiau exact în funcția pe care trebuia s-o ating:** (1) o conversie consuma ADVANCED+ și întorcea NOVICE — rangul pe care era condiționată era distrus chiar de pasul care îl cerea; `takeByRank` se scria la punerea în coadă și **nu se citea niciodată**. (2) sosirile făceau `count += qty` fără amestec de XP, deci un lot proaspăt moștenea tăcut media celor care erau deja în slot.
+> - **Verificat în browser:** cardul a promis „12 days → 20 TRAINED · drill pay", iar lotul a scos exact 20 TRAINED @ 20xp (120 acordat − 100 prag) cu 1000c scăzuți la coadă; RUSHED a promis „4 days → 16 NOVICE (4 wash out)" și a scos exact 16. Numărul afișat = numărul plătit.
+> - 212 teste verzi (18 noi în `logic/intensity.test.ts`), typecheck + build verzi.
+> - **RĂMÂNE din cele patru:** capacitate de cazarmă, instructori cu salariu + randament descrescător, surse de recruți cu calitate diferită.
+
+
 **2026-08-14 - Task Completed (bucla de armată: reparată și onestă)**
 > Prompt: „vreau sa imbunatatim sistemul de recrutare si de training, plus ca nu functioneaza sistemul de creare unitati"
 > Model: Claude Opus 5
