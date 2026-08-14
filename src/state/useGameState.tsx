@@ -7,7 +7,7 @@ import { BuildingOutputChoices, FocusOptions } from '../logic/economy'
 import { makeEmptyInventories, isHorseKey, type HorseKey } from '../logic/helpers'
 import { demandFor, ensureEquipOrBuy, equipFromDemand, addEquip, releaseEquip } from '../logic/equipment'
 import { itemValueCopper } from '../logic/items'  // if you use buy/sell here
-import { batchSlots, batchDurationDays, survivorsOf, trainingXpFor, drillPayFor, batchDaysAt, type Intensity } from '../logic/batches' // or from your batches helper
+import { batchSlots, batchDurationDays, survivorsOf, trainingXpFor, type Intensity } from '../logic/batches' // or from your batches helper
 import {
   queueLightTraining as qLight, queueLightCavConversion as qLC,
   queueHeavyConversion as qHC, queueHorseArcherConversion as qHA
