@@ -2,6 +2,8 @@ import { forecastDay, explainResource } from '../../logic/forecast'
 import { ResourceTypes, fmtCopper, type Building, type Inventories, type ResourceMap, type ResourceType, type Unit } from '../../logic/types'
 import { formatGameTooltip, getIconForGameItem } from '../../logic/iconHelpers'
 import GameIcon from './GameIcon'
+import { BRANCHES } from '../../logic/research/study'
+import { BRANCH_LABEL } from '../../logic/research/catalog'
 
 type Props = {
   wallet: number
@@ -31,6 +33,8 @@ export default function ResourceBar({ wallet, resources, inv, buildings, units, 
   // place, so its identity does not change when equipment is spent.
   const f = forecastDay({ buildings, resources, inv, units, mods })
 
+  const studyTotal = BRANCHES.reduce((sum, br) => sum + (f.studyByBranch[br] ?? 0), 0)
+
   const shown = ResourceTypes.filter(
     (r) => ALWAYS.includes(r) || (resources[r] ?? 0) > 0 || f.resourceDelta[r] !== 0,
   )
@@ -49,6 +53,22 @@ export default function ResourceBar({ wallet, resources, inv, buildings, units, 
         <span className="font-mono">{fmtCopper(wallet)}</span>
         <Delta n={f.walletDelta} />
       </span>
+
+      {/* Study is the third thing a building's day can become, so it belongs in the same
+          bar as coin and goods — otherwise the Research% slider is a lever with no gauge. */}
+      {studyTotal > 0 && (
+        <span
+          className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-wl-panel border border-wl-line"
+          title={
+            'Study produced per day\n' +
+            BRANCHES.map((br) => `${BRANCH_LABEL[br]}: +${f.studyByBranch[br]}`).join('\n')
+          }
+        >
+          <span aria-hidden>🔬</span>
+          <span className="font-mono text-wl-ink">{Math.round(studyTotal * 10) / 10}</span>
+          <span className="text-wl-muted text-[11px]">study/day</span>
+        </span>
+      )}
 
       {shown.map((r) => {
         const stock = resources[r] ?? 0

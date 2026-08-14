@@ -5,6 +5,7 @@
 // carried its own copy of the formula.)
 
 import { simulateEconomyDay, type BuildingDayLine, type DayEconomyInput } from './economy'
+import type { StudyPools } from './research/study'
 import { ResourceTypes, type ResourceMap, type ResourceType } from './types'
 
 export interface DayForecast {
@@ -22,6 +23,8 @@ export interface DayForecast {
   breakdown: BuildingDayLine[]
   /** Ticks until a shrinking store hits zero (null = not shrinking). */
   daysToEmpty: Partial<Record<ResourceType, number>>
+  /** Study each branch gains tomorrow — the third thing a building's day can become. */
+  studyByBranch: StudyPools
 }
 
 const zeroDeltas = (): Record<ResourceType, number> =>
@@ -54,6 +57,7 @@ export function forecastDay(input: DayEconomyInput): DayForecast {
     blocked: after.breakdown.filter((l) => l.blocked),
     breakdown: after.breakdown,
     daysToEmpty,
+    studyByBranch: after.studyByBranch,
   }
 }
 

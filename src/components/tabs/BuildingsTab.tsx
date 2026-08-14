@@ -93,6 +93,7 @@ export default function BuildingsTab({ state, setTab }: Props) {
     buildingResCost,
     buyBuilding,
     setBuildingFocus,
+    setBuildingResearchFocus,
     setBuildingOutput,
     barracksLevel,
     upgradeBarracks,
@@ -147,6 +148,7 @@ export default function BuildingsTab({ state, setTab }: Props) {
           onClose={() => setSelectedBuildingId(null)}
           onSetOutput={(item) => setBuildingOutput(selectedBuilding.id, item)}
           onSetFocus={(pct) => setBuildingFocus(selectedBuilding.id, pct)}
+          onSetResearchFocus={(pct) => setBuildingResearchFocus(selectedBuilding.id, pct)}
           prodMult={mods?.prodMult ?? 1}
           craftEfficiency={mods?.craftEfficiency ?? 1}
         />

@@ -78,6 +78,9 @@ export type Building = {
   'LUMBER_MILL' | 'QUARRY' | 'IRON_MINE' | 'COAL_MINE' | 'COPPER_MINE' | 'SILVER_MINE' | 'SMELTER' | 'MINTER' | 'FARM' |
   'SCRIPTORIUM';
   focusCoinPct: 0 | 20 | 40 | 60 | 80 | 100;
+  // Share of the day's value spent on study. Taken off the top, BEFORE focusCoinPct splits
+  // the rest — so this stays optional and an existing save behaves exactly as it did.
+  focusResearchPct?: 0 | 20 | 40 | 60 | 80 | 100;
   outputItem?: string;
   fractionalBuffer: number;
   level?: number; // 1..BUILDING_MAX_LEVEL; absent in old saves = 1

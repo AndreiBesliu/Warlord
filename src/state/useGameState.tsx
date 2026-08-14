@@ -21,12 +21,14 @@ import useBarracks, { emptyBarracks } from './useBarracks'
 import { computeReady, mergeUnits, splitUnit, applyMoraleChange, trainingGainPerDay, promoteBuckets, computeUnitAvgXP } from '../logic/units'
 import { Registry } from '../logic/registry'
 import { rollDailyEvent } from '../logic/events'
+import { forecastDay } from '../logic/forecast'
 import { loadSampleMod } from '../mods/sampleMod';
 import { GameConfig, type GameConfigOverrides } from '../logic/config'
 import { useCampaign, emptyCampaign, hydrateCampaign, type CampaignReward } from './useCampaign'
 import { useResearch, emptyResearch, hydrateResearch, type ResearchProject } from './useResearch'
 import { resolveCatalog, techById, prereqsMet, missingBuildings, hasResearchBuilding, type TechId } from '../logic/research/catalog'
 import { aggregate, availableTechs, onBattleWon, onBattleLost, onResearchCompleted, tickBuffs, resolveBuffs } from '../logic/research/momentum'
+import { BRANCHES, addStudy, spendStudy, studyCostOf } from '../logic/research/study'
 import { applyCommand } from '../logic/combat/engine'
 import { chooseEnemyCommands } from '../logic/combat/ai'
 import { createBattle, missionPresets, DIFFICULTIES, escalationMult, streakLootMult } from '../logic/combat/enemies'
@@ -100,17 +102,19 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
 
   const [mergePick, setMergePick] = useState<string[]>([])
 
+  // Admin-tuned balance values. Initialised BEFORE the slices hydrate, not after: research
+  // hydration converts an old day-countdown project into study using the CONFIGURED rate,
+  // so an admin-tuned baseline has to be in force by then. (It also has to stay a plain
+  // call on every render — several modules read GameConfig directly rather than via props.)
+  GameConfig.init(opts?.config)
+  const cfg = opts?.config ?? undefined
+
   // slices (each hydrates from the same save blob)
   const econ = useEconomy(10 * GOLD, defaultBuildings, saved ?? undefined)
   const barr = useBarracks(saved ?? undefined)
   const unit = useUnits(saved?.units ?? undefined)
   const camp = useCampaign(saved?.campaign)
-  const rsc = useResearch(saved?.research)
-
-  // Admin-tuned balance values. Initialised BEFORE anything reads a price or a table:
-  // several modules (and UI components) read GameConfig directly rather than via props.
-  GameConfig.init(opts?.config)
-  const cfg = opts?.config ?? undefined
+  const rsc = useResearch(saved?.research, cfg?.catalog)
 
   // The tech catalog and the momentum table are DATA — the admin ships an override
   // object and everything downstream resolves against it.
@@ -156,7 +160,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       barr.setBatches(s.batches ?? [])
       unit.setUnits(s.units ?? [])
       camp.setCampaign(hydrateCampaign(s.campaign))
-      rsc.setResearch(hydrateResearch(s.research))
+      rsc.setResearch(hydrateResearch(s.research, cfg?.catalog))
       addLog('Loaded save.')
     } catch { addLog('Failed to load save.') }
   }
@@ -320,13 +324,31 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       }
       return n
     })
-    const project: ResearchProject = { id: t.id, name: t.name, daysRemaining: t.days }
+    const cost = studyCostOf(t)
+    const project: ResearchProject = {
+      id: t.id, name: t.name, branch: t.branch, studyRemaining: cost, studyTotal: cost,
+    }
     rsc.setResearch(r => ({ ...r, queue: [...r.queue, project] }))
-    addLog(`🔬 Research started: ${t.name} (${t.days}d, ${fmtCopper(t.costCopper)}).`)
+    addLog(`🔬 Research started: ${t.name} (${cost} study, ${fmtCopper(t.costCopper)}).`)
+  }
+
+  // Both writers clamp to a real step of the slider. The coin one used to cast through
+  // `any`, so any number a caller passed reached the save and the literal union was a
+  // decoration. A third channel is not the place to keep that.
+  function clampFocus(pct: number): Building['focusCoinPct'] {
+    const steps = [0, 20, 40, 60, 80, 100] as const
+    const n = Number.isFinite(pct) ? pct : 0
+    return steps.reduce((best, s) => (Math.abs(s - n) < Math.abs(best - n) ? s : best), 0 as Building['focusCoinPct'])
   }
 
   function setBuildingFocus(id: string, pct: number) {
-    econ.setBuildings(bs => bs.map(b => b.id === id ? { ...b, focusCoinPct: pct as any } : b))
+    const v = clampFocus(pct)
+    econ.setBuildings(bs => bs.map(b => b.id === id ? { ...b, focusCoinPct: v } : b))
+  }
+
+  function setBuildingResearchFocus(id: string, pct: number) {
+    const v = clampFocus(pct)
+    econ.setBuildings(bs => bs.map(b => b.id === id ? { ...b, focusResearchPct: v } : b))
   }
 
   // Generic building upgrade (BARRACKS has its own leveling; MARKET/STABLE have no
@@ -551,17 +573,25 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     // Research progress + momentum expiry. Same shape as the training-batch pre-pass:
     // compute over the current snapshot, then write with pure updaters. Placed BEFORE
     // the day-summary log so finished research and expired buffs appear in it.
+    // Study produced by today's economy lands in the branch pools; each project then draws
+    // from its own branch. `income.studyByBranch` comes from the same day the wallet did,
+    // so what the topbar promised and what the pools receive cannot disagree.
+    const gainedStudy = income.studyByBranch
+    const pooledAfterGain = addStudy(rsc.research.pools, gainedStudy)
+    const { pools: poolsAfterSpend, applied } = spendStudy(pooledAfterGain, rsc.research.queue)
+
     const keptProjects: ResearchProject[] = []
     const doneProjects: ResearchProject[] = []
     for (const p of rsc.research.queue) {
-      const left = p.daysRemaining - 1
-      if (left > 0) keptProjects.push({ ...p, daysRemaining: left })
+      const left = p.studyRemaining - (applied[p.id] ?? 0)
+      if (left > 0) keptProjects.push({ ...p, studyRemaining: left })
       else doneProjects.push(p)
     }
     const { buffs: keptBuffs, expired } = tickBuffs(rsc.research.buffs)
-    // Write whenever anything is in flight: the day decrement itself is a change even
-    // when nothing finished, so a length-only comparison would silently freeze research.
-    if (rsc.research.queue.length > 0 || rsc.research.buffs.length > 0) {
+    const studyGained = BRANCHES.some(br => (gainedStudy[br] ?? 0) > 0)
+    // Write whenever anything is in flight OR any study came in — a pool filling up while
+    // no project runs is real progress, and a length-only check would throw it away.
+    if (rsc.research.queue.length > 0 || rsc.research.buffs.length > 0 || studyGained) {
       rsc.setResearch(r => {
         let buffs = keptBuffs
         // A discovery lifts the whole domain for a couple of days (cross-branch effect).
@@ -571,6 +601,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
           unlocked: [...r.unlocked, ...doneProjects.map(p => p.id)],
           queue: keptProjects,
           buffs,
+          pools: poolsAfterSpend,
         }
       })
     }
@@ -886,7 +917,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     buildingPrice: (t: Building['type']) => buildingCostCopper(t, mods.buildCostMult),
     buildingResCost: (t: Building['type']) => buildingResourceCost(t),
     BuildingOutputChoices, FocusOptions,
-    buy, sell, buyBuilding, setBuildingFocus, setBuildingOutput, upgradeBuilding,
+    buy, sell, buyBuilding, setBuildingFocus, setBuildingResearchFocus, setBuildingOutput, upgradeBuilding,
 
     // barracks (state)
     recruits: barr.recruits,
@@ -926,6 +957,8 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     // The Scriptorium gates the whole discipline; individual techs gate on their own
     // infrastructure (see missingBuildings) so the UI can say WHAT is missing.
     hasResearchBuilding: hasResearchBuilding(econ.buildings),
+    // What tomorrow adds to each branch, from the same function the tick banks with.
+    studyPerDay: forecastDay({ buildings: econ.buildings, resources: econ.resources, inv: econ.inv, units: unit.units, mods }).studyByBranch,
     availableResearch: () => availableTechs(catalog, rsc.research.unlocked, rsc.research.queue.map(p => p.id)),
 
     // campaign / combat

@@ -5,8 +5,7 @@ import type { GameStateShape } from '../../state/useGameState'
 import type { Branch, Modifiers } from '../../logic/research/effects'
 import { BRANCH_LABEL, prereqsMet, missingBuildings, techById, type TechDef } from '../../logic/research/catalog'
 import { evaluateCost } from '../../logic/costs'
-
-const BRANCHES: Branch[] = ['ECONOMY', 'ARMY', 'CAMPAIGN', 'UNLOCKS']
+import { BRANCHES, daysAtRate, studyCostOf } from '../../logic/research/study'
 
 const BRANCH_STYLE: Record<Branch, string> = {
   ECONOMY: 'bg-wl-economy-surface border-wl-economy',
@@ -41,7 +40,7 @@ function effectLines(m: Modifiers): string[] {
 }
 
 export default function ResearchTab({ state }: { state: GameStateShape }) {
-  const { research, mods, catalog, startResearch, wallet, resources, buildings } = state
+  const { research, mods, catalog, startResearch, wallet, resources, buildings, studyPerDay } = state
   const inProgress = new Map(research.queue.map((p) => [p.id, p]))
 
   // One evaluation per tech: the SAME object drives the price row, the button label and
@@ -94,7 +93,13 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {BRANCHES.map((branch) => (
           <div key={branch} className="space-y-2">
-            <h3 className={`font-serif text-lg font-bold ${BRANCH_HEAD[branch]}`}>{BRANCH_LABEL[branch]}</h3>
+            <div className="flex items-baseline justify-between gap-2">
+              <h3 className={`font-serif text-lg font-bold ${BRANCH_HEAD[branch]}`}>{BRANCH_LABEL[branch]}</h3>
+              <span className="text-[11px] text-wl-muted" title={`Study banked in ${BRANCH_LABEL[branch]}, and what tomorrow adds`}>
+                <span className="font-mono text-wl-ink">{Math.floor(research.pools[branch] ?? 0)}</span> study
+                {(studyPerDay[branch] ?? 0) > 0 && <span className="text-wl-good"> +{studyPerDay[branch]}/d</span>}
+              </span>
+            </div>
             {catalog
               .filter((t) => t.branch === branch)
               .sort((a, b) => a.tier - b.tier)
@@ -136,17 +141,34 @@ export default function ResearchTab({ state }: { state: GameStateShape }) {
 
                     {done && <div className="text-xs text-wl-good font-semibold">Researched</div>}
 
-                    {busy && (
-                      <div className="text-xs text-wl-warn font-semibold">
-                        In progress — {busy.daysRemaining} day{busy.daysRemaining > 1 ? 's' : ''} left
-                      </div>
-                    )}
+                    {busy && (() => {
+                      // Days are an ESTIMATE now, not a countdown: they depend on what the
+                      // domain produces, so the study figure is the honest one and the day
+                      // count is labelled as the guess it is.
+                      const eta = daysAtRate(busy.studyRemaining, studyPerDay[branch] ?? 0)
+                      const pct = busy.studyTotal > 0
+                        ? Math.round(((busy.studyTotal - busy.studyRemaining) / busy.studyTotal) * 100)
+                        : 0
+                      return (
+                        <div className="text-xs text-wl-warn font-semibold">
+                          <div className="h-1.5 rounded bg-wl-panel-muted overflow-hidden mb-1">
+                            <div className="h-full bg-wl-warn" style={{ width: `${pct}%` }} />
+                          </div>
+                          {Math.ceil(busy.studyTotal - busy.studyRemaining)} / {busy.studyTotal} study
+                          {eta === null
+                            ? <span className="text-wl-bad"> — stalled, nothing is studying this</span>
+                            : <span className="font-normal text-wl-muted"> · ~{eta} day{eta === 1 ? '' : 's'} at this rate</span>}
+                        </div>
+                      )
+                    })()}
 
                     {!done && !busy && (
                       <>
                         <div className="mt-1 space-y-1">
                           <CostList lines={price.lines} />
-                          <div className="text-[11px] text-wl-subtle">Takes {t.days} day{t.days === 1 ? '' : 's'}</div>
+                          <div className="text-[11px] text-wl-subtle">
+                            {studyCostOf(t)} study{(studyPerDay[branch] ?? 0) > 0 && ` · ~${daysAtRate(studyCostOf(t), studyPerDay[branch])} days at this rate`}
+                          </div>
                         </div>
                         {!ready ? (
                           <div className="text-xs text-wl-ink mt-1">

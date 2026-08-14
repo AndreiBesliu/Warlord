@@ -1,6 +1,8 @@
 import { createPortal } from 'react-dom'
 import { type Building } from '../../logic/types'
 import { buildingCostCopper, BuildingOutputChoices, passiveIncomeAndProduction } from '../../logic/economy'
+import { branchOfBuilding, studyFromValue } from '../../logic/research/study'
+import { BRANCH_LABEL } from '../../logic/research/catalog'
 import { getIconForGameItem } from '../../logic/iconHelpers'
 import MoneyDisplay from '../common/MoneyDisplay'
 import GameIcon from '../common/GameIcon'
@@ -17,6 +19,7 @@ type Props = {
     onClose: () => void
     onSetOutput: (item: string) => void
     onSetFocus: (pct: number) => void
+    onSetResearchFocus: (pct: number) => void
     prodMult?: number      // research/momentum production bonus (1 = unchanged)
     craftEfficiency?: number
 }
@@ -39,7 +42,7 @@ const InteriorMap: Record<string, string> = {
     MARKET: bgTailor,
 }
 
-export default function ProductionModal({ building, onClose, onSetOutput, onSetFocus, prodMult = 1, craftEfficiency = 1 }: Props) {
+export default function ProductionModal({ building, onClose, onSetOutput, onSetFocus, onSetResearchFocus, prodMult = 1, craftEfficiency = 1 }: Props) {
     const bg = InteriorMap[building.type] || bgBlacksmith
     const options = BuildingOutputChoices[building.type]?.options || []
 
@@ -48,6 +51,8 @@ export default function ProductionModal({ building, onClose, onSetOutput, onSetF
     // ignoring building level, resource base values and research bonuses).
     let coinGain = 0
     let items = '0'
+    let studyPerDay = 0
+    const branch = branchOfBuilding(building.type)
 
     {
         const out = passiveIncomeAndProduction({
@@ -59,8 +64,10 @@ export default function ProductionModal({ building, onClose, onSetOutput, onSetF
             level: building.level ?? 1,
             outputMult: prodMult,
             craftEfficiency: craftEfficiency,
+            focusResearchPct: building.focusResearchPct,
         })
         coinGain = out.coinGain
+        studyPerDay = Math.round(studyFromValue(out.researchValue) * 10) / 10
         // Whole items only land once the buffer fills; show the daily rate, not the floor.
         const perDay = out.items + out.newBuffer
         items = perDay > 0 ? perDay.toFixed(1) : '0'
@@ -177,6 +184,44 @@ export default function ProductionModal({ building, onClose, onSetOutput, onSetF
                             <span>100% Goods</span>
                             <span>100% Coin</span>
                         </div>
+                    </div>
+
+                    {/* Study. A separate slider rather than a third pole on the one above:
+                        research is taken off the top and the coin/goods split then applies
+                        to what is left, so the two are genuinely independent choices. */}
+                    <div className="pt-4 mt-2 border-t border-wl-contrast-ink/15">
+                        {branch ? (
+                            <>
+                                <div className="flex items-baseline justify-between">
+                                    <span className="text-xs text-wl-contrast-ink/60 uppercase tracking-widest">
+                                        Dedicated to study · {BRANCH_LABEL[branch]}
+                                    </span>
+                                    <span className="text-lg font-mono text-wl-contrast-ink">
+                                        {building.focusResearchPct ?? 0}% → <span className="text-wl-good">{studyPerDay} study/day</span>
+                                    </span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="100"
+                                    step="20"
+                                    value={building.focusResearchPct ?? 0}
+                                    onChange={(e) => onSetResearchFocus(parseInt(e.target.value))}
+                                    className="mt-2 w-full h-2 bg-wl-contrast-ink/20 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                                />
+                                <p className="mt-2 text-[11px] text-wl-contrast-ink/60">
+                                    Taken before the split above — whatever you dedicate here stops becoming
+                                    coin and goods entirely.
+                                </p>
+                            </>
+                        ) : (
+                            // Said rather than hidden: an absent control reads as a bug.
+                            <p className="text-[11px] text-wl-contrast-ink/60">
+                                This building cannot study. Workshops and mines advance Economy, the
+                                barracks and forges advance Army, the stable advances Campaign — and the
+                                Scriptorium studies for every branch on its own.
+                            </p>
+                        )}
                     </div>
 
                 </div>

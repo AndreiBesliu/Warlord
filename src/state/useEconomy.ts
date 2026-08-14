@@ -55,7 +55,7 @@ export function useEconomy(initialWallet = 5 * GOLD, defaultBuildings: () => Bui
     // Return the post-production values too: same-tick checks (upkeep affordability,
     // food shortage) must be computed against TODAY's income/production, not the stale
     // render snapshot — the queued setState updates aren't visible to the caller yet.
-    return { walletDelta: day.incomeWalletDelta, resources: day.resources }
+    return { walletDelta: day.incomeWalletDelta, resources: day.resources, studyByBranch: day.studyByBranch }
   }
 
   return {

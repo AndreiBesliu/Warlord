@@ -3,6 +3,7 @@ import type { Building, BuildingType, Inventories, ResourceMap, SoldierType, Uni
 import { GOLD, fmtCopper, ResourceTypes, WeaponTypes, ArmorTypes } from './types'
 import { itemValueCopper } from './items'
 import { GameConfig } from './config'
+import { studyPerDay, type StudyPools } from './research/study'
 
 // Daily upkeep cost per soldier (in copper), by type
 export const UPKEEP_BASE: Record<SoldierType, number> = {
@@ -238,19 +239,30 @@ export function passiveIncomeAndProduction(args: {
   level?: number
   outputMult?: number // research/momentum production bonus (1 = unchanged)
   craftEfficiency?: number // research crafting bonus: more items per unit of value
-}): { coinGain: number; items: number; newBuffer: number } {
+  /**
+   * Share of the day's value spent on study instead of output. Taken FIRST, off the top;
+   * `focusCoinPct` then splits what is left, exactly as it always has. A three-way slider
+   * summing to 100 would have silently rewritten the intent of every building in every
+   * existing save — this way an absent field means 0 and nothing changes.
+   */
+  focusResearchPct?: number
+}): { coinGain: number; items: number; newBuffer: number; researchValue: number } {
   const { costCopper, focusCoinPct, outputItem, fractionalBuffer } = args
 
   const basePerDay = buildingOutputValue(args.type, outputItem, costCopper)
     * buildingLevelMult(args.level ?? 1) * (args.outputMult ?? 1)
-  if (!basePerDay) return { coinGain: 0, items: 0, newBuffer: fractionalBuffer }
+  if (!basePerDay) return { coinGain: 0, items: 0, newBuffer: fractionalBuffer, researchValue: 0 }
 
-  const coinGain = Math.round(basePerDay * (focusCoinPct / 100))
-  const remainderValue = basePerDay - coinGain
+  const researchPct = Math.min(100, Math.max(0, args.focusResearchPct ?? 0))
+  const researchValue = Math.round(basePerDay * (researchPct / 100))
+  const afterResearch = basePerDay - researchValue
+
+  const coinGain = Math.round(afterResearch * (focusCoinPct / 100))
+  const remainderValue = afterResearch - coinGain
   const mv = itemValueCopper(outputItem) || 0
 
   if (remainderValue <= 0 || mv <= 0) {
-    return { coinGain, items: 0, newBuffer: fractionalBuffer }
+    return { coinGain, items: 0, newBuffer: fractionalBuffer, researchValue }
   }
 
   // Produce at 70% of market value (manufacturing efficiency bonus); research can
@@ -260,7 +272,7 @@ export function passiveIncomeAndProduction(args: {
   const items = Math.floor(total)
   const newBuffer = total - items
 
-  return { coinGain, items, newBuffer }
+  return { coinGain, items, newBuffer, researchValue }
 }
 
 // ── ONE DAY OF ECONOMY, AS A PURE FUNCTION ────────────────────────────────
@@ -292,6 +304,7 @@ export interface BuildingDayLine {
   itemsProduced: number // what the inputs actually allowed
   blocked: boolean // wanted > 0 but produced 0 — the shortfall is destroyed, not banked
   inputsConsumed: Partial<Record<string, number>>
+  researchValue: number // copper of output diverted to study instead of coin/goods
 }
 
 export interface DayEconomyResult {
@@ -306,6 +319,12 @@ export interface DayEconomyResult {
   foodShortage: boolean
   breakdown: BuildingDayLine[]
   notes: string[]
+  /**
+   * Study produced today, per research branch. Computed here rather than by the caller so
+   * the tick, the topbar forecast and the admin preview all read one number — the same rule
+   * that keeps coin and goods honest.
+   */
+  studyByBranch: StudyPools
 }
 
 export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
@@ -316,6 +335,7 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
   const ninv: Inventories = structuredClone(input.inv)
   const nres: ResourceMap = { ...input.resources }
   const hasStable = buildings.some((b) => b.type === 'STABLE')
+  const diverted: Record<string, number> = {}
 
   nres.WOOD = (nres.WOOD || 0) + 1
   notes.push('Nature → +1 Wood')
@@ -323,10 +343,14 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
   const updated = buildings.map((b) => {
     const row = { ...b }
 
+    // The Scriptorium stays out of the copper economy on purpose: its study is a function
+    // of its LEVEL, not of an output value that then converts. Giving it a copper output
+    // would have it paying coin at the default 100% focus, which it must never do.
     if (['STABLE', 'MARKET', 'BARRACKS', 'SCRIPTORIUM'].includes(row.type)) {
       breakdown.push({
         id: row.id, type: row.type, outputItem: '', skipped: true,
         coinGain: 0, itemsFloat: 0, itemsWanted: 0, itemsProduced: 0, blocked: false, inputsConsumed: {},
+        researchValue: 0,
       })
       return row
     }
@@ -335,7 +359,7 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
     const cost = buildingCostCopper(row.type)
     const outItem = row.outputItem ?? BuildingOutputChoices[row.type].options[0] ?? ''
     const bufferBefore = row.fractionalBuffer ?? 0
-    const { coinGain, items, newBuffer } = passiveIncomeAndProduction({
+    const { coinGain, items, newBuffer, researchValue } = passiveIncomeAndProduction({
       type: row.type,
       costCopper: cost,
       focusCoinPct: row.focusCoinPct,
@@ -344,7 +368,9 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
       level: row.level ?? 1,
       outputMult: mods?.prodMult ?? 1,
       craftEfficiency: mods?.craftEfficiency ?? 1,
+      focusResearchPct: row.focusResearchPct,
     })
+    if (researchValue > 0) diverted[row.id] = researchValue
 
     walletDelta += coinGain
     row.fractionalBuffer = newBuffer
@@ -355,6 +381,7 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
       // The rate the buffer is filling at, independent of which day the integer lands.
       itemsFloat: items + newBuffer - bufferBefore,
       itemsWanted: items, itemsProduced: 0, blocked: false, inputsConsumed: {},
+      researchValue,
     }
 
     if (row.type === 'SMELTER') {
@@ -474,5 +501,6 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
     foodShortage: foodNeeded > foodConsumed,
     breakdown,
     notes,
+    studyByBranch: studyPerDay(buildings, diverted),
   }
 }

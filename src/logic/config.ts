@@ -25,6 +25,26 @@ export interface TickConfig {
   maxOfflineDays: number // how much of an absence is resolved on return (0 = none)
 }
 
+export interface StudyConfig {
+  /**
+   * Study a REFERENCE domain turns out in a day. A tech's `days` is multiplied by this to
+   * get its cost, so the catalog keeps meaning what it meant: a 3-day tech costs three
+   * reference days of study, and the old numbers stay balanced.
+   */
+  baselinePerDay: number
+  /**
+   * What one Scriptorium contributes per level, spread across every branch. Deliberately
+   * below the baseline: a lone Scriptorium researches SLOWER than the old day clock, and
+   * the old speed is something you buy by diverting workshops. Otherwise the Research%
+   * slider would only ever be a bonus, never a decision.
+   */
+  scriptoriumPerLevel: number
+  /** How much a branch can bank while no project is running there. */
+  poolCap: number
+  /** Copper of diverted building value that becomes one point of Study. */
+  copperPerStudy: number
+}
+
 export interface MissionOverride {
   ratio?: number
   rewardCopperPerStrength?: number
@@ -48,6 +68,7 @@ export interface GameConfigOverrides {
   foodBase?: Partial<Record<SoldierType, number>>
   training?: Partial<TrainingConfig>
   tick?: Partial<TickConfig>
+  study?: Partial<StudyConfig>
   missions?: Record<string, MissionOverride>
   catalog?: CatalogOverrides
   buffs?: Record<string, Partial<Omit<BuffDef, 'id'>>>
@@ -59,6 +80,21 @@ export const DEFAULT_TRAINING: TrainingConfig = { baseDays: 7, minDays: 3, maxSl
 // every caught-up day still charges upkeep and eats food, so a huge catch-up can starve
 // an army the player never got to feed. Raise it from the admin if you want more.
 export const DEFAULT_TICK: TickConfig = { minutesPerDay: 5, maxOfflineDays: 24 }
+
+// Calibrated against the real scale of the economy, not picked round:
+// - baseline 100/day means a 3-day tech costs 300 Study and a tier-3 one 800-1000.
+// - a Scriptorium gives 50/branch/day at L1 and, on the shared level curve (×1/1.3/1.6),
+//   only 80 at L3 — so even a maxed one never reaches the old day-clock pace on its own.
+//   The last stretch always has to come out of production. That is the decision.
+// - 50 copper per Study point puts a fully diverted lumber mill (500c/day) at 10/day and
+//   a blacksmith (3000c/day) at 60 — diverting a real workshop roughly doubles your pace,
+//   and you feel it in the coin and goods you stop getting.
+export const DEFAULT_STUDY: StudyConfig = {
+  baselinePerDay: 100,
+  scriptoriumPerLevel: 50,
+  poolCap: 1500,
+  copperPerStudy: 50,
+}
 
 // Only finite, non-negative numbers survive — an admin typo (or a corrupted doc) must
 // never turn a price into NaN and brick the economy.
@@ -147,6 +183,17 @@ class GameConfigStore {
 
   tickMs(): number {
     return Math.round(this.tick().minutesPerDay * 60_000)
+  }
+
+  study(): StudyConfig {
+    const s = this.o.study ?? {}
+    return {
+      // A baseline of 0 would make every tech free; a copper rate of 0 would divide by zero.
+      baselinePerDay: Math.max(1, num(s.baselinePerDay, DEFAULT_STUDY.baselinePerDay, 1)),
+      scriptoriumPerLevel: num(s.scriptoriumPerLevel, DEFAULT_STUDY.scriptoriumPerLevel),
+      poolCap: num(s.poolCap, DEFAULT_STUDY.poolCap),
+      copperPerStudy: Math.max(1, num(s.copperPerStudy, DEFAULT_STUDY.copperPerStudy, 1)),
+    }
   }
 
   mission(id: string): MissionOverride | undefined {

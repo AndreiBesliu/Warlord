@@ -118,11 +118,12 @@ function explainBuildingNow(
     units: [],
   })
   const line = day.breakdown[0]
-  // The same building at full coin focus turns out its whole value as coin, which is the
-  // only honest way to ask "how much value did this day actually turn out?" — the answer
-  // at any other focus can be smaller, and for a building with no item to make it is.
+  // The same building at full coin focus AND no research diverted turns out its whole value
+  // as coin, which is the only honest way to ask "how much value did this day turn out?".
+  // Both halves of that matter: since research takes its share off the top, "focus 100% coin"
+  // alone no longer means "all of it" — it would under-report the total and mask real loss.
   const fullValue = focusCoinPct === 100 ? (line?.coinGain ?? 0) : simulateEconomyDay({
-    buildings: [{ id: 'x', type, focusCoinPct: 100, outputItem, fractionalBuffer: 0, level }],
+    buildings: [{ id: 'x', type, focusCoinPct: 100, focusResearchPct: 0, outputItem, fractionalBuffer: 0, level }],
     resources: fullStores(),
     inv: makeEmptyInventories(),
     units: [],
