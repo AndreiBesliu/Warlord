@@ -106,6 +106,20 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-15 - Task Completed (legiunile: o formațiune care supraviețuiește cohortelor ei)**
+> Prompt: „vreau ca fiecare unitate sa capete identitate ... legiunile Romane ... mai aproape de 40k. Dar in universul nostru", apoi corectura: **„legiunile nu se absorb, vreau un sistem similar cu Total War Rome 2"**
+> Model: Claude Opus 5
+> - **Corectura a făcut feature-ul MAI MIC, nu mai mare.** Plănuisem identitatea PE `Unit`. În Rome 2 legiunea e ARMATA: o formațiune cu nume care **conține** unități. Deci „compoziție unică" nu costă nimic — o legiune are sulițași și arcași pentru că *conține* o cohortă de fiecare — iar **`Unit` nu primește niciun câmp**. Motorul de luptă, și copia lui byte-identică de pe serverul PvP, nu află niciodată că există legiuni. **Felia 4 din roadmap (cohorte în `Unit`) a dispărut cu totul**, împreună cu toată instalația de identitate prin `mergeUnits`/`splitUnit`.
+> - **Apartenența e o listă de id-uri REZOLVATĂ LA CITIRE, nu întreținută la fiecare moarte.** Un id de unitate moare în șapte locuri, iar unul dintre ele — **write-back-ul din PvP** — rescrie armata salvată din afara state-ului jocului și n-ar chema niciodată codul nostru. Șapte locuri de curățat înseamnă șapte locuri de uitat. Verificat pe viu exact așa: am șters o unitate direct din blob, pe sub `useGameState`. **Registrele o mai numesc, ecranul nu, și cohortele au închis rândurile.**
+> - **Douăsprezece cohorte, și nu e o alegere de gust:** PvP-ul refuză al treisprezecelea combatant server-side, iar campania **n-are niciun plafon și se strică peste douăzeci și patru** (`placeArmy` înfășoară rândurile și stivuiește tăcut combatanți pe căsuțe ocupate, de unde nu mai pot fi atinși). Douăsprezece e cea mai mare legiune care poate intra în ambele feluri de luptă.
+> - **Sugestia de nume SONDEAZĂ, nu numără.** „Câte sunt + 1" se ciocnește în trei feluri care se întâmplă normal: desființezi a doua din trei și următoarea fură numele celei de-a treia; jucătorul tastează manual numele următor; redenumești una și ordinalul se eliberează fără să afle numărătoarea.
+> - **Primul text scris de jucător care se salvează vreodată în jocul ăsta.** Ajunge în `addLog`, iar `logKind` clasifică liniile scanând tot șirul — deci o legiune cu ⚠ sau 🔬 în nume și-ar fi trimis propriile linii la Warnings sau Research. Scot glifele, **nu și cuvintele**: „The Victors" are voie să existe și să aterizeze la Battles; a mutila numele ales de jucător ca să protejezi un filtru de log ar fi trocul mai prost.
+> - **Onorurile sunt numărate, nu listate** (`Victor of Rival Baron ×7`) — tot save-ul călătorește la Firestore ca un singur document, motiv pentru care și logul e plafonat la 300 de linii. Regula „doar cine s-a întors acasă" a ieșit din `finishBattle` într-o funcție pură (`awardVictoryHonours`): o regulă îngropată într-un setState e o regulă pe care n-o poate testa nimeni.
+> - Reparate pe drum: `DeployPanel` și raportul de bătălie scriau „Light Inf Spear" (`prettyName` ocolește Registry-ul) unde tot restul jocului scrie „Light Infantry (Spear)"; câmpul de redenumire avea 29px înălțime; „20 strong" lângă „60 strong" erau două măsuri diferite cu același cuvânt (acum „fields 20" și „60 men").
+> - **Constatare de documentație:** regula „`logic/types.ts` e byte-identic cu copia server" era **falsă de trei felii încoace** și inertă (serverul importă din el exact 7 simboluri, niciunul divergent). Corectată în CLAUDE.md — o regulă despre care toată lumea știe că e falsă e mai rea decât nicio regulă.
+> - Verificat: 282 teste verzi, 0 contraste sub prag în ambele teme și pe 375px, 0 ținte mici, 0 input-uri fără etichetă, 0 overflow, 0 enum-uri brute; save vechi fără cheia `legions` încarcă gol; înfrângerea nu decorează pe nimeni.
+
+
 **2026-08-15 - Task Completed (de unde vin oamenii: surse de recrutare)**
 > Prompt: „ok, continua" (a patra din cele patru mecanici de adâncime agreate pentru armată)
 > Model: Claude Opus 5
