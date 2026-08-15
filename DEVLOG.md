@@ -84,6 +84,20 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-15 - Task Completed (de unde vin oamenii: surse de recrutare)**
+> Prompt: „ok, continua" (a patra din cele patru mecanici de adâncime agreate pentru armată)
+> Model: Claude Opus 5
+> - **Jumătate din mecanică era deja scrisă și MOARTĂ.** `RecruitPool` căra un XP de la bun început, `recruit()` îl amesteca ponderat — dar intrarea era fixată pe 0 și nu-l citea nimeni înapoi; `queueLightTraining` îl arunca. Trei surse (Levy / Volunteers / Mercenaries) leagă firul: câmpul mort capătă un rol, iar cel mai sărac ecran din joc (un câmp și un buton) capătă o alegere.
+> - **Regula care ține tot designul: rangul se plătește în timp, niciodată în bani.** Prima versiune dădea mercenarilor 150 XP — peste `PROMOTE_AT.NOVICE` (100), deci un rang întreg cumpărat pe cupru, cu zero zile în plus. Și, fiindcă rangul e o **treaptă** iar rezervorul e o **medie**, peste prag prețul nu cumpăra nimic vizibil până când mercenarii nu treceau de 2/3 din rezervor — o prăpastie invizibilă, exact peste care apasă butonul implicit de 50. Sub prag (0/40/90) totul devine liniar. Plafonul stă în **getter**, nu în valorile implicite: nici adminul cu `startingXp: 500` nu poate cumpăra un rang.
+> - **Rezervorul ține TOTALUL, nu media.** Forma veche re-deriva media și o trunchia la fiecare scriere, deci pierderea se acumula: zece mercenari urmați de cincizeci de levy aterizau la 21 XP unde aritmetica zice 25 — **o șesime evaporată**, fără eroare și fără unde s-o vezi. Acum e exact prin construcție, iar „scoaterea oamenilor nu mișcă media" e adevărată prin construcție, nu doar cât timp rezervorul e uniform.
+> - **Previzualizarea NU are voie să diveargă de tick.** `carriedXp` a intrat în toate cele 4 apeluri ale lui `trainingXpFor` în aceeași schimbare. Verificat pe viu: cardul a promis „12 zile → 20 Trained · aduc 90 XP fiecare", iar după 12 zile rezervorul avea **20 TRAINED la 110 XP** (90 cărat + 120 drilled − 100 pragul). Identic.
+> - **Plafonul de un rang rămâne 349** — nu l-am coborât la 225 deși există un argument: ar fi fost o **regresie pe jocul de azi**, unde `DRILLED × ARM_DRILL × MARTIAL_FERVOUR` dă fix 225, deci DOC_ELITE (140.000c) ar contribui exact zero într-un caz fără niciun mercenar. Când plafonul taie, ecranul **spune cât a aruncat** — o pierdere tăcută e același defect ca un refuz tăcut.
+> - **Am SCOS din plan rezervoarele de ofertă.** Erau frâna anti-dominanță; fixul de mai sus le face inutile (beneficiu liniar ⇒ cuprul e un preț adecvat). Rămâneau treimea cu risc maxim și câștig minim: stare persistată nouă în felia fără funcție de hidratare, un pas nou în tick — pentru o frână care, la 5 min/zi și 24 de zile de recuperare, **se reumple într-o absență de două ore**: ar fi strâns șurubul pe cine joacă și l-ar fi răsplătit pe cine lasă tabul deschis.
+> - **Restanță închisă:** `explainIntensity` și `explainCapacity` fuseseră scrise când au apărut mecanicile și **nu le importase nimic** — `intensity`/`barracks` se editau doar din JSON brut. Secțiunea **Army** din admin le consumă pe amândouă plus `explainRecruitSources`.
+> - **RUSHED distruge și ECHIPAMENTUL** oamenilor pierduți — accidental în cod, dar e singura interacțiune auto-corectoare a designului (cu cât oamenii-s mai scumpi, cu atât grăbitul doare mai tare). Scris ca intenționat și fixat cu test, înainte să-l „repare" cineva într-un refund.
+> - Verificat: 246 teste verzi, 0 contraste sub 3:1 în ambele teme și pe 375px (89 elemente), 0 overflow, 0 enum-uri brute pe toate cele 5 secțiuni montate, migrarea unui save vechi `{count, avgXP}` fără XP pierdut.
+
+
 **2026-08-15 - Task Completed (zona de armată: un singur tab, cinci secțiuni, ecrane care vorbesc omenește)**
 > Prompt: „vreau un UI mai frumos si o tranzitie mai smooth intre tab-urile ce tin de soldati si razboi"
 > Model: Claude Opus 5
