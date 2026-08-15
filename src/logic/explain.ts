@@ -20,9 +20,10 @@ import { Registry } from './registry'
 import { itemValueCopper } from './items'
 import { missionPresets, computeReward } from './combat/enemies'
 import { studyPerDay, studyCostOf, daysAtRate } from './research/study'
-import { batchDaysAt, batchDurationDays, survivorsOf, trainingXpFor, drillPayFor, type Intensity } from './batches'
-import { promoteBuckets } from './units'
+import { batchDaysAt, batchDurationDays, survivorsOf, trainingXpFor, trainingXpLost, drillPayFor, BATCH_XP_CAP, type Intensity } from './batches'
+import { promoteBuckets, PROMOTE_AT } from './units'
 import { barracksCapacity } from './barracks'
+import { RECRUIT_SOURCES, sourceCostCopper, startingXpOf } from './recruitSources'
 import type { Difficulty } from './combat/types'
 import {
   fmtCopper, ResourceTypes,
@@ -453,6 +454,52 @@ export function explainIntensity(
             : `no drill pay`,
           `they finish with ${xp} XP → ${rank}`,
           `a batch promotes at most ONE rank, whatever research adds — intensity is a head start, not a shortcut`,
+        ],
+      }
+    }),
+  )
+}
+
+export interface RecruitSourceEffect {
+  key: string
+  perManCopper: number
+  startingXp: number
+  rankOutOfBarracks: string
+  lines: string[]
+}
+
+/**
+ * What each recruit source costs and what it buys, run through the same functions the
+ * recruit screen and the tick use. `qty` is the batch these men would be trained in.
+ *
+ * The line that matters most to whoever is retuning this is the last one: the getter caps
+ * `startingXp` below the first promotion threshold, so raising it in the admin stops having
+ * an effect rather than quietly turning copper into rank.
+ */
+export function explainRecruitSources(
+  qty = 20, intensity: Intensity = 'STANDARD', xpMult = 1, config?: GameConfigOverrides | null,
+): RecruitSourceEffect[] {
+  return under(config, () =>
+    RECRUIT_SOURCES.map((key) => {
+      const perManCopper = sourceCostCopper(1, key)
+      const startingXp = startingXpOf(key)
+      const survivors = survivorsOf(qty, intensity)
+      const xp = trainingXpFor(intensity, xpMult, startingXp)
+      const lost = trainingXpLost(intensity, xpMult, startingXp)
+      const { buckets } = promoteBuckets([{ r: 'NOVICE', count: survivors, avgXP: xp }])
+      const rankOutOfBarracks = buckets.map((b) => `${b.count} ${b.r}`).join(', ')
+      return {
+        key, perManCopper, startingXp, rankOutOfBarracks,
+        lines: [
+          `price = base ${fmtCopper(GameConfig.recruitCost())} × ${GameConfig.recruitSource(key).costMult} = ${fmtCopper(perManCopper)} per man`,
+          startingXp > 0
+            ? `they arrive with ${startingXp} XP each, before any training`
+            : `they arrive untrained`,
+          `trained ${intensity} at ×${xpMult} research → ${xp} XP → ${rankOutOfBarracks}`,
+          lost > 0
+            ? `${lost} XP per man is over the ${BATCH_XP_CAP} ceiling and is thrown away`
+            : `nothing is lost to the ${BATCH_XP_CAP} ceiling here`,
+          `starting XP is capped below ${PROMOTE_AT.NOVICE} on purpose: rank is only ever sold for time, never for copper`,
         ],
       }
     }),

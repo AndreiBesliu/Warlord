@@ -23,6 +23,13 @@ import { PROMOTE_AT } from './units'
     daysRemaining: number
     takeByRank?: RankCount      // if conversion, what ranks were consumed
     intensity?: Intensity       // basic training only; absent = STANDARD
+    /**
+     * XP per man that these recruits walked in with, from whatever source bought them.
+     * Photographed when the batch is QUEUED, because the pool average will have moved by
+     * the time it finishes — these specific men left the pool then. Absent = 0 = a batch
+     * from before recruit sources existed, i.e. today's behaviour exactly.
+     */
+    carriedXp?: number
   }
 
 // L1=2 slots, +1 per level, cap 5 (reached at L4)
@@ -68,6 +75,7 @@ export function enqueueBatch(
     daysRemaining,
     takeByRank: draft.takeByRank,
     intensity: draft.intensity,
+    carriedXp: draft.carriedXp,
   }
   return [next, ...current]
 }
@@ -87,19 +95,41 @@ export function trainingXpOf(intensity: Intensity | undefined): number {
 }
 
 /**
- * XP a finished batch actually carries, after research and momentum — capped so a batch
- * can promote AT MOST ONE rank.
+ * The most XP a batch may ever hand over, however it was paid for: enough to leave NOVICE,
+ * and everything short of enough to leave TRAINED. One rank out of the barracks, no more.
  *
- * Without the cap, a player with the training techs stacked (trainXpMult goes to ×3) would
- * get ADVANCED soldiers straight out of the barracks, which is the whole ~22-day climb
- * through Training Mode skipped in one purchase. Intensity buys a head start, not a
- * shortcut. THE single source: the tick and the pre-press forecast both call this.
+ * Without it, a player with the training techs stacked (trainXpMult goes to ×3) would get
+ * ADVANCED soldiers straight out of the barracks — the whole ~22-day climb through Training
+ * Mode skipped in one purchase. Was buried arithmetic; named because the recruit screen has
+ * to explain it now, and because it is the same ceiling for both XP channels.
  */
-export function trainingXpFor(intensity: Intensity | undefined, xpMult = 1): number {
+export const BATCH_XP_CAP = (PROMOTE_AT.NOVICE ?? Infinity) + (PROMOTE_AT.TRAINED ?? Infinity) - 1
+
+// Both channels before the ceiling: what intensity and research drilled INTO them, plus
+// what they walked in with. Carried XP is deliberately NOT multiplied by `xpMult` — that
+// is a multiplier on training, and this is what these men already had.
+function rawTrainingXp(intensity: Intensity | undefined, xpMult: number, carriedXp: number): number {
   const granted = Math.round(trainingXpOf(intensity) * (Number.isFinite(xpMult) ? xpMult : 1))
-  const first = PROMOTE_AT.NOVICE ?? Infinity
-  const second = PROMOTE_AT.TRAINED ?? Infinity
-  return Math.max(0, Math.min(granted, first + second - 1))
+  const carried = Math.max(0, Number.isFinite(carriedXp) ? carriedXp : 0)
+  return Math.max(0, granted + carried)
+}
+
+/**
+ * XP a finished batch actually carries, after research, momentum and the recruits' own
+ * head start. Intensity and a paid source buy a head start, not a shortcut. THE single
+ * source: the tick and the pre-press forecast both call this.
+ */
+export function trainingXpFor(intensity: Intensity | undefined, xpMult = 1, carriedXp = 0): number {
+  return Math.min(rawTrainingXp(intensity, xpMult, carriedXp), BATCH_XP_CAP)
+}
+
+/**
+ * How much the ceiling throws away — 0 whenever it does not bite. The screen states this
+ * before the press: paying for men whose head start is about to be clipped is a fair trade
+ * only if you can see it coming.
+ */
+export function trainingXpLost(intensity: Intensity | undefined, xpMult = 1, carriedXp = 0): number {
+  return Math.max(0, rawTrainingXp(intensity, xpMult, carriedXp) - BATCH_XP_CAP)
 }
 
 /** Copper of drill pay for the whole batch, charged when it is queued. */

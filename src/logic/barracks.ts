@@ -17,6 +17,7 @@ import { evaluateCost, type CostReport, type CostSpec, type Holdings } from './c
 import { demandFor } from './equipment'
 import { itemValueCopper } from './items'
 import { drillPayFor, type Intensity } from './batches'
+import { sourceCostCopper, type RecruitSourceId } from './recruitSources'
 import type { Rank, SoldierType } from './types'
 
 /** A blocker that is not about affording something — no recruits, no free slot. */
@@ -56,9 +57,10 @@ export function gearCost(type: SoldierType, qty: number): CostSpec {
 // Recruits used to be free: 50 men appeared and the treasury did not move. Men who cost
 // nothing cannot be a decision, and the whole army loop hung off that free step.
 
-export function recruitCostCopper(qty: number): number {
-  const n = Math.max(0, Math.floor(qty || 0))
-  return Math.round(GameConfig.recruitCost() * n)
+// Priced per source now. An absent source is LEVY, which is ×1 — so every existing caller
+// and every save is charged exactly what it was charged before.
+export function recruitCostCopper(qty: number, source?: RecruitSourceId): number {
+  return sourceCostCopper(qty, source)
 }
 
 // ── Capacity ──────────────────────────────────────────────────────────────
@@ -95,10 +97,11 @@ export function checkRecruit(
   qty: number,
   have: Holdings,
   quarters?: { quartered: number; capacity: number },
+  source?: RecruitSourceId,
 ): ActionCheck {
   const n = Math.max(0, Math.floor(qty || 0))
   const room = quarters ? quarters.capacity - quarters.quartered : Infinity
-  return checkAction({ copper: recruitCostCopper(n) }, have, [
+  return checkAction({ copper: recruitCostCopper(n, source) }, have, [
     { ok: n > 0, says: 'Enter how many to recruit' },
     {
       ok: n <= room,

@@ -13,6 +13,10 @@
 import type { BuildingType, ResourceMap, SoldierType, Rank } from './types'
 import type { CatalogOverrides } from './research/catalog'
 import type { BuffDef } from './research/momentum'
+// Value import, not a type: the recruit-source getter clamps against a real promotion
+// threshold. `units.ts` reads types/registry/names and none of them read this file, so
+// there is no cycle.
+import { PROMOTE_AT } from './units'
 
 export interface TrainingConfig {
   baseDays: number // days for a level-1 barracks batch
@@ -63,6 +67,13 @@ export interface IntensityConfig {
   washoutPct: number
 }
 
+export interface RecruitSourceConfig {
+  /** Multiplies the base recruit price. */
+  costMult: number
+  /** XP every man from this source walks in with, before any training. */
+  startingXp: number
+}
+
 export interface MissionOverride {
   ratio?: number
   rewardCopperPerStrength?: number
@@ -89,6 +100,8 @@ export interface GameConfigOverrides {
   study?: Partial<StudyConfig>
   /** Copper per untyped recruit. Men who cost nothing cannot be a decision. */
   recruitCost?: number
+  /** Per-source recruiting knobs, keyed by 'LEVY' | 'VOLUNTEERS' | 'MERCENARIES'. */
+  recruitSources?: Record<string, Partial<RecruitSourceConfig>>
   barracks?: Partial<BarracksConfig>
   /** Per-intensity training knobs, keyed by 'RUSHED' | 'STANDARD' | 'DRILLED'. */
   intensity?: Record<string, Partial<IntensityConfig>>
@@ -131,10 +144,38 @@ export const DEFAULT_BARRACKS: BarracksConfig = { capacityBase: 80, capacityPerL
 //
 // RUSHED halves the wait and loses a fifth of the men. Without a real loss the fast
 // option would strictly dominate and STANDARD would be dead.
+//
+// It also destroys the washed-out men's GEAR: `queueLightTraining` buys equipment for the
+// whole batch up front and nothing refunds the difference. That is INTENTIONAL and load
+// bearing — it is what makes rushing a squad of paid mercenaries cost more than rushing a
+// squad of levies, without RUSHED needing to know anything about where the men came from.
+// A refund here would make rushing strictly better the more you paid. Pinned by a test.
 export const DEFAULT_INTENSITY: Record<string, IntensityConfig> = {
   RUSHED: { dayMult: 0.5, payPerSoldier: 0, xpGranted: 0, washoutPct: 20 },
   STANDARD: { dayMult: 1, payPerSoldier: 0, xpGranted: 0, washoutPct: 0 },
   DRILLED: { dayMult: 1.75, payPerSoldier: 50, xpGranted: 120, washoutPct: 0 },
+}
+
+// Where the men come from. LEVY is today's behaviour EXACTLY (×1 price, no XP), so an
+// absent source — every save written before this existed — is unchanged.
+//
+// The load-bearing rule is that NO source reaches PROMOTE_AT.NOVICE (100) on its own.
+// A source at or above it would promote a whole rank for money: no extra days, no drill
+// pay, no washout. Rank is the one thing this game only ever sells for time, and the
+// getter below enforces that as a ceiling rather than trusting these numbers.
+//
+// It matters a second time because rank is a STEP and the recruit pool is a blended
+// average: past the threshold the premium buys nothing visible until bought men are two
+// thirds of the pool, which is a cliff nobody can see. Below it the blend is smoothly
+// linear in both price and outcome.
+//
+// The two paid tiers are not on one line. Volunteers give 0.40 XP per extra copper,
+// mercenaries 0.30 — mercenaries cost MORE per point but deliver more per MAN, so
+// volunteers win when copper is scarce and mercenaries when barracks room or time is.
+export const DEFAULT_RECRUIT_SOURCES: Record<string, RecruitSourceConfig> = {
+  LEVY: { costMult: 1, startingXp: 0 },
+  VOLUNTEERS: { costMult: 2, startingXp: 40 },
+  MERCENARIES: { costMult: 4, startingXp: 90 },
 }
 
 export const DEFAULT_STUDY: StudyConfig = {
@@ -235,6 +276,22 @@ class GameConfigStore {
 
   recruitCost(): number {
     return num(this.o.recruitCost, DEFAULT_RECRUIT_COST)
+  }
+
+  recruitSource(key: string): RecruitSourceConfig {
+    const base = DEFAULT_RECRUIT_SOURCES[key] ?? DEFAULT_RECRUIT_SOURCES.LEVY
+    const o = this.o.recruitSources?.[key] ?? {}
+    return {
+      costMult: num(o.costMult, base.costMult),
+      // A CEILING, not a default. At or above the first promotion threshold a source
+      // hands over a whole rank for copper alone — no extra days, no drill pay, no
+      // washout — and rank is the one thing this game only ever sells for time. The
+      // admin may reprice recruiting however it likes; it cannot buy a rank with it.
+      startingXp: Math.min(
+        (PROMOTE_AT.NOVICE ?? Infinity) - 1,
+        num(o.startingXp, base.startingXp),
+      ),
+    }
   }
 
   barracks(): BarracksConfig {

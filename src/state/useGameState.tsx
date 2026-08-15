@@ -17,7 +17,9 @@ import {
 import { dailyUpkeepCopper, dailyFoodConsumption, buildingUpgradeCostCopper, buildingCostCopper, buildingResourceCost, buildingLevelMult, BUILDING_MAX_LEVEL } from '../logic/economy'
 import { useEconomy } from './useEconomy'
 import { useUnits, hydrateUnits } from './useUnits'
-import useBarracks, { emptyBarracks } from './useBarracks'
+import useBarracks, { emptyBarracks, hydrateRecruits } from './useBarracks'
+import { takeFrom, startingXpOf, type RecruitSourceId } from '../logic/recruitSources'
+import { labelOf } from '../logic/names'
 import { computeReady, mergeUnits, splitUnit, applyMoraleChange, trainingGainPerDay, promoteBuckets, computeUnitAvgXP } from '../logic/units'
 import { Registry } from '../logic/registry'
 import { rollDailyEvent } from '../logic/events'
@@ -157,7 +159,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       econ.setResources(s.resources ?? emptyResources)
       barr.setBarracks(s.barracks ?? barr.barracks)
       barr.setBarracksLevel(s.barracksLevel ?? 1)
-      barr.setRecruits(s.recruits ?? { count: 0, avgXP: 0 })
+      barr.setRecruits(hydrateRecruits(s.recruits))
       barr.setBatches(s.batches ?? [])
       unit.setUnits(hydrateUnits(s.units))
       camp.setCampaign(hydrateCampaign(s.campaign))
@@ -174,7 +176,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     econ.setResources({ ...emptyResources })
     barr.setBarracks(emptyBarracks())
     barr.setBarracksLevel(1)
-    barr.setRecruits({ count: 0, avgXP: 0 })
+    barr.setRecruits({ count: 0, totalXp: 0 })
     barr.setBatches([])
     unit.setUnits([])
     camp.setCampaign(emptyCampaign())
@@ -565,7 +567,9 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
         })))
       }
       if (effect.recruitLoss) {
-        barr.setRecruits(prev => ({ ...prev, count: Math.max(0, prev.count - effect.recruitLoss!) }))
+        // Deserters leave at the pool average like anyone else, so the men who stay are no
+        // better and no worse trained than they were this morning.
+        barr.setRecruits(prev => takeFrom(prev, effect.recruitLoss!))
       }
       notes.push(`${event.title} — ${event.description}`)
       addLog(`📅 Eveniment: ${event.title} — ${event.description}`)
@@ -629,12 +633,14 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
         keptBatches.push({ ...b, daysRemaining: nextDays })
         continue
       }
-      const { kind, target, qty, intensity, takeByRank } = b
+      const { kind, target, qty, intensity, takeByRank, carriedXp } = b
       if (kind === 'LIGHT_TRAIN' && target) {
         // Rushed drilling loses men; drilled training sends them out with XP, which the
         // SAME promotion logic units use turns into a rank. No parallel rank maths here.
+        // `carriedXp` is what these men were bought with — absent on every batch queued
+        // before recruit sources existed, and 0 means exactly what it always did.
         const out = survivorsOf(qty, intensity)
-        const xp = trainingXpFor(intensity, mods.trainXpMult)
+        const xp = trainingXpFor(intensity, mods.trainXpMult, carriedXp)
         const { buckets } = promoteBuckets([{ r: 'NOVICE', count: out, avgXP: xp }])
         const ranks = buckets.map(x => `${x.count} ${x.r}`).join(', ')
         const lost = qty - out
@@ -823,15 +829,14 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     addLog(`Replenished ${total} → ${u.id} (${type}) ${res.spent > 0 ? `(auto-bought ${fmtCopper(res.spent)})` : '(used stock)'}. +XP bonus ${xpBonus}. New size ${totalCount}, avgXP ${newAvgXP}.`)
   }
 
-  // const [recruits, setRecruits] = useState<RecruitPool>({ count: 0, avgXP: 0 })
-
-  function recruit(qty: number) {
+  function recruit(qty: number, source: RecruitSourceId = 'LEVY') {
     const n = Math.max(1, Math.floor(qty || 0))
     // Recruits used to be free: fifty men appeared and the treasury never moved, so the
-    // first step of the whole army loop was not a decision at all.
-    const cost = recruitCostCopper(n)
+    // first step of the whole army loop was not a decision at all. Where they come from
+    // is the second half of that decision — price against the head start they bring.
+    const cost = recruitCostCopper(n, source)
     if (econ.wallet < cost) {
-      addLog(`Cannot afford ${n} recruits (${fmtCopper(cost)}).`)
+      addLog(`Cannot afford ${n} ${labelOf(source)} (${fmtCopper(cost)}).`)
       return
     }
     // The barracks holds only so many. Refuse outright rather than recruiting "as many as
@@ -843,8 +848,11 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       return
     }
     if (cost > 0) econ.setWallet(w => w - cost)
-    barr.recruit(n)
-    addLog(`Recruited ${n} untyped recruits for ${fmtCopper(cost)}.`)
+    barr.recruit(n, source)
+    const xp = startingXpOf(source)
+    addLog(
+      `Recruited ${n} ${labelOf(source)} for ${fmtCopper(cost)}${xp > 0 ? `, ${xp} XP each` : ''}.`,
+    )
   }
 
   // ---- Campaign / Combat ----

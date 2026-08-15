@@ -100,7 +100,9 @@ export type ResourceMap = Record<ResourceType, number>;
 
 export type BuildingType = Building['type'];
 export type BarracksPool = Record<SoldierType, Record<Rank, { r: Rank; count: number; avgXP: number }>>;
-export type RecruitPool = { count: number; avgXP: number };
+// The TOTAL, not the average — see `logic/recruitSources.ts` for why. Read the average
+// with `avgXpOf`; never store one, or the flooring compounds across recruitings.
+export type RecruitPool = { count: number; totalXp: number };
 
 export type Inventories = {
   weapons: Record<string, number>;

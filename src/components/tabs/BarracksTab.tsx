@@ -9,7 +9,8 @@ import { getIconForGameItem } from '../../logic/iconHelpers'
 import { checkLightTraining, checkConversion, checkRecruit, barracksCapacity } from '../../logic/barracks'
 import Blocked from '../common/Blocked'
 import { unitName, rankName, labelOf } from '../../logic/names'
-import { batchDaysAt, survivorsOf, trainingXpFor, drillPayFor, type Intensity } from '../../logic/batches'
+import { batchDaysAt, survivorsOf, trainingXpFor, trainingXpLost, drillPayFor, type Intensity } from '../../logic/batches'
+import { avgXpOf } from '../../logic/recruitSources'
 import { promoteBuckets } from '../../logic/units'
 
 
@@ -22,19 +23,32 @@ export type BarracksView = 'RECRUIT' | 'TRAINING' | 'MANAGEMENT'
 export default function BarracksTab({ state, view }: { state: GameStateShape; view: BarracksView }) {
   // -- Sub Views --
   if (view === 'RECRUIT') {
+    const avg = avgXpOf(state.recruits)
     return (
       <div>
         <div className="p-2">
           <RecruitForm
-            onRecruit={(qty) => state.recruit(qty)}
-            check={(qty) => checkRecruit(qty,
+            pool={state.recruits}
+            onRecruit={(qty, source) => state.recruit(qty, source)}
+            check={(qty, source) => checkRecruit(qty,
               { wallet: state.wallet, resources: state.resources, inv: state.inv },
-              { quartered: state.quartered, capacity: state.barracksCapacity })}
+              { quartered: state.quartered, capacity: state.barracksCapacity },
+              source)}
           />
           <div className="mt-4 text-sm text-wl-muted">
-            Current Untyped Recruits: <span className="font-bold">{state.recruits.count}</span>
+            Untyped recruits waiting: <span className="font-bold text-wl-ink">{state.recruits.count}</span>
+            {state.recruits.count > 0 && (
+              <span>
+                {' '}· <span className="font-mono text-wl-ink">{avg} XP</span> each on average
+              </span>
+            )}
+            {/* This number decided a rank and was never on screen anywhere. */}
+            <span className="block text-xs mt-1">
+              Whatever they have when you train them, they take into the batch with them — and
+              a batch can never come out more than one rank above Novice, however it was paid for.
+            </span>
           </div>
-          <div className="mt-1 text-sm text-wl-muted">
+          <div className="mt-3 text-sm text-wl-muted">
             Quartered: <span className="font-mono text-wl-ink">{state.quartered}</span> / {state.barracksCapacity}
             <span className="block text-xs mt-1">
               Recruits and trained soldiers take up room. Soldiers formed into units are in the
@@ -313,9 +327,15 @@ function TrainingView({ state }: { state: GameStateShape }) {
             {(() => {
               const days = batchDaysAt(barracksLevel, lightIntensity, mods.trainDaysDelta)
               const out = survivorsOf(lightQty, lightIntensity)
-              const xp = trainingXpFor(lightIntensity, mods.trainXpMult)
+              // The men carry what they were bought with. This preview MUST pass it too —
+              // if only the tick knew about it, the card would promise Novice and the day
+              // would deliver Trained, which is worse than having no forecast at all.
+              const carried = avgXpOf(recruits)
+              const xp = trainingXpFor(lightIntensity, mods.trainXpMult, carried)
+              const lostXp = trainingXpLost(lightIntensity, mods.trainXpMult, carried)
+              const withoutCarried = trainingXpFor(lightIntensity, mods.trainXpMult, 0)
               const { buckets } = promoteBuckets([{ r: 'NOVICE', count: out, avgXP: xp }])
-              const ranks = buckets.map(b => `${b.count} ${b.r}`).join(', ')
+              const ranks = buckets.map(b => `${b.count} ${rankName(b.r)}`).join(', ')
               const pay = drillPayFor(lightQty, lightIntensity)
               return (
                 <>
@@ -323,6 +343,16 @@ function TrainingView({ state }: { state: GameStateShape }) {
                   <span className="font-mono text-wl-ink">{ranks}</span>
                   {out < lightQty && <span className="text-wl-bad"> ({lightQty - out} wash out)</span>}
                   {pay > 0 && <span> · drill pay <MoneyDisplay amount={pay} size={12} className="inline-flex" /></span>}
+                  {carried > 0 && <span> · they bring <span className="font-mono text-wl-ink">{carried} XP</span> each</span>}
+                  {/* A loss you cannot see is the same defect as a refusal you cannot see. */}
+                  {lostXp > 0 && (
+                    <span className="block mt-0.5 text-wl-bad">
+                      Capped at one rank — {lostXp} XP per man is thrown away
+                      {xp === withoutCarried
+                        ? '. Untrained levies would finish at exactly the same rank here.'
+                        : '.'}
+                    </span>
+                  )}
                 </>
               )
             })()}

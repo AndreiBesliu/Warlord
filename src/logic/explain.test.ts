@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
   explainBuilding, buildingFormula, compareConfigs, referenceDomain,
   explainRecipe, explainBuildingCost, explainCompany, explainMission, explainStudy,
+  explainRecruitSources,
 } from './explain'
+import { sourceCostCopper, startingXpOf } from './recruitSources'
 import { scriptoriumStudy } from './research/study'
 import { GameConfig } from './config'
 import { Registry } from './registry'
@@ -250,5 +252,33 @@ describe('explainStudy answers "what does this pace mean?"', () => {
     GameConfig.init({ study: { scriptoriumPerLevel: 7 } })
     explainStudy(1, { study: { scriptoriumPerLevel: 999 } })
     expect(GameConfig.study().scriptoriumPerLevel).toBe(7)
+  })
+})
+
+describe('explainRecruitSources previews the army half without leaking the edit', () => {
+  it('reports what the live functions report, source by source', () => {
+    // The panel's whole credibility: it runs the game's functions rather than a copy.
+    for (const row of explainRecruitSources(20, 'STANDARD', 1)) {
+      expect(row.perManCopper).toBe(sourceCostCopper(1, row.key as 'LEVY'))
+      expect(row.startingXp).toBe(startingXpOf(row.key as 'LEVY'))
+    }
+  })
+
+  it('answers from the configuration being EDITED, then puts the live one back', () => {
+    const dearer = { recruitSources: { LEVY: { costMult: 9 } } }
+    const previewed = explainRecruitSources(20, 'STANDARD', 1, dearer)
+    const levy = previewed.find((r) => r.key === 'LEVY')!
+    expect(levy.perManCopper).toBe(sourceCostCopper(1, 'LEVY') * 9)
+    // ...and the singleton is untouched afterwards, or every player pays the preview.
+    expect(GameConfig.raw()).toEqual({})
+  })
+
+  it('says out loud when the one-rank ceiling throws XP away', () => {
+    // A loss the admin cannot see is the same defect as a refusal the player cannot see.
+    const clipped = explainRecruitSources(20, 'DRILLED', 3)
+    const merc = clipped.find((r) => r.key === 'MERCENARIES')!
+    expect(merc.lines.some((l) => /thrown away/.test(l))).toBe(true)
+    const fine = explainRecruitSources(20, 'STANDARD', 1)
+    expect(fine.find((r) => r.key === 'LEVY')!.lines.some((l) => /nothing is lost/.test(l))).toBe(true)
   })
 })

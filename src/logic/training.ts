@@ -1,7 +1,8 @@
 // src/logic/training.ts
-import type { Rank, SoldierType } from './types'
+import type { Rank, SoldierType, RecruitPool } from './types'
 import { demandFor, ensureEquipOrBuy } from './equipment'
 import { enqueueBatch, canEnqueue, drillPayFor, type Intensity } from './batches'
+import { avgXpOf, takeFrom } from './recruitSources'
 
 type Ctx = {
   econ: {
@@ -15,8 +16,8 @@ type Ctx = {
     barracksLevel: number
     batches: any[]
     setBatches: (fn: (prev: any[]) => any[]) => void
-    recruits: { count: number; avgXP: number }
-    setRecruits: (fn: (prev: { count: number; avgXP: number }) => { count: number; avgXP: number }) => void
+    recruits: RecruitPool
+    setRecruits: (fn: (prev: RecruitPool) => RecruitPool) => void
     barracks: any
     setBarracks: (fn: (prev: any) => any) => void
   }
@@ -69,8 +70,8 @@ export interface EconSlice {
 }
 
 export interface BarracksSlice {
-  recruits: { count: number; avgXP: number }
-  setRecruits: (updater: (prev: BarracksSlice['recruits']) => BarracksSlice['recruits']) => void
+  recruits: RecruitPool
+  setRecruits: (updater: (prev: RecruitPool) => RecruitPool) => void
   barracks: any
   setBarracks: (updater: (prev: any) => any) => void
   batches: any[]
@@ -105,15 +106,20 @@ export function queueLightTraining(ctx: Ctx, target: SoldierType, qty: number, i
     return
   }
 
+  // What these particular men walked in with. Photographed now, because they leave the
+  // pool now — by the time the batch finishes, later recruiting will have moved the
+  // average and the batch would be crediting itself with somebody else's head start.
+  const carriedXp = avgXpOf(ctx.barr.recruits)
+
   // All checks passed — commit state changes
-  ctx.barr.setRecruits(prev => ({ ...prev, count: prev.count - n }))
+  ctx.barr.setRecruits(prev => takeFrom(prev, n))
   ctx.econ.setInv(() => res.inv)
   if (res.spent > 0) ctx.econ.setWallet(w => w - res.spent)
   if (pay > 0) ctx.econ.setWallet(w => w - pay)
   ctx.barr.setBatches(prev =>
-    enqueueBatch(prev, { level: ctx.barr.barracksLevel, kind: 'LIGHT_TRAIN', target, qty: n, intensity }, ctx.mods?.trainDaysDelta ?? 0)
+    enqueueBatch(prev, { level: ctx.barr.barracksLevel, kind: 'LIGHT_TRAIN', target, qty: n, intensity, carriedXp }, ctx.mods?.trainDaysDelta ?? 0)
   )
-  ctx.addLog(`Queued ${intensity ?? 'STANDARD'} training: ${n} → ${target}${pay > 0 ? ` (drill pay ${pay}c)` : ''}.`)
+  ctx.addLog(`Queued ${intensity ?? 'STANDARD'} training: ${n} → ${target}${pay > 0 ? ` (drill pay ${pay}c)` : ''}${carriedXp > 0 ? ` — they bring ${carriedXp} XP each` : ''}.`)
 }
 
 // light inf -> light cav (consumes light horses immediately)
