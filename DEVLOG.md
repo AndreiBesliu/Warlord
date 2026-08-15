@@ -84,6 +84,18 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-15 - Task Completed (zona de armată: un singur tab, cinci secțiuni, ecrane care vorbesc omenește)**
+> Prompt: „vreau un UI mai frumos si o tranzitie mai smooth intre tab-urile ce tin de soldati si razboi"
+> Model: Claude Opus 5
+> - **Ce costa o mișcare normală:** de la antrenat un lot la format o unitate — patru clicuri, și tot ce tastasei dispărea, fiindcă ieșirea dintr-un tab îl demonta. Acum: **un clic**, iar secțiunile rămân MONTATE, deci cantitatea supraviețuiește dus-întorsului. Secțiunea stă în `App`, deasupra montării condiționate, deci o plimbare prin Overview te aduce înapoi unde erai.
+> - **Zonele invizibile de click au dispărut, și nu ca simplificare.** Pe scena taberei **cele două dreptunghiuri se SUPRAPUNEAU** — inspecția stătea peste cortul comandantului și îi fura clicurile. Tooltipul de la Headquarters se tăia în afara containerului pe telefon. Niciunul din cele cinci nu era accesibil la tastatură, iar pe touch nu există hover — deci jumătate din fiecare imagine făcea ceva în tăcere. Arta a rămas ca banner care urmează secțiunea.
+> - **Ecranele nu mai vorbesc în cod.** Un singur formator care preferă numele deja scrise în Registry: „Light Infantry (Spear)", nu `LIGHT_INF_SPEAR`; „3 Spear", nu `SPEAR: 3`. Același tip se scria în **patru feluri** în patru panouri. Verificat scănând textul randat, nu cu ochiul: **zero enum-uri brute**.
+> - **Defecte reparate pe drum:** `checkCreateUnit` era scris pentru exact asta și **nu-l importa nimic** (de-aia „Create Unit" stătea mort fără motiv); câmpurile de rang n-aveau plafon (cereai 999 dintr-un rezervor de 3, butonul rămânea activ, refuzul apărea în Log); cu auto-buy pornit interfața sărea complet peste verificarea de echipament, deși state-ul o făcea față de trezorerie; cinci spinnere „(avail 0)" per unitate, necondiționat.
+> - **Mișcarea animă DOAR transform.** Un fade de la opacity 0 ține elementul invizibil cât timp nu progresează — și nu progresează într-un tab pe care browserul nu-l compune. Auditul de contrast a prins-o ca **41 de elemente la raport exact 1:1** față de propriul fundal, adică secțiunea întreagă transparentă. **Mișcarea nu trebuie să fie niciodată motivul pentru care ceva e vizibil.**
+> - **Fișa de unitate:** numele conduce (id-ul intern `U_k3f9a` era titlul), chevroane de rang, bară de XP până la rangul următor — `PROMOTE_AT` exista de mult și nu-l arătase nimeni.
+> - Verificat: 0 contraste sub 3:1 în ambele teme și pe 375px, 0 overflow, toate cele 5 secțiuni accesibile la tastatură, 223 teste verzi.
+
+
 **2026-08-15 - Task Completed (capacitatea cazărmii — 2/4 din adâncime)**
 > Prompt: „continua"
 > Model: Claude Opus 5
