@@ -60,10 +60,53 @@ export function recruitCostCopper(qty: number): number {
   return Math.round(GameConfig.recruitCost() * n)
 }
 
-export function checkRecruit(qty: number, have: Holdings): ActionCheck {
+// ── Capacity ──────────────────────────────────────────────────────────────
+// The barracks had no bottom: you could recruit for ever, and the pool of trained
+// soldiers waiting to be formed could grow without consequence. Men take up room now, so
+// the way to recruit more is to FORM units — those soldiers are in the field, not in the
+// barracks — or to raise the building. That is the barracks upgrade's second reason.
+
+export function barracksCapacity(level: number): number {
+  const { capacityBase, capacityPerLevel } = GameConfig.barracks()
+  const lvl = Math.max(1, Math.floor(level || 1))
+  return Math.max(1, Math.round(capacityBase + capacityPerLevel * (lvl - 1)))
+}
+
+/**
+ * Everyone the barracks is housing: untyped recruits plus every trained soldier still
+ * waiting to be formed. Soldiers inside a Unit are deliberately NOT counted — they have
+ * marched out, and that is exactly what makes forming units the release valve.
+ */
+export function quarteredCount(
+  recruits: number,
+  pool: Partial<Record<string, Partial<Record<string, { count: number }>>>>,
+): number {
+  let total = Math.max(0, recruits || 0)
+  for (const ranks of Object.values(pool ?? {})) {
+    for (const slot of Object.values(ranks ?? {})) {
+      total += Math.max(0, slot?.count ?? 0)
+    }
+  }
+  return total
+}
+
+export function checkRecruit(
+  qty: number,
+  have: Holdings,
+  quarters?: { quartered: number; capacity: number },
+): ActionCheck {
   const n = Math.max(0, Math.floor(qty || 0))
+  const room = quarters ? quarters.capacity - quarters.quartered : Infinity
   return checkAction({ copper: recruitCostCopper(n) }, have, [
     { ok: n > 0, says: 'Enter how many to recruit' },
+    {
+      ok: n <= room,
+      says: quarters
+        ? (room <= 0
+            ? `Barracks full — ${quarters.quartered} of ${quarters.capacity} quartered. Form units or upgrade.`
+            : `Only room for ${room} more — ${quarters.quartered} of ${quarters.capacity} quartered.`)
+        : '',
+    },
   ])
 }
 

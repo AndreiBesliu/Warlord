@@ -45,6 +45,13 @@ export interface StudyConfig {
   copperPerStudy: number
 }
 
+export interface BarracksConfig {
+  /** How many soldiers a level-1 barracks can quarter. */
+  capacityBase: number
+  /** Extra places each level above the first adds. */
+  capacityPerLevel: number
+}
+
 export interface IntensityConfig {
   /** Multiplies the base batch duration. */
   dayMult: number
@@ -82,6 +89,7 @@ export interface GameConfigOverrides {
   study?: Partial<StudyConfig>
   /** Copper per untyped recruit. Men who cost nothing cannot be a decision. */
   recruitCost?: number
+  barracks?: Partial<BarracksConfig>
   /** Per-intensity training knobs, keyed by 'RUSHED' | 'STANDARD' | 'DRILLED'. */
   intensity?: Record<string, Partial<IntensityConfig>>
   missions?: Record<string, MissionOverride>
@@ -107,6 +115,11 @@ export const DEFAULT_TICK: TickConfig = { minutesPerDay: 5, maxOfflineDays: 24 }
 // A recruit costs about a fifth of what a lumber mill turns out in a day, so raising
 // fifty men is a real bite out of the treasury rather than a free click.
 export const DEFAULT_RECRUIT_COST = 100
+
+// A standard batch is 20, so a level-1 barracks quarters four of them — tight enough that
+// stockpiling men has a cost, wide enough that the opening is not a straitjacket. Forming
+// units is the release valve: those soldiers are in the field, not in the barracks.
+export const DEFAULT_BARRACKS: BarracksConfig = { capacityBase: 80, capacityPerLevel: 40 }
 
 // STANDARD is today's behaviour EXACTLY (×1 days, no pay, no XP, no washout) so an
 // existing save and every conversion are untouched.
@@ -222,6 +235,15 @@ class GameConfigStore {
 
   recruitCost(): number {
     return num(this.o.recruitCost, DEFAULT_RECRUIT_COST)
+  }
+
+  barracks(): BarracksConfig {
+    const b = this.o.barracks ?? {}
+    return {
+      // A capacity of 0 would make the game unstartable — you could never hold a recruit.
+      capacityBase: Math.max(1, num(b.capacityBase, DEFAULT_BARRACKS.capacityBase, 1)),
+      capacityPerLevel: num(b.capacityPerLevel, DEFAULT_BARRACKS.capacityPerLevel),
+    }
   }
 
   intensity(key: string): IntensityConfig {

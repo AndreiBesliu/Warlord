@@ -84,6 +84,20 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-15 - Task Completed (capacitatea cazărmii — 2/4 din adâncime)**
+> Prompt: „continua"
+> Model: Claude Opus 5
+> - **Cazarma nu avea fund.** Puteai recruta la nesfârșit, iar rezervorul de soldatți antrenați (abia făcut vizibil) putea crește fără nicio consecință. Nivelul cazărmii cumpăra doar sloturi și zile — lucruri pe care le simți rar.
+> - **Capacitate = recruți + rezervorul de antrenați. Soldatții dintr-o unitate NU se numără** — sunt pe teren. Asta face din „formează unități" supapa, și e invariantul pe care l-am fixat cu test: dacă unitățile ar conta, plafonul ar fi fundac.
+> - **Se aplică DOAR la recrutare** — nu din lene, ci dintr-o observație: un lot ia N recruți și întoarce N antrenați, o conversie mută dintr-un rezervor în altul. Ambele sunt **nule la total**, deci nu pot depăși plafonul. Verificat și live: lotul s-a terminat, totalul cartiruit a rămas 80.
+> - **Se blochează, nu se pedepsește.** Un plafon care lasă lotul să se termine și apoi aruncă oameni ar distruge ceva plătit.
+> - **A închis și ultimul refuz tăcut din joc:** costul de recrutare adăugat felia trecută se refuza încă doar în tabul Log, fiindcă `checkRecruit` exista dar formularul nu era legat la el. Acum: buton mort + „Barracks full — 80 of 80 quartered. Form units or upgrade."
+> - Upgrade-ul de cazarmă spune acum ce cumpără: sloturi, zile **și locuri**.
+> - **Verificat în browser, bucla întreagă:** 80/80 ⇒ buton mort cu motivul; lot terminat ⇒ tot 80 (net zero); format o unitate ⇒ 60/80 și butonul reînvie.
+> - 223 teste verzi (11 noi în `logic/capacity.test.ts`), typecheck + build verzi.
+> - **RĂMÂN din cele patru:** instructori cu salariu + randament descrescător, surse de recruți cu calitate diferită.
+
+
 **2026-08-14 - Task Completed (intensitatea de antrenament — prima din cele patru mecanici de adâncime)**
 > Prompt: „cu care crezi ca e mai eficient" → „e ok" (intensitatea, recomandată de mine și acceptată)
 > Model: Claude Opus 5

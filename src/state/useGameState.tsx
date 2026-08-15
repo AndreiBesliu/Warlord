@@ -21,7 +21,7 @@ import useBarracks, { emptyBarracks } from './useBarracks'
 import { computeReady, mergeUnits, splitUnit, applyMoraleChange, trainingGainPerDay, promoteBuckets, computeUnitAvgXP } from '../logic/units'
 import { Registry } from '../logic/registry'
 import { rollDailyEvent } from '../logic/events'
-import { recruitCostCopper } from '../logic/barracks'
+import { recruitCostCopper, barracksCapacity, quarteredCount } from '../logic/barracks'
 import { forecastDay } from '../logic/forecast'
 import { loadSampleMod } from '../mods/sampleMod';
 import { GameConfig, type GameConfigOverrides } from '../logic/config'
@@ -834,6 +834,14 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       addLog(`Cannot afford ${n} recruits (${fmtCopper(cost)}).`)
       return
     }
+    // The barracks holds only so many. Refuse outright rather than recruiting "as many as
+    // fit" — that would spend money on a result nobody asked for.
+    const capacity = barracksCapacity(barr.barracksLevel)
+    const quartered = quarteredCount(barr.recruits.count, barr.barracks)
+    if (quartered + n > capacity) {
+      addLog(`No room: ${quartered} of ${capacity} quartered. Form units or upgrade the barracks.`)
+      return
+    }
     if (cost > 0) econ.setWallet(w => w - cost)
     barr.recruit(n)
     addLog(`Recruited ${n} untyped recruits for ${fmtCopper(cost)}.`)
@@ -1027,6 +1035,8 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     // The Scriptorium gates the whole discipline; individual techs gate on their own
     // infrastructure (see missingBuildings) so the UI can say WHAT is missing.
     hasResearchBuilding: hasResearchBuilding(econ.buildings),
+    barracksCapacity: barracksCapacity(barr.barracksLevel),
+    quartered: quarteredCount(barr.recruits.count, barr.barracks),
     // What tomorrow adds to each branch, from the same function the tick banks with.
     studyPerDay: forecastDay({ buildings: econ.buildings, resources: econ.resources, inv: econ.inv, units: unit.units, mods }).studyByBranch,
     availableResearch: () => availableTechs(catalog, rsc.research.unlocked, rsc.research.queue.map(p => p.id)),

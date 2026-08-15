@@ -8,7 +8,7 @@ import { Registry } from '../../logic/registry'
 import GameIcon from '../common/GameIcon'
 import { getIconForGameItem } from '../../logic/iconHelpers'
 import barracksScene from '../../assets/barracks_scene.png'
-import { checkLightTraining, checkConversion } from '../../logic/barracks'
+import { checkLightTraining, checkConversion, checkRecruit, barracksCapacity } from '../../logic/barracks'
 import { batchDaysAt, survivorsOf, trainingXpFor, drillPayFor, type Intensity } from '../../logic/batches'
 import { promoteBuckets } from '../../logic/units'
 import type { ActionCheck } from '../../logic/barracks'
@@ -103,9 +103,21 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
       <Card title="Recruitment Office">
         <BackBtn />
         <div className="p-2">
-          <RecruitForm onRecruit={(qty) => state.recruit(qty)} />
+          <RecruitForm
+            onRecruit={(qty) => state.recruit(qty)}
+            check={(qty) => checkRecruit(qty,
+              { wallet: state.wallet, resources: state.resources, inv: state.inv },
+              { quartered: state.quartered, capacity: state.barracksCapacity })}
+          />
           <div className="mt-4 text-sm text-wl-muted">
             Current Untyped Recruits: <span className="font-bold">{state.recruits.count}</span>
+          </div>
+          <div className="mt-1 text-sm text-wl-muted">
+            Quartered: <span className="font-mono text-wl-ink">{state.quartered}</span> / {state.barracksCapacity}
+            <span className="block text-xs mt-1">
+              Recruits and trained soldiers take up room. Soldiers formed into units are in the
+              field and free their place.
+            </span>
           </div>
         </div>
       </Card>
@@ -136,6 +148,9 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
               <div>Level: <span className="font-bold">{barracksLevel}</span></div>
               <div>Batch Slots: {batchSlots(barracksLevel)}</div>
               <div>Batch Duration: {batchDurationDays(barracksLevel)} days</div>
+              <div>
+                Quartered: <span className="font-mono text-wl-ink">{state.quartered}</span> / {state.barracksCapacity}
+              </div>
             </div>
             <div className="mt-4 border-t border-wl-line pt-3">
               <h4 className="text-xs uppercase tracking-wide text-wl-muted mb-2">Trained soldiers, waiting to be formed</h4>
@@ -170,6 +185,12 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
                 {barracksLevel < 5 && hasCostFn && <span className="text-wl-inverse/80 text-xs">(<MoneyDisplay amount={nextCost} size={12} className="inline-flex text-wl-inverse" />)</span>}
                 {barracksLevel >= 5 && <span className="text-wl-inverse/80 text-xs">(Max)</span>}
               </button>
+              {barracksLevel < 5 && (
+                <div className="mt-1 text-xs text-wl-muted">
+                  Next level: {batchSlots(barracksLevel + 1)} slots · {batchDurationDays(barracksLevel + 1)} days ·
+                  room for <span className="font-mono text-wl-ink">{barracksCapacity(barracksLevel + 1)}</span> soldiers
+                </div>
+              )}
             </div>
           </div>
 

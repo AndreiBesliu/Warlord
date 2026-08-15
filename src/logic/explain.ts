@@ -22,6 +22,7 @@ import { missionPresets, computeReward } from './combat/enemies'
 import { studyPerDay, studyCostOf, daysAtRate } from './research/study'
 import { batchDaysAt, batchDurationDays, survivorsOf, trainingXpFor, drillPayFor, type Intensity } from './batches'
 import { promoteBuckets } from './units'
+import { barracksCapacity } from './barracks'
 import type { Difficulty } from './combat/types'
 import {
   fmtCopper, ResourceTypes,
@@ -456,4 +457,29 @@ export function explainIntensity(
       }
     }),
   )
+}
+
+export interface CapacityEffect {
+  perLevel: { level: number; capacity: number }[]
+  lines: string[]
+}
+
+/**
+ * How many soldiers the barracks quarters at each level, at the values being edited.
+ * Runs `barracksCapacity` — the same function the recruit guard and the UI read.
+ */
+export function explainCapacity(config?: GameConfigOverrides | null): CapacityEffect {
+  return under(config, () => {
+    const cfg = GameConfig.barracks()
+    const perLevel = [1, 2, 3, 4, 5].map((level) => ({ level, capacity: barracksCapacity(level) }))
+    return {
+      perLevel,
+      lines: [
+        `capacity = ${cfg.capacityBase} + ${cfg.capacityPerLevel} × (level − 1)`,
+        ...perLevel.map((p) => `L${p.level} quarters ${p.capacity}`),
+        `recruits and trained soldiers count; soldiers formed into units are in the field and do not`,
+        `only recruiting can exceed it — training and conversion move men without adding any`,
+      ],
+    }
+  })
 }
