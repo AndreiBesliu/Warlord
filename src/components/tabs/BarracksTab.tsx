@@ -318,7 +318,7 @@ function TrainingView({ state }: { state: GameStateShape }) {
                 <option value="DRILLED">Drilled — slower, costs pay, better troops</option>
               </select>
             </div>
-            <button className="px-4 py-1 bg-wl-good text-wl-inverse rounded hover:bg-wl-good/90 disabled:opacity-60 disabled:cursor-not-allowed" disabled={!trainCheck.ok} onClick={() => queueLightTraining(lightType, lightQty, lightIntensity)}>
+            <button className="px-4 py-2 min-h-[34px] bg-wl-good text-wl-inverse rounded hover:bg-wl-good/90 disabled:bg-wl-panel-muted disabled:text-wl-muted disabled:border-wl-line disabled:cursor-not-allowed" disabled={!trainCheck.ok} onClick={() => queueLightTraining(lightType, lightQty, lightIntensity)}>
               Train Batch
             </button>
           </div>
@@ -379,7 +379,7 @@ function TrainingView({ state }: { state: GameStateShape }) {
                 <input className="border border-wl-line rounded px-2 py-1 w-16 text-sm" type="number" min={1} max={50}
                   value={lcQty} onChange={e => setLcQty(Math.max(1, Math.min(50, parseInt(e.target.value || '1'))))} />
               </div>
-              <button className="px-3 py-1 border border-wl-line rounded hover:bg-wl-panel-muted text-sm disabled:opacity-60 disabled:cursor-not-allowed" disabled={!lcCheck.ok} onClick={() => queueLightCavConversion(lcSrc, lcQty)}>
+              <button className="px-3 py-2 min-h-[34px] border border-wl-line rounded hover:bg-wl-panel-muted text-sm disabled:bg-wl-panel-muted disabled:text-wl-muted disabled:border-wl-line disabled:cursor-not-allowed" disabled={!lcCheck.ok} onClick={() => queueLightCavConversion(lcSrc, lcQty)}>
                 Queue
               </button>
             </div>
@@ -399,7 +399,7 @@ function TrainingView({ state }: { state: GameStateShape }) {
                 <input className="border border-wl-line rounded px-2 py-1 w-16 text-sm" type="number" min={1} max={50}
                   value={haQty} onChange={e => setHaQty(Math.max(1, Math.min(50, parseInt(e.target.value || '1'))))} />
               </div>
-              <button className="px-3 py-1 border border-wl-line rounded hover:bg-wl-panel-muted text-sm disabled:opacity-60 disabled:cursor-not-allowed" disabled={!haCheck.ok} onClick={() => queueHorseArcherConversion(haQty)}>
+              <button className="px-3 py-2 min-h-[34px] border border-wl-line rounded hover:bg-wl-panel-muted text-sm disabled:bg-wl-panel-muted disabled:text-wl-muted disabled:border-wl-line disabled:cursor-not-allowed" disabled={!haCheck.ok} onClick={() => queueHorseArcherConversion(haQty)}>
                 Queue
               </button>
             </div>
@@ -424,7 +424,7 @@ function TrainingView({ state }: { state: GameStateShape }) {
               <input className="border border-wl-line rounded px-2 py-1 w-20 text-sm bg-wl-panel-muted" type="number" min={1} max={50}
                 value={heavyQty} onChange={e => setHeavyQty(Math.max(1, Math.min(50, parseInt(e.target.value || '1'))))} />
             </div>
-            <button className="px-4 py-1 bg-wl-accent text-wl-accent-ink rounded hover:bg-wl-accent/90 text-sm disabled:opacity-60 disabled:cursor-not-allowed" disabled={!heavyCheck.ok} onClick={() => queueHeavyConversion(heavySrc, heavyQty)}>
+            <button className="px-4 py-2 min-h-[34px] bg-wl-accent text-wl-accent-ink rounded hover:bg-wl-accent/90 text-sm disabled:bg-wl-panel-muted disabled:text-wl-muted disabled:border-wl-line disabled:cursor-not-allowed" disabled={!heavyCheck.ok} onClick={() => queueHeavyConversion(heavySrc, heavyQty)}>
               Initialize Conversion
             </button>
           </div>

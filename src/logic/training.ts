@@ -1,5 +1,7 @@
 // src/logic/training.ts
 import type { Rank, SoldierType, RecruitPool } from './types'
+import { fmtCopper } from './types'
+import { labelOf, unitName } from './names'
 import { demandFor, ensureEquipOrBuy } from './equipment'
 import { enqueueBatch, canEnqueue, drillPayFor, type Intensity } from './batches'
 import { avgXpOf, takeFrom } from './recruitSources'
@@ -119,7 +121,7 @@ export function queueLightTraining(ctx: Ctx, target: SoldierType, qty: number, i
   ctx.barr.setBatches(prev =>
     enqueueBatch(prev, { level: ctx.barr.barracksLevel, kind: 'LIGHT_TRAIN', target, qty: n, intensity, carriedXp }, ctx.mods?.trainDaysDelta ?? 0)
   )
-  ctx.addLog(`Queued ${intensity ?? 'STANDARD'} training: ${n} → ${target}${pay > 0 ? ` (drill pay ${pay}c)` : ''}${carriedXp > 0 ? ` — they bring ${carriedXp} XP each` : ''}.`)
+  ctx.addLog(`Queued ${labelOf(intensity ?? 'STANDARD')} training: ${n} → ${unitName(target)}${pay > 0 ? ` (drill pay ${fmtCopper(pay)})` : ''}${carriedXp > 0 ? ` — they bring ${carriedXp} XP each` : ''}.`)
 }
 
 // light inf -> light cav (consumes light horses immediately)

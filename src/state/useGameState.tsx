@@ -19,7 +19,7 @@ import { useEconomy } from './useEconomy'
 import { useUnits, hydrateUnits } from './useUnits'
 import useBarracks, { emptyBarracks, hydrateRecruits } from './useBarracks'
 import { takeFrom, startingXpOf, type RecruitSourceId } from '../logic/recruitSources'
-import { labelOf } from '../logic/names'
+import { labelOf, rankName, unitName } from '../logic/names'
 import { computeReady, mergeUnits, splitUnit, applyMoraleChange, trainingGainPerDay, promoteBuckets, computeUnitAvgXP } from '../logic/units'
 import { Registry } from '../logic/registry'
 import { rollDailyEvent } from '../logic/events'
@@ -642,12 +642,12 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
         const out = survivorsOf(qty, intensity)
         const xp = trainingXpFor(intensity, mods.trainXpMult, carriedXp)
         const { buckets } = promoteBuckets([{ r: 'NOVICE', count: out, avgXP: xp }])
-        const ranks = buckets.map(x => `${x.count} ${x.r}`).join(', ')
+        const ranks = buckets.map(x => `${x.count} ${rankName(x.r)}`).join(', ')
         const lost = qty - out
         finished.push({
           pool: target,
           arrivals: buckets.map(x => ({ r: x.r, count: x.count, avgXP: x.avgXP })),
-          note: `Training finished: ${ranks} ${target}${lost > 0 ? ` (${lost} washed out)` : ''}.`,
+          note: `Training finished: ${ranks} ${unitName(target)}${lost > 0 ? ` (${lost} washed out)` : ''}.`,
         })
       } else if (kind === 'LIGHT_CAV' || kind === 'HEAVY_CAV' || kind === 'HORSE_ARCHER') {
         // A conversion used to consume ADVANCED+ soldiers and hand back NOVICE: the rank
@@ -658,8 +658,8 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
           .filter((e): e is [Rank, number] => typeof e[1] === 'number' && e[1] > 0)
           .map(([r, count]) => ({ r, count, avgXP: 0 }))
         const arrivals = kept.length ? kept : [{ r: 'NOVICE' as Rank, count: qty, avgXP: 0 }]
-        const ranks = arrivals.map(x => `${x.count} ${x.r}`).join(', ')
-        finished.push({ pool, arrivals, note: `Conversion finished: ${ranks} ${pool}.` })
+        const ranks = arrivals.map(x => `${x.count} ${rankName(x.r)}`).join(', ')
+        finished.push({ pool, arrivals, note: `Conversion finished: ${ranks} ${unitName(pool)}.` })
       }
     }
     barr.setBatches(keptBatches)
