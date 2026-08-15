@@ -10,6 +10,28 @@
 
 ## 🚀 Active Roadmap & Backlog
 
+### ⚔️ NORTH STAR: unitățile devin LEGIUNI (cerut de Andrei, 2026-08-15)
+
+> „vreau ca fiecare unitate sa capete identitate ... ceva care sa semene cu legiunile Romane, cu traditii si compozitie unice, mai aproape de legiunile din Warhammer 40k. Dar in universul nostru"
+
+**Vasul EXISTĂ deja și nu l-a numit nimeni.** `Unit.id` supraviețuiește la tot ce li se întâmplă oamenilor dinăuntru: completarea de efective îi schimbă, lupta îi omoară, promovarea le schimbă rangul — unitatea rămâne. Asta E proprietatea de legiune (vulturul supraviețuiește legionarilor). Identitatea nu cere un sistem nou; cere să **numim și să ținem minte** ceva ce deja persistă.
+
+**Ce distruge identitatea azi, și trebuie să capăte ceremonie:**
+- `mergeUnits` (units.ts) amestecă bucket-urile și un id **dispare fără urmă**
+- `splitUnit` face două unități dintr-una — care dintre ele păstrează numele?
+- `disbandUnit` varsă oamenii înapoi în rezervor fără niciun cost simbolic
+
+**Blocantul structural real: `Unit.type` e UN SINGUR `SoldierType`.** O legiune romană sau una din 40k e prin definiție **arme combinate**; azi o unitate e numai sulițași SAU numai arcași. „Compoziție unică" cere cohorte de tipuri diferite sub același steag — și asta atinge `unitToCombatant`, `demandFor`, `createUnitFromBarracks`, motorul de luptă **și copia lui server din `functions/src/warlordCombat/`**. De aceea e ultima felie, nu prima.
+
+**Ordinea propusă (ieftin → scump):**
+1. **Numele și memoria.** `Unit` primește `name`, `foundedDay`, `honours[]`. Bătăliile scriu onoruri. Merge/split/disband capătă ceremonie: cine absoarbe pe cine, detașamentul care poartă numele părintelui, desființarea ca decizie gravă. **Zero atingeri la motorul de luptă.**
+2. **Tradițiile.** Se leagă de „doctrine→tradiții" din roadmap-ul de research: cercetarea deblochează doctrine, o legiune **adoptă** una-două. Fiecare dă un bonus **ȘI o constrângere** (o legiune jurată zidului de scuturi refuză cavaleria). Constrângerea e ce transformă un buff în identitate.
+3. **Stindardul.** Identitatea ca obiect fizic: se poate pierde în luptă și recuceri. Se prinde în rezultatul bătăliei, care există deja.
+4. **Cohortele (compoziția).** `Unit.type` → cohorte mixte. Felia scumpă, atinge și PvP-ul server.
+
+**De decis cu Andrei:** cine dă numele (jucătorul, cu sugestie de la joc — recomandarea mea: atașamentul vine din a numi tu) și câtă lume proprie scriem (azi nu există lore, doar medieval generic).
+
+
 ### 🔬 Research legat de lume — plan pe 4 felii (decis cu Andrei, 2026-08-01)
 **Felia 1 ✅ LIVRATĂ** (vezi Session Log): clădirea **Scriptorium** ca poartă a cercetării + cerințe de infrastructură per tehnologie (`TechDef.requiresBuildings`, tip + nivel).
 
