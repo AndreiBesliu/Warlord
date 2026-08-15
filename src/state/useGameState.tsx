@@ -32,7 +32,7 @@ import { useResearch, emptyResearch, hydrateResearch, type ResearchProject } fro
 import { useLegions, emptyLegions, hydrateLegions } from './useLegions'
 import {
   emptyLegion, pruneMembership, sanitizeLegionName, suggestLegionName, joinBlocker,
-  unitsOfLegion, legionOfUnit, awardVictoryHonours, type Legion,
+  unitsOfLegion, awardVictoryHonours,
 } from '../logic/legion'
 import { resolveCatalog, techById, prereqsMet, missingBuildings, hasResearchBuilding, type TechId } from '../logic/research/catalog'
 import { aggregate, availableTechs, onBattleWon, onBattleLost, onResearchCompleted, tickBuffs, resolveBuffs } from '../logic/research/momentum'
