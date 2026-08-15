@@ -142,3 +142,24 @@
 .warlord.dark .wl-scene {
   filter: brightness(0.66) saturate(0.9);
 }
+
+/* Motion. The game had exactly one keyframe animation (a pulsing dot) and no
+   reduced-motion handling at all. A section swap should feel like a turn of the page. */
+
+/* Deliberately TRANSFORM ONLY — no opacity. An animation that fades in from 0 pins the
+   element at invisible for as long as it has not progressed, and it does not progress in a
+   tab the browser is not compositing. A contrast audit caught that as 41 elements sitting
+   at exactly 1:1 against their own background: the whole section was transparent. Motion
+   must never be the reason something is visible, so it only nudges position here. */
+@keyframes wl-fade-in {
+  from { transform: translateY(5px); }
+  to   { transform: none; }
+}
+
+.wl-fade {
+  animation: wl-fade-in 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wl-fade { animation: none; }
+}

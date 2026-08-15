@@ -1,75 +1,85 @@
 import { useMemo, useState } from 'react'
-import { Ranks, type BarracksPool, type Rank, type SoldierType } from '../../logic/types'
-import { demandFor, missingFromInventory } from '../../logic/equipment'
+import { Ranks, type BarracksPool, type Rank, type SoldierType, type Inventories, type ResourceMap } from '../../logic/types'
+import { checkCreateUnit } from '../../logic/barracks'
+import { rankName, unitName } from '../../logic/names'
+import Blocked from '../common/Blocked'
 
 export default function ReplenishForm({
   unitType,
   pool,
   inv,
+  wallet,
+  resources,
   onReplenish,
 }: {
   unitId: string
   unitType: SoldierType
   pool: BarracksPool
-  inv: any
+  inv: Inventories
+  wallet: number
+  resources: ResourceMap
   onReplenish: (plan: Partial<Record<Rank, number>>, opts?: { autoBuy?: boolean }) => void
 }) {
   const [plan, setPlan] = useState<Partial<Record<Rank, number>>>({})
   const [autoBuy, setAutoBuy] = useState(true)
 
-  const total = useMemo(()=>Object.values(plan).reduce((a,b)=>a+(b||0),0),[plan])
-  const need  = useMemo(()=> demandFor(unitType, total), [unitType, total])
-  const miss  = useMemo(()=> missingFromInventory(inv, need), [inv, need])
+  const avail = useMemo(
+    () => Object.fromEntries(Ranks.map((r) => [r, pool[unitType]?.[r]?.count ?? 0])) as Record<Rank, number>,
+    [pool, unitType],
+  )
+  const stocked = Ranks.filter((r) => avail[r] > 0)
+
+  const check = useMemo(
+    () => checkCreateUnit({ type: unitType, plan, pool: avail, autoBuy, have: { wallet, resources, inv } }),
+    [unitType, plan, avail, autoBuy, wallet, resources, inv],
+  )
+
+  // Rendered once per unit. When every pool is empty this used to be five zero spinners
+  // and a line reading `Need: BOW:0 | LIGHT_ARMOR:0 | —` — a machine talking, multiplied by
+  // the size of your army.
+  if (stocked.length === 0) {
+    return (
+      <p className="text-xs text-wl-muted">
+        No {unitName(unitType)} in the barracks to reinforce this unit with. Train more, or
+        disband a unit to send its soldiers back.
+      </p>
+    )
+  }
 
   return (
-    <div className="mt-2 border border-wl-line rounded p-2 bg-wl-panel-muted">
-      <div className="text-sm font-semibold mb-1">Replenish from Pools</div>
-
-      <div className="grid grid-cols-5 gap-2 text-sm">
-        {Ranks.map(r => {
-          const avail = pool[unitType][r].count
-          return (
-            <div key={r} className="flex flex-col">
-              <label className="text-xs text-wl-muted">{r} (avail {avail})</label>
-              <input
-                className="border border-wl-line rounded px-2 py-1"
-                type="number"
-                min={0}
-                max={avail}
-                value={plan[r] || 0}
-                onChange={e => {
-                  const n = Math.max(0, Math.min(avail, parseInt(e.target.value || '0')))
-                  setPlan(p => ({ ...p, [r]: n }))
-                }}
-              />
-            </div>
-          )
-        })}
+    <div className="space-y-2">
+      <div className="text-xs uppercase tracking-wide text-wl-muted">Reinforce from the barracks</div>
+      <div className="flex flex-wrap gap-3">
+        {stocked.map((r) => (
+          <div key={r} className="flex flex-col">
+            <label className="text-xs text-wl-muted">{rankName(r)} · {avail[r]} available</label>
+            <input
+              className="border border-wl-line rounded px-2 py-1.5 min-h-[34px] w-24 bg-wl-panel-muted text-wl-ink"
+              type="number"
+              min={0}
+              max={avail[r]}
+              value={plan[r] || 0}
+              onChange={(e) => {
+                const n = parseInt(e.target.value || '0', 10)
+                setPlan({ ...plan, [r]: Math.max(0, Math.min(avail[r], Number.isFinite(n) ? n : 0)) })
+              }}
+            />
+          </div>
+        ))}
       </div>
-
-      <div className="mt-2 text-xs">
-        Need:
-        {' '}
-        {Object.entries(need.weapons).map(([k,v])=>`${k}:${v}`).join(' ') || '—'}
-        {' | '}
-        {Object.entries(need.armors).map(([k,v])=>`${k}:${v}`).join(' ') || '—'}
-        {' | '}
-        {Object.entries(need.horses).map(([k,v])=>`${k}:${v}`).join(' ') || '—'}
-      </div>
-      {!autoBuy && miss.any && <div className="text-xs text-wl-bad mt-1">Missing gear in stock.</div>}
-
-      <div className="mt-2 flex items-center gap-3">
-        <label className="text-sm flex items-center gap-2">
-          <input type="checkbox" checked={autoBuy} onChange={e=>setAutoBuy(e.target.checked)} />
-          Auto-buy missing gear
-        </label>
+      <label className="text-xs flex items-center gap-2">
+        <input type="checkbox" checked={autoBuy} onChange={(e) => setAutoBuy(e.target.checked)} />
+        Buy missing gear
+      </label>
+      <div>
         <button
-          className="px-3 py-1 border border-wl-line rounded text-sm disabled:opacity-50"
-          disabled={total===0 || (!autoBuy && miss.any)}
-          onClick={()=>onReplenish(plan, { autoBuy })}
+          className="px-3 py-1.5 min-h-[34px] text-sm rounded border border-wl-line bg-wl-panel hover:bg-wl-panel-muted disabled:bg-wl-panel-muted disabled:text-wl-muted disabled:cursor-not-allowed"
+          disabled={!check.ok}
+          onClick={() => onReplenish(plan, { autoBuy })}
         >
-          Replenish
+          Reinforce
         </button>
+        <Blocked check={check} />
       </div>
     </div>
   )

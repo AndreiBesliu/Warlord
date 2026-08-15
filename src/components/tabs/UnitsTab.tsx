@@ -1,17 +1,20 @@
-import { useState } from 'react'
 import Card from '../common/Card'
 import MissingEquipment from '../units/MissingEquipment'
 import SplitMergeControls from '../units/SplitMergeControls'
 import ReplenishForm from '../units/ReplenishForm'
 import type { GameStateShape } from '../../state/useGameState'
 import CreateUnitForm from '../barracks/CreateUnitForm'
-import { type Unit } from '../../logic/types'
-import armyCampScene from '../../assets/army_camp_scene.png'
+import { RankNumber, type Unit } from '../../logic/types'
+import { unitName, rankName } from '../../logic/names'
+import { PROMOTE_AT, nextRank } from '../../logic/units'
 
-type ViewMode = 'SCENE' | 'FORMATION' | 'INSPECTION'
 
-export default function UnitsTab({ state }: { state: GameStateShape }) {
-  const [view, setView] = useState<ViewMode>('SCENE')
+// Same story as the barracks: the army-camp scene gated these two screens behind two
+// invisible rectangles that OVERLAPPED — the inspection hotspot sat on top of the
+// commander's tent and stole its clicks. ArmyTab drives the view now.
+export type UnitsView = 'FORMATION' | 'INSPECTION'
+
+export default function UnitsTab({ state, view }: { state: GameStateShape; view: UnitsView }) {
 
   // Destructured off the REAL shape, not `state as any`. The cast is how the army came to
   // be un-startable on live: this file asked for `createUnit`, the state exports
@@ -34,62 +37,9 @@ export default function UnitsTab({ state }: { state: GameStateShape }) {
     barracks,
   } = state
 
-  // Wrapper for sub-views
-  const BackBtn = () => (
-    <button
-      onClick={() => setView('SCENE')}
-      className="mb-4 text-sm text-wl-info hover:underline flex items-center gap-1"
-    >
-      ← Back to Army Camp
-    </button>
-  )
-
-  if (view === 'SCENE') {
-    return (
-      <Card title="Army Camp" className="relative p-0 overflow-hidden select-none">
-        <div className="relative w-full aspect-[2/1] bg-wl-panel-contrast overflow-hidden">
-          <img src={armyCampScene} className="wl-scene w-full h-full object-cover" alt="Army Camp" draggable={false} />
-
-          {/* CLICK ZONES */}
-
-          {/* 1. Commander's Tent (Formation) - Center/Right Foreground (Red/Blue Tent) */}
-          <div
-            className="absolute bottom-[5%] left-[45%] w-[45%] h-[65%] cursor-pointer group hover:bg-white/10 rounded-xl transition-all border-2 border-transparent hover:border-wl-accent/50"
-            onClick={() => setView('FORMATION')}
-            title="Commander's Tent (Formation)"
-          >
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/70 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-              Formation (Assign Units) ⛺
-            </div>
-          </div>
-
-          {/* 2. Encampment (Inspection) - Background/Left Field */}
-          <div
-            className="absolute top-[20%] left-[5%] w-[50%] h-[50%] cursor-pointer group hover:bg-white/10 rounded-xl transition-all border-2 border-transparent hover:border-wl-info/50"
-            onClick={() => setView('INSPECTION')}
-            title="Encampment (Inspection)"
-          >
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/70 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-              Inspection (Manage Army) 🛡️
-            </div>
-          </div>
-
-          {/* HUD Overlay */}
-          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white p-2 flex justify-between text-xs px-4">
-            <span>Active Units: {units.length}</span>
-          </div>
-        </div>
-        <div className="p-4 text-sm text-wl-muted text-center">
-          Visit the <b>Commander's Tent</b> (Big Tent) to form units or the <b>Encampment</b> (Field) to inspect them.
-        </div>
-      </Card>
-    )
-  }
-
   if (view === 'FORMATION') {
     return (
-      <Card title="Unit Formation (Commander's Tent)">
-        <BackBtn />
+      <div>
         <div className="p-2">
           <div className="mb-4 text-sm text-wl-muted">
             Assign unassigned soldiers from the Barracks pool to form new combat units.
@@ -97,22 +47,25 @@ export default function UnitsTab({ state }: { state: GameStateShape }) {
           <CreateUnitForm
             barracks={barracks}
             inv={inv}
+            wallet={state.wallet}
+            resources={state.resources}
             onCreate={createUnitFromBarracks}
           />
         </div>
-      </Card>
+      </div>
     )
   }
 
   if (view === 'INSPECTION') {
     return (
-      <Card title="Army Inspection (Encampment)">
-        <BackBtn />
+      <div>
 
         <div className="mb-4 flex items-center gap-2 text-sm bg-wl-panel-muted p-2 rounded border border-wl-line">
           <span className="font-semibold text-wl-ink">Merge Operations:</span>
           <span className="px-2 py-0.5 bg-wl-panel border border-wl-line rounded text-xs font-mono">
-            {Array.isArray(mergePick) && mergePick.length ? mergePick.join(' + ') : 'None selected'}
+            {Array.isArray(mergePick) && mergePick.length
+              ? mergePick.map((id) => unitName(units.find((x: Unit) => x.id === id)?.type ?? '')).join(' + ')
+              : 'None selected'}
           </span>
           <button
             className="ml-auto px-3 py-1 bg-wl-accent text-wl-accent-ink rounded disabled:bg-wl-panel-muted disabled:text-wl-muted disabled:cursor-not-allowed text-xs shadow-sm hover:bg-wl-accent/90 transition"
@@ -125,7 +78,7 @@ export default function UnitsTab({ state }: { state: GameStateShape }) {
 
         {(!Array.isArray(units) || units.length === 0) && (
           <div className="text-center p-8 text-wl-subtle bg-wl-panel-muted rounded italic border border-dashed border-wl-line">
-            The encampment is empty. Go to the Commander's Tent to form units.
+            No units yet. Form one under <b>Form</b> — trained soldiers waiting in the barracks become a unit there.
           </div>
         )}
 
@@ -135,21 +88,36 @@ export default function UnitsTab({ state }: { state: GameStateShape }) {
             const isTraining = !!u.training
             return (
               <div key={u.id} className={`border border-wl-line rounded p-3 bg-wl-panel shadow-sm transition-all ${isTraining ? 'ring-2 ring-wl-warn/50' : ''}`}>
-                <div className="flex items-center gap-3 border-b border-wl-line pb-2 mb-2">
-                  <div className={`w-3 h-3 rounded-full ${isTraining ? 'bg-wl-warn animate-pulse' : 'bg-wl-good'}`} title={isTraining ? "Training" : "Ready"} />
-                  <div className="font-bold text-lg text-wl-ink">{u.id}</div>
-                  <div className="text-sm px-2 py-0.5 bg-wl-panel-muted rounded text-wl-muted font-medium">{u.type}</div>
-                  <div className="ml-auto text-xs text-wl-muted">Avg XP: <span className="font-mono text-wl-ink">{u.avgXP.toFixed(1)}</span></div>
+                {/* A unit sheet, not a row of raw fields. The name leads; the internal id
+                    (`U_k3f9a`) is a database key and has no business being the headline. */}
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-wl-line pb-2 mb-2">
+                  <div className={`w-3 h-3 rounded-full ${isTraining ? 'bg-wl-warn animate-pulse' : 'bg-wl-good'}`} title={isTraining ? 'In training' : 'Ready'} />
+                  <h3 className="font-serif font-bold text-lg text-wl-ink">{unitName(u.type)}</h3>
+                  <span className="text-sm text-wl-muted">{size} strong</span>
+                  <span className="ml-auto text-xs text-wl-subtle font-mono">{u.id}</span>
                 </div>
 
-                <div className="grid grid-cols-5 gap-2 mt-2 text-sm">
-                  {u.buckets.map((b) => (
-                    <div key={b.r} className="p-2 bg-wl-panel-muted rounded border border-wl-line flex flex-col items-center">
-                      <div className="text-[10px] uppercase font-bold text-wl-subtle">{b.r}</div>
-                      <div className="font-mono text-lg font-bold text-wl-ink">{b.count}</div>
-                      <div className="text-[10px] text-wl-subtle">XP {b.avgXP.toFixed(0)}</div>
-                    </div>
-                  ))}
+                <div className="flex flex-wrap gap-2 mt-2 text-sm">
+                  {u.buckets.map((b) => {
+                    // Chevrons say the rank at a glance; the word says it exactly. Rank is
+                    // worth +10% attack and +8% defence a step, and the green die first —
+                    // it deserves more than a shouted enum in 10px grey.
+                    const step = RankNumber[b.r] ?? 0
+                    const toNext = PROMOTE_AT[b.r]
+                    const pct = toNext ? Math.min(100, Math.round((b.avgXP / toNext) * 100)) : 100
+                    return (
+                      <div key={b.r} className="px-3 py-2 bg-wl-panel-muted rounded-lg border border-wl-line min-w-[104px]">
+                        <div className="flex items-center gap-1 text-wl-accent text-xs" aria-hidden>
+                          {step > 0 ? '▲'.repeat(step) : '·'}
+                        </div>
+                        <div className="text-[11px] uppercase tracking-wide text-wl-muted">{rankName(b.r)}</div>
+                        <div className="font-mono text-lg font-bold text-wl-ink leading-tight">{b.count}</div>
+                        <div className="mt-1 h-1 rounded bg-wl-panel overflow-hidden" title={toNext ? `${b.avgXP} of ${toNext} XP to ${rankName(nextRank(b.r) ?? '')}` : 'Highest rank'}>
+                          <div className="h-full bg-wl-accent" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
 
                 <div className="mt-3 flex items-center justify-between bg-wl-panel-muted p-2 rounded text-xs text-wl-muted">
@@ -190,6 +158,8 @@ export default function UnitsTab({ state }: { state: GameStateShape }) {
                     unitType={u.type}
                     pool={barracks}
                     inv={inv}
+                    wallet={state.wallet}
+                    resources={state.resources}
                     onReplenish={(plan, opts) => replenishUnit(u.id, plan, opts)}
                   />
                   <button
@@ -208,7 +178,7 @@ export default function UnitsTab({ state }: { state: GameStateShape }) {
             )
           })}
         </div>
-      </Card>
+      </div>
     )
   }
 

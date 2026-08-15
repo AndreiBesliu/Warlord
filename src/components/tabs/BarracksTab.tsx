@@ -9,99 +9,23 @@ import GameIcon from '../common/GameIcon'
 import { getIconForGameItem } from '../../logic/iconHelpers'
 import barracksScene from '../../assets/barracks_scene.png'
 import { checkLightTraining, checkConversion, checkRecruit, barracksCapacity } from '../../logic/barracks'
+import Blocked from '../common/Blocked'
+import { unitName, rankName, labelOf } from '../../logic/names'
 import { batchDaysAt, survivorsOf, trainingXpFor, drillPayFor, type Intensity } from '../../logic/batches'
 import { promoteBuckets } from '../../logic/units'
-import type { ActionCheck } from '../../logic/barracks'
 
-// Every refusal in this tab used to exist only as a line in the Log tab: the button stayed
-// enabled, nothing moved on screen, and pressing Train Batch with an empty armoury was
-// indistinguishable from a broken game. Same treatment as Research and Buildings now —
-// the button goes dead and says what is missing, in place.
-function Blocked({ check }: { check: ActionCheck }) {
-  if (check.ok) return null
-  return (
-    <div className="mt-1 text-[11px] text-wl-bad leading-tight">{check.reasons.filter(Boolean).join(' · ')}</div>
-  )
-}
 
-type ViewMode = 'SCENE' | 'RECRUIT' | 'TRAINING' | 'MANAGEMENT'
+// The three barracks screens. The scene hub that used to gate them is gone: its click
+// targets overlapped (one of them stole the other's clicks), its tooltips clipped off the
+// top on a phone, and none of them were reachable by keyboard or touch. ArmyTab drives
+// which screen shows, so nothing here holds navigation state any more.
+export type BarracksView = 'RECRUIT' | 'TRAINING' | 'MANAGEMENT'
 
-export default function BarracksTab({ state }: { state: GameStateShape }) {
-  const [view, setView] = useState<ViewMode>('SCENE')
-
-  // -- Scene View --
-  if (view === 'SCENE') {
-    return (
-      <Card title="Barracks Hub" className="relative p-0 overflow-hidden select-none">
-
-        {/* Main Scene Container */}
-        <div className="relative w-full aspect-[2/1] bg-wl-panel-contrast overflow-hidden">
-          <img src={barracksScene} className="wl-scene w-full h-full object-cover" alt="Barracks Scene" draggable={false} />
-
-          {/* CLICK ZONES */}
-          {/* 1. Training Yard (Left) */}
-          <div
-            className="absolute top-[20%] left-[5%] w-[35%] h-[60%] cursor-pointer group hover:bg-white/10 rounded-xl transition-all border-2 border-transparent hover:border-wl-accent/50"
-            onClick={() => setView('TRAINING')}
-            title="Training Yard"
-          >
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/70 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-              Training Grounds ⚔️
-            </div>
-          </div>
-
-          {/* 2. Recruitment Tent (Right) */}
-          <div
-            className="absolute top-[30%] right-[5%] w-[30%] h-[50%] cursor-pointer group hover:bg-white/10 rounded-xl transition-all border-2 border-transparent hover:border-wl-info/50"
-            onClick={() => setView('RECRUIT')}
-            title="Recruitment"
-          >
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/70 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-              Recruitment Office 📜
-            </div>
-          </div>
-
-          {/* 3. Headquarters (Top Center) */}
-          <div
-            className="absolute top-[5%] left-[40%] w-[20%] h-[40%] cursor-pointer group hover:bg-white/10 rounded-xl transition-all border-2 border-transparent hover:border-wl-bad/50"
-            onClick={() => setView('MANAGEMENT')}
-            title="Management"
-          >
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/70 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-              Headquarters 🏰
-            </div>
-          </div>
-
-          {/* HUD Overlay */}
-          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white p-2 flex justify-between text-xs px-4">
-            <span>Level {state.barracksLevel} Barracks</span>
-            <span>Active Batches: {state.batches.length}</span>
-            <span>Recruits: {state.recruits.count}</span>
-          </div>
-        </div>
-
-        <div className="p-4 text-sm text-wl-muted text-center">
-          Click on an area to enter. Hover for details.
-        </div>
-      </Card>
-    )
-  }
-
-  // Wrapper for sub-views
-  const BackBtn = () => (
-    <button
-      onClick={() => setView('SCENE')}
-      className="mb-4 text-sm text-wl-info hover:underline flex items-center gap-1"
-    >
-      ← Back to Barracks Scene
-    </button>
-  )
-
+export default function BarracksTab({ state, view }: { state: GameStateShape; view: BarracksView }) {
   // -- Sub Views --
   if (view === 'RECRUIT') {
     return (
-      <Card title="Recruitment Office">
-        <BackBtn />
+      <div>
         <div className="p-2">
           <RecruitForm
             onRecruit={(qty) => state.recruit(qty)}
@@ -120,7 +44,7 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
             </span>
           </div>
         </div>
-      </Card>
+      </div>
     )
   }
 
@@ -139,8 +63,7 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
     const nextCost = hasCostFn ? barracksUpgradeCost(barracksLevel) : 0
 
     return (
-      <Card title="Headquarters">
-        <BackBtn />
+      <div>
         <div className="grid md:grid-cols-2 gap-4">
           <div className="border border-wl-line rounded p-4">
             <h3 className="font-semibold mb-2">Facility Status</h3>
@@ -163,10 +86,10 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
                 <div className="space-y-1">
                   {trained.map((row) => (
                     <div key={row.type} className="flex flex-wrap items-baseline gap-x-2 text-sm">
-                      <span className="font-semibold text-wl-ink">{row.type.replace(/_/g, ' ')}</span>
+                      <span className="font-semibold text-wl-ink">{unitName(row.type)}</span>
                       {row.ranks.map(([r, v]) => (
                         <span key={r} className="text-xs text-wl-muted">
-                          <span className="font-mono text-wl-ink">{v.count}</span> {r.toLowerCase()}
+                          <span className="font-mono text-wl-ink">{v.count}</span> {rankName(r)}
                         </span>
                       ))}
                     </div>
@@ -201,10 +124,10 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
               {batches.map((b: any) => (
                 <div key={b.id} className="border border-wl-line rounded p-2 text-sm bg-wl-panel-muted">
                   <div className="flex justify-between font-bold">
-                    <span>{b.kind}</span>
+                    <span>{labelOf(b.kind)}</span>
                     <span className="text-xs font-mono text-wl-subtle">{b.id.slice(0, 4)}</span>
                   </div>
-                  <div>Target: {b.target}{b.fromType ? ` (from ${b.fromType})` : ''}</div>
+                  <div>Target: {unitName(b.target ?? '')}{b.fromType ? ` (from ${unitName(b.fromType)})` : ''}</div>
                   <div>Qty: {b.qty}</div>
                   <div className="text-wl-info font-semibold">Days remaining: {b.daysRemaining}</div>
                 </div>
@@ -212,19 +135,19 @@ export default function BarracksTab({ state }: { state: GameStateShape }) {
             </div>
           </div>
         </div>
-      </Card>
+      </div>
     )
   }
 
   if (view === 'TRAINING') {
-    return <TrainingView state={state} onBack={() => setView('SCENE')} />
+    return <TrainingView state={state} />
   }
 
   return null
 }
 
 // Extracted Training View for cleanliness
-function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => void }) {
+function TrainingView({ state }: { state: GameStateShape }) {
   const {
     queueLightTraining, queueHeavyConversion, queueLightCavConversion, queueHorseArcherConversion,
     recruits, barracks, batches, batchSlots, barracksLevel, wallet, resources, inv, mods,
@@ -248,7 +171,7 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
   const lcCheck = checkConversion({
     target: 'LIGHT_CAV', qty: lcQty, slotFree, have,
     availableFromPool: poolOf(lcSrc, ['NOVICE', 'TRAINED', 'ADVANCED', 'VETERAN', 'ELITE']),
-    sourceLabel: `${lcSrc.replace(/_/g, ' ').toLowerCase()} (novice or better)`,
+    sourceLabel: `${unitName(lcSrc)} (novice or better)`,
   })
   const haCheck = checkConversion({
     target: 'HORSE_ARCHER', qty: haQty, slotFree, have,
@@ -258,7 +181,7 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
   const heavyCheck = checkConversion({
     target: 'HEAVY_CAV', qty: heavyQty, slotFree, have,
     availableFromPool: poolOf(heavySrc, ['ADVANCED', 'VETERAN', 'ELITE']),
-    sourceLabel: `advanced ${heavySrc.replace(/_/g, ' ').toLowerCase()}`,
+    sourceLabel: `advanced ${unitName(heavySrc)}`,
   })
 
   // Reused Requirement Helper
@@ -350,14 +273,7 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
   }
 
   return (
-    <Card title="Training Grounds">
-      <button
-        onClick={onBack}
-        className="mb-4 text-sm text-wl-info hover:underline flex items-center gap-1"
-      >
-        ← Back to Barracks Scene
-      </button>
-
+    <div>
       <div className="space-y-6">
 
         {/* Basic Training */}
@@ -427,7 +343,7 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
                 <label className="text-xs">From (Novice+)</label>
                 <select className="border border-wl-line rounded px-2 py-1 text-sm w-full" value={lcSrc} onChange={e => setLcSrc(e.target.value as SoldierType)}>
                   {(['LIGHT_INF_SWORD', 'LIGHT_INF_SPEAR', 'LIGHT_INF_HALBERD'] as SoldierType[])
-                    .map(t => <option key={t} value={t}>{t}</option>)}
+                    .map(t => <option key={t} value={t}>{unitName(t)}</option>)}
                 </select>
               </div>
               <div className="flex flex-col">
@@ -448,7 +364,7 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
             <div className="font-semibold mb-2 border-b border-wl-line pb-1">Horse Archer Conversion</div>
             <div className="flex gap-2 items-end">
               <div className="flex flex-col grow">
-                <div className="text-sm py-1 text-wl-muted">From LIGHT_ARCHER (Adv+)</div>
+                <div className="text-sm py-1 text-wl-muted">From {unitName('LIGHT_ARCHER')} (Advanced or better)</div>
               </div>
               <div className="flex flex-col">
                 <label className="text-xs">Qty</label>
@@ -472,7 +388,7 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
               <label className="text-sm">From (Advanced+)</label>
               <select className="border border-wl-line rounded px-2 py-1 text-sm bg-wl-panel-muted" value={heavySrc} onChange={e => setHeavySrc(e.target.value as SoldierType)}>
                 {(['LIGHT_CAV', 'HEAVY_INF_SWORD', 'HEAVY_INF_SPEAR', 'HEAVY_INF_HALBERD'] as SoldierType[])
-                  .map(t => <option key={t} value={t}>{t}</option>)}
+                  .map(t => <option key={t} value={t}>{unitName(t)}</option>)}
               </select>
             </div>
             <div className="flex flex-col">
@@ -489,6 +405,6 @@ function TrainingView({ state, onBack }: { state: GameStateShape, onBack: () => 
         </div>
 
       </div>
-    </Card>
+    </div>
   )
 }

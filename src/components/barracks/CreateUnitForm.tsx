@@ -1,84 +1,121 @@
 import { useMemo, useState } from 'react'
-import { SoldierTypes, Ranks, type SoldierType, type Rank, type BarracksPool } from '../../logic/types'
-import { demandFor, missingFromInventory } from '../../logic/equipment'
+import { SoldierTypes, Ranks, type SoldierType, type Rank, type BarracksPool, type ResourceMap, type Inventories } from '../../logic/types'
+import { checkCreateUnit } from '../../logic/barracks'
+import { unitName, rankName } from '../../logic/names'
+import Blocked from '../common/Blocked'
+import CostList from '../common/CostList'
+import { evaluateCost } from '../../logic/costs'
+import { gearCost } from '../../logic/barracks'
 
 export default function CreateUnitForm({
   barracks,
   onCreate,
   inv,
-}:{
+  wallet,
+  resources,
+}: {
   barracks: BarracksPool
-  inv: any
-  onCreate: (type: SoldierType, take: Partial<Record<Rank, number>>, opts?:{autoBuy?:boolean}) => void
-}){
+  inv: Inventories
+  wallet: number
+  resources: ResourceMap
+  onCreate: (type: SoldierType, take: Partial<Record<Rank, number>>, opts?: { autoBuy?: boolean }) => void
+}) {
   const [type, setType] = useState<SoldierType>('LIGHT_INF_SPEAR')
   const [plan, setPlan] = useState<Partial<Record<Rank, number>>>({})
   const [autoBuy, setAutoBuy] = useState(true)
 
-  const total = useMemo(()=>Object.values(plan).reduce((a,b)=>a+(b||0),0),[plan])
-  const need = useMemo(()=> demandFor(type, total), [type, total])
-  const miss = useMemo(()=> missingFromInventory(inv, need), [inv, need])
+  const total = useMemo(() => Object.values(plan).reduce((a, b) => a + (b || 0), 0), [plan])
+
+  // Only the ranks that have somebody in them. Five spinners reading "(avail 0)" is a form
+  // that cannot be used, rendered in full, with no hint of why.
+  const pool = useMemo(
+    () => Object.fromEntries(Ranks.map((r) => [r, barracks[type]?.[r]?.count ?? 0])) as Record<Rank, number>,
+    [barracks, type],
+  )
+  const stocked = Ranks.filter((r) => pool[r] > 0)
+
+  // `checkCreateUnit` was written for this and then imported by nothing, which is why the
+  // button sat dead with no explanation anywhere on screen.
+  const have = useMemo(() => ({ wallet, resources, inv }), [wallet, resources, inv])
+  const check = useMemo(
+    () => checkCreateUnit({ type, plan, pool, autoBuy, have }),
+    [type, plan, pool, autoBuy, have],
+  )
+  // What the unit needs is shown whichever way it is paid for; `check.cost` is about
+  // affording it, and with auto-buy on that is a copper figure, not a list of gear.
+  const needLines = useMemo(() => evaluateCost(gearCost(type, total), have).lines, [type, total, have])
+
+  const setRank = (r: Rank, raw: string) => {
+    const n = parseInt(raw || '0', 10)
+    // Clamped to what the pool holds. Unclamped, you could ask for 999 out of 3, the button
+    // stayed enabled, and the refusal appeared in the Log tab.
+    setPlan({ ...plan, [r]: Math.max(0, Math.min(pool[r], Number.isFinite(n) ? n : 0)) })
+  }
 
   return (
-    <div className="border border-wl-line rounded p-2 space-y-2">
-      <div className="flex gap-2">
-        <label className="text-sm">Type</label>
-        <select className="border border-wl-line rounded px-2 py-1" value={type} onChange={e=>setType(e.target.value as SoldierType)}>
-          {SoldierTypes.map(t=> <option key={t} value={t}>{t}</option>)}
+    <div className="rounded-lg border border-wl-line bg-wl-panel p-4 space-y-3">
+      <div className="flex flex-wrap gap-3 items-center">
+        <label className="text-sm font-serif">Type</label>
+        <select
+          className="border border-wl-line rounded px-2 py-1.5 min-h-[34px] bg-wl-panel-muted text-wl-ink"
+          value={type}
+          onChange={(e) => { setType(e.target.value as SoldierType); setPlan({}) }}
+        >
+          {SoldierTypes.map((t) => <option key={t} value={t}>{unitName(t)}</option>)}
         </select>
         <label className="ml-auto text-sm flex items-center gap-2">
-          <input type="checkbox" checked={autoBuy} onChange={e=>setAutoBuy(e.target.checked)} />
-          Auto-buy missing gear
+          <input type="checkbox" checked={autoBuy} onChange={(e) => setAutoBuy(e.target.checked)} />
+          Buy missing gear
         </label>
       </div>
 
-      <div className="grid grid-cols-5 gap-2">
-        {Ranks.map(r=>(
-          <div key={r} className="flex flex-col">
-            <label className="text-xs text-wl-muted">{r} (avail {barracks[type][r].count})</label>
-            <input className="border border-wl-line rounded px-2 py-1" type="number" min={0}
-              value={plan[r]||0}
-              onChange={e=>setPlan({...plan, [r]: Math.max(0, parseInt(e.target.value||'0'))})}/>
-          </div>
-        ))}
-      </div>
-
-      {/* Equipment preview */}
-      <div className="text-sm bg-wl-panel-muted rounded p-2">
-        <div className="font-semibold mb-1">Equipment needed for {total} {type}:</div>
-        <div className="grid md:grid-cols-3 gap-2">
-          <div>
-            <div className="text-xs text-wl-muted">Weapons</div>
-            {Object.entries(need.weapons).map(([k,v])=>{
-              const have = inv.weapons[k] ?? 0
-              return <div key={k} className={have>=v?'':'text-wl-bad'}>{k}: {v} (have {have})</div>
-            })}
-          </div>
-          <div>
-            <div className="text-xs text-wl-muted">Armors</div>
-            {Object.entries(need.armors).map(([k,v])=>{
-              const have = inv.armors[k] ?? 0
-              return <div key={k} className={have>=v?'':'text-wl-bad'}>{k}: {v} (have {have})</div>
-            })}
-          </div>
-          <div>
-            <div className="text-xs text-wl-muted">Horses</div>
-            {Object.entries(need.horses).map(([k,v])=>{
-              const have = inv.horses[k as any]?.active ?? 0
-              return <div key={k} className={have>=v?'':'text-wl-bad'}>{k}: {v} (have {have})</div>
-            })}
-          </div>
+      {stocked.length === 0 ? (
+        <p className="text-sm text-wl-muted">
+          No {unitName(type)} are waiting in the barracks. Train some first — a finished batch
+          gathers here, ready to be formed.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-3">
+          {stocked.map((r) => (
+            <div key={r} className="flex flex-col">
+              <label className="text-xs text-wl-muted">{rankName(r)} · {pool[r]} available</label>
+              <input
+                className="border border-wl-line rounded px-2 py-1.5 min-h-[34px] w-28 bg-wl-panel-muted text-wl-ink"
+                type="number"
+                min={0}
+                max={pool[r]}
+                value={plan[r] || 0}
+                onChange={(e) => setRank(r, e.target.value)}
+              />
+            </div>
+          ))}
         </div>
-        {!autoBuy && miss.any && <div className="mt-1 text-wl-bad text-xs">Missing gear present — enable auto-buy or adjust.</div>}
-      </div>
+      )}
 
-      <button
-        className="px-3 py-1 border border-wl-line rounded disabled:opacity-50"
-        disabled={total===0 || (!autoBuy && miss.any)}
-        onClick={()=>onCreate(type, plan, { autoBuy })}
-      >
-        Create Unit
-      </button>
+      {total > 0 && (
+        <div className="rounded-lg bg-wl-panel-muted border border-wl-line p-3">
+          <div className="text-xs uppercase tracking-wide text-wl-muted mb-1">
+            {total} {unitName(type)} will need
+          </div>
+          <CostList lines={needLines} />
+          {autoBuy && check.cost.missing.length > 0 && (
+            <div className="mt-1 text-xs text-wl-muted">
+              What you are short of will be bought at market price.
+            </div>
+          )}
+        </div>
+      )}
+
+      <div>
+        <button
+          className="px-4 py-2 min-h-[38px] rounded bg-wl-accent text-wl-accent-ink font-serif disabled:bg-wl-panel-muted disabled:text-wl-muted disabled:cursor-not-allowed"
+          disabled={!check.ok}
+          onClick={() => onCreate(type, plan, { autoBuy })}
+        >
+          Form unit
+        </button>
+        <Blocked check={check} />
+      </div>
     </div>
   )
 }

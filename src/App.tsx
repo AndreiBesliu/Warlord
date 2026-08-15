@@ -5,12 +5,10 @@ import BuildingsTab from './components/tabs/BuildingsTab'
 import ResourcesTab from './components/tabs/ResourcesTab'
 import MarketTab from './components/tabs/MarketTab'
 import OverviewTab from './components/tabs/OverviewTab'
-import UnitsTab from './components/tabs/UnitsTab'
 import LogTab from './components/tabs/LogTab'
-import CampaignTab from './components/tabs/CampaignTab'
 import ResearchTab from './components/tabs/ResearchTab'
 
-import BarracksTab from './components/tabs/BarracksTab'
+import ArmyTab, { type ArmySection } from './components/tabs/ArmyTab'
 import ResourceBar from './components/common/ResourceBar'
 import { useGameState } from './state/useGameState'
 import { GameConfig } from './logic/config'
@@ -138,7 +136,10 @@ export default function App({
     loadSave, resetAll,
   } = state
 
-  const [tab, setTab] = useState<'overview' | 'resources' | 'buildings' | 'barracks' | 'units' | 'market' | 'research' | 'campaign' | 'log'>('overview')
+  const [tab, setTab] = useState<'overview' | 'resources' | 'buildings' | 'army' | 'market' | 'research' | 'log'>('overview')
+  // The army section lives up here, not inside the tab: mounting is conditional, so a walk
+  // through Overview and back used to reset it — along with everything typed underneath.
+  const [armySection, setArmySection] = useState<ArmySection>('RECRUIT')
 
   return (
     <div className={`warlord${dark ? ' dark' : ''} min-h-screen p-3 sm:p-6 space-y-4`}>
@@ -220,7 +221,7 @@ export default function App({
       <nav className="flex flex-nowrap overflow-x-auto sm:flex-wrap items-center gap-x-5 gap-y-2 -mx-3 px-3 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {([
           ['Domain', [['overview', 'Overview', '\u{1F3F0}'], ['resources', 'Resources', '\u{1F4E6}'], ['buildings', 'Buildings', '\u{1F3D7}'], ['market', 'Market', '\u2696']]],
-          ['Army', [['barracks', 'Barracks', '\u{1F6E1}'], ['units', 'Units', '\u2694'], ['campaign', 'Campaign', '\u{1F5FA}']]],
+          ['Army', [['army', 'Army', '⚔']]],
           ['Records', [
             ...(state.hasResearchBuilding ? [['research', 'Research', '\u{1F52C}'] as const] : []),
             ['log', 'Log', '\u{1F4DC}'] as const,
@@ -252,15 +253,13 @@ export default function App({
 
       {tab === 'buildings' && <BuildingsTab state={state} setTab={setTab as any} />}
 
-      {tab === 'barracks' && <BarracksTab state={state} />}
+      {tab === 'army' && <ArmyTab state={state} section={armySection} onSection={setArmySection} />}
 
-      {tab === 'units' && <UnitsTab state={state} />}
 
       {tab === 'market' && <MarketTab state={state} />}
 
       {tab === 'research' && <ResearchTab state={state} />}
 
-      {tab === 'campaign' && <CampaignTab state={state} />}
 
       {tab === 'log' && <LogTab state={state} />}
 

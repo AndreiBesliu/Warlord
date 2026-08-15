@@ -15,6 +15,7 @@
 import { GameConfig } from './config'
 import { evaluateCost, type CostReport, type CostSpec, type Holdings } from './costs'
 import { demandFor } from './equipment'
+import { itemValueCopper } from './items'
 import { drillPayFor, type Intensity } from './batches'
 import type { Rank, SoldierType } from './types'
 
@@ -161,11 +162,21 @@ export function checkCreateUnit(args: {
     .filter(([r, n]) => (n || 0) > (args.pool[r] ?? 0))
     .map(([r, n]) => `${(n || 0) - (args.pool[r] ?? 0)} more ${r}`)
 
-  // With auto-buy on, missing gear is a price rather than a blocker — the check still
-  // reports the shortfall so the player sees what the purchase will cost them.
-  const cost: CostSpec = args.autoBuy ? {} : gearCost(args.type, total)
+  // With auto-buy on, missing gear is a PRICE, not a blocker — but a price the treasury
+  // still has to cover. Sending an empty cost here is what let the button sit enabled while
+  // the state refused the purchase and explained itself only in the Log tab.
+  const gear = gearCost(args.type, total)
+  const cost: CostSpec = args.autoBuy
+    ? { copper: buyoutCopper(gear, args.have) }
+    : gear
   return checkAction(cost, args.have, [
     { ok: total > 0, says: 'Select at least one soldier' },
     { ok: short.length === 0, says: short.length ? `Need ${short.join(' + ')}` : '' },
   ])
+}
+
+/** What it would cost to buy whatever part of a gear demand the stores cannot cover. */
+export function buyoutCopper(gear: CostSpec, have: Holdings): number {
+  const report = evaluateCost(gear, have)
+  return report.missing.reduce((sum, line) => sum + line.short * (itemValueCopper(line.key) || 0), 0)
 }

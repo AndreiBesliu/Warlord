@@ -3,6 +3,7 @@ import { RankIndex } from './types'
 import type { Rank, Unit, SoldierType } from './types'
 
 import { Registry } from './registry';
+import { itemName } from './names';
 
 type UnitLoadout = Unit['loadout'];
 type Bucket = { r: Rank; count: number; avgXP: number };
@@ -104,17 +105,18 @@ export function applyMoraleChange(u: Unit, upkeepPaid: boolean, foodShortage: bo
 export function missingEquipmentList(u: Unit): string[] {
   const req = requiredCountsFor(u)
   const out: string[] = []
+  // "3 Spear", not "SPEAR: 3" — this list is read by a player, not a debugger.
   for (const [w, need] of Object.entries(req.weapons)) {
     const have = u.equip.weapons[w] || 0
-    if ((need as number) > have) out.push(`${w}: ${(need as number) - have}`)
+    if ((need as number) > have) out.push(`${(need as number) - have} ${itemName(w)}`)
   }
   for (const [a, need] of Object.entries(req.armors)) {
     const have = u.equip.armors[a] || 0
-    if ((need as number) > have) out.push(`${a}: ${(need as number) - have}`)
+    if ((need as number) > have) out.push(`${(need as number) - have} ${itemName(a)}`)
   }
   for (const [h, need] of Object.entries(req.horses)) {
     const have = u.equip.horses[h] || 0
-    if ((need as number) > have) out.push(`${h}: ${(need as number) - have}`)
+    if ((need as number) > have) out.push(`${(need as number) - have} ${itemName(h)}`)
   }
   return out
 }
