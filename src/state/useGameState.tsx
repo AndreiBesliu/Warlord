@@ -29,6 +29,11 @@ import { loadSampleMod } from '../mods/sampleMod';
 import { GameConfig, type GameConfigOverrides } from '../logic/config'
 import { useCampaign, emptyCampaign, hydrateCampaign, type CampaignReward } from './useCampaign'
 import { useResearch, emptyResearch, hydrateResearch, type ResearchProject } from './useResearch'
+import { useLegions, emptyLegions, hydrateLegions } from './useLegions'
+import {
+  emptyLegion, pruneMembership, sanitizeLegionName, suggestLegionName, joinBlocker,
+  unitsOfLegion, legionOfUnit, awardVictoryHonours, type Legion,
+} from '../logic/legion'
 import { resolveCatalog, techById, prereqsMet, missingBuildings, hasResearchBuilding, type TechId } from '../logic/research/catalog'
 import { aggregate, availableTechs, onBattleWon, onBattleLost, onResearchCompleted, tickBuffs, resolveBuffs } from '../logic/research/momentum'
 import { BRANCHES, addStudy, spendStudy, studyCostOf } from '../logic/research/study'
@@ -118,6 +123,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
   const unit = useUnits(saved?.units ?? undefined)
   const camp = useCampaign(saved?.campaign)
   const rsc = useResearch(saved?.research, cfg?.catalog)
+  const leg = useLegions(saved?.legions)
 
   // The tech catalog and the momentum table are DATA — the admin ships an override
   // object and everything downstream resolves against it.
@@ -141,10 +147,11 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       units: unit.units,
       campaign: camp.campaign,
       research: rsc.research,
+      legions: leg.legions,
     }
     localStorage.setItem(saveKey, JSON.stringify(blob)) // fast local cache / offline fallback
     onPersist?.(blob) // e.g. debounced cloud write (OurDaysApp embed)
-  }, [saveKey, day, lastTickAt, log, econ.wallet, econ.inv, econ.buildings, econ.resources, barr.barracks, barr.barracksLevel, barr.recruits, barr.batches, unit.units, camp.campaign, rsc.research]) // econ.resources & camp.campaign included so those-only changes persist
+  }, [saveKey, day, lastTickAt, log, econ.wallet, econ.inv, econ.buildings, econ.resources, barr.barracks, barr.barracksLevel, barr.recruits, barr.batches, unit.units, camp.campaign, rsc.research, leg.legions]) // econ.resources & camp.campaign included so those-only changes persist
 
   function loadSave() {
     const raw = localStorage.getItem(saveKey)
@@ -164,6 +171,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       unit.setUnits(hydrateUnits(s.units))
       camp.setCampaign(hydrateCampaign(s.campaign))
       rsc.setResearch(hydrateResearch(s.research, cfg?.catalog))
+      leg.setLegions(hydrateLegions(s.legions))
       addLog('Loaded save.')
     } catch { addLog('Failed to load save.') }
   }
@@ -181,6 +189,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     unit.setUnits([])
     camp.setCampaign(emptyCampaign())
     rsc.setResearch(emptyResearch())
+    leg.setLegions(emptyLegions())
     setMergePick([])
   }
 
@@ -855,6 +864,56 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     )
   }
 
+
+  // ---- Legions ----
+  // A legion holds units; it does not hold soldiers. Everything here writes only the
+  // formation — no unit is ever created, moved or destroyed by these.
+
+  function formLegion(rawName?: string) {
+    const suggestion = suggestLegionName(leg.legions.map(l => l.name))
+    const name = sanitizeLegionName(rawName ?? '', suggestion)
+    const created = emptyLegion(name, day)
+    leg.setLegions(ls => [...ls, created])
+    addLog(`${name} was raised.`)
+    return created.id
+  }
+
+  function renameLegion(legionId: string, rawName: string) {
+    // The fallback is the CURRENT name, not a fresh suggestion: clearing the field and
+    // clicking away must give the name back, not rebaptise the legion.
+    leg.setLegions(ls => ls.map(l =>
+      l.id === legionId ? { ...l, name: sanitizeLegionName(rawName, l.name) } : l))
+  }
+
+  function assignToLegion(legionId: string, unitId: string) {
+    const target = leg.legions.find(l => l.id === legionId)
+    if (!target) return
+    const blocked = joinBlocker(target, unitId, unit.units, leg.legions)
+    if (blocked) { addLog(`Cannot assign: ${blocked}.`); return }
+    // Prune on the way in. Reads already ignore ids whose units are gone, but the array
+    // itself would keep growing: a legion whose twelve cohorts all fell would accept twelve
+    // more and end up holding twenty-four strings, twelve of them ghosts.
+    leg.setLegions(ls => ls.map(l => {
+      if (l.id !== legionId) return l
+      const tidied = pruneMembership(l, unit.units)
+      return { ...tidied, unitIds: [...tidied.unitIds, unitId] }
+    }))
+  }
+
+  function removeFromLegion(legionId: string, unitId: string) {
+    leg.setLegions(ls => ls.map(l =>
+      l.id === legionId ? { ...l, unitIds: l.unitIds.filter(id => id !== unitId) } : l))
+  }
+
+  /** Disbanding the FORMATION, not its men: the units survive and become unattached. */
+  function disbandLegion(legionId: string) {
+    const doomed = leg.legions.find(l => l.id === legionId)
+    if (!doomed) return
+    const freed = unitsOfLegion(doomed, unit.units).length
+    leg.setLegions(ls => ls.filter(l => l.id !== legionId))
+    addLog(`${doomed.name} was dissolved${freed > 0 ? `; ${freed} cohorts stand unattached` : ''}.`)
+  }
+
   // ---- Campaign / Combat ----
 
   // Grant battle loot. Validation-free (loot is always non-negative); mirrors the
@@ -940,6 +999,21 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       unit.setUnits(us => us.map(u => outcome.report.some(r => r.unitId === u.id && !r.destroyed)
         ? { ...u, morale: Math.max(0, Math.min(100, (u.morale ?? 100) + mods.postBattleMoraleBonus)) }
         : u))
+    }
+    // A legion is decorated when its cohorts come home. `deployedIds` is the wrong list to
+    // ask — it still names the units that were wiped out, and those are gone from
+    // `outcome.units` entirely, so an honour written against them is written to a corpse.
+    // The survivor predicate is the one three lines up, deliberately not a second copy.
+    if (won) {
+      const survivors = new Set(outcome.report.filter(r => !r.destroyed).map(r => r.unitId))
+      const label = presets[b.difficulty].name
+      // Cohorts fell in this battle, so the same write tidies the rolls.
+      // Cohorts fell in this battle, so the same write tidies the rolls.
+      leg.setLegions(ls => awardVictoryHonours(
+        ls.map(l => pruneMembership(l, outcome.units)),
+        [...survivors],
+        { key: `WIN:${b.difficulty}`, label: `Victor of ${label}`, day },
+      ))
     }
     camp.setCampaign(prev => ({
       ...prev,
@@ -1048,6 +1122,14 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     // What tomorrow adds to each branch, from the same function the tick banks with.
     studyPerDay: forecastDay({ buildings: econ.buildings, resources: econ.resources, inv: econ.inv, units: unit.units, mods }).studyByBranch,
     availableResearch: () => availableTechs(catalog, rsc.research.unlocked, rsc.research.queue.map(p => p.id)),
+
+    // legions
+    legions: leg.legions,
+    formLegion,
+    renameLegion,
+    assignToLegion,
+    removeFromLegion,
+    disbandLegion,
 
     // campaign / combat
     campaign: camp.campaign,

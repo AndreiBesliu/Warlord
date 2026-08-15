@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import type { Unit } from '../../logic/types'
 import type { Difficulty, MissionPreset } from '../../logic/combat/types'
-import { fieldedStrength, prettyName } from '../../logic/combat/army'
+import { fieldedStrength } from '../../logic/combat/army'
+import { unitName } from '../../logic/names'
 import { escalationMult } from '../../logic/combat/enemies'
 import GameIcon from '../common/GameIcon'
 import { getIconForGameItem } from '../../logic/iconHelpers'
+import { cohortLabel, legionOfUnit, unitsOfLegion, type Legion } from '../../logic/legion'
 
 interface Props {
   units: Unit[]
+  legions: Legion[]
   difficulty: Difficulty
   preset: MissionPreset
   clears: number
@@ -15,7 +18,7 @@ interface Props {
   onBack: () => void
 }
 
-export default function DeployPanel({ units, preset, clears, onConfirm, onBack }: Props) {
+export default function DeployPanel({ units, legions, preset, clears, onConfirm, onBack }: Props) {
   const [picked, setPicked] = useState<string[]>([])
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
 
@@ -23,12 +26,42 @@ export default function DeployPanel({ units, preset, clears, onConfirm, onBack }
   // Same escalation the actual army generator applies — the estimate must not undersell.
   const estEnemy = Math.round(deployStrength * preset.ratio * escalationMult(clears))
 
+  // A legion exists so it can march as one. Picking its cohorts one by one would make the
+  // formation a label rather than a thing you command.
+  const marchable = legions
+    .map((l) => ({ legion: l, ids: unitsOfLegion(l, units).map((u) => u.id) }))
+    .filter((x) => x.ids.length > 0)
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-serif text-lg font-bold">Deploy for {preset.name}</h3>
         <button onClick={onBack} className="px-3 py-1 border border-wl-line rounded text-sm">← Missions</button>
       </div>
+
+      {marchable.length > 0 && (
+        <div className="rounded-lg border border-wl-line bg-wl-panel-muted p-3">
+          <div className="text-xs uppercase tracking-wide text-wl-muted mb-2">Call up a legion</div>
+          <div className="flex flex-wrap gap-2">
+            {marchable.map(({ legion, ids }) => {
+              const all = ids.every((id) => picked.includes(id))
+              return (
+                <button
+                  key={legion.id}
+                  onClick={() => setPicked((p) => all
+                    ? p.filter((id) => !ids.includes(id))
+                    : [...p, ...ids.filter((id) => !p.includes(id))])}
+                  className={`px-3 py-2 min-h-[34px] text-sm rounded border font-serif ${all
+                    ? 'bg-wl-accent text-wl-accent-ink border-wl-accent'
+                    : 'bg-wl-panel border-wl-line text-wl-ink hover:bg-wl-panel-muted'}`}
+                >
+                  {legion.name} <span className="text-xs opacity-80">({ids.length})</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {units.length === 0 ? (
         <p className="text-sm text-wl-muted">You have no formed units. Create units in the Units tab before marching to battle.</p>
@@ -45,7 +78,15 @@ export default function DeployPanel({ units, preset, clears, onConfirm, onBack }
               >
                 <GameIcon name={getIconForGameItem(u.type) || 'sword'} size={28} />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold truncate">{prettyName(u.type)}</div>
+                  <div className="text-sm font-semibold truncate">{unitName(u.type)}</div>
+                  {(() => {
+                    const l = legionOfUnit(legions, u.id)
+                    return l ? (
+                      <div className="text-[11px] text-wl-subtle truncate">
+                        {cohortLabel(l, units, u.id)} · {l.name}
+                      </div>
+                    ) : null
+                  })()}
                   <div className="text-xs text-wl-muted font-mono">{size} soldiers · morale {Math.round(u.morale ?? 100)} · fielded {fieldedStrength(u)}</div>
                 </div>
                 <span className={`w-4 h-4 rounded border border-wl-line flex items-center justify-center text-[10px] ${on ? 'bg-wl-accent text-wl-accent-ink' : 'bg-wl-panel'}`}>{on ? '✓' : ''}</span>

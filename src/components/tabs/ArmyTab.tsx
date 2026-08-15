@@ -1,6 +1,7 @@
 import Card from '../common/Card'
 import BarracksTab from './BarracksTab'
 import UnitsTab from './UnitsTab'
+import LegionsTab from './LegionsTab'
 import CampaignTab from './CampaignTab'
 import type { GameStateShape } from '../../state/useGameState'
 import barracksScene from '../../assets/barracks_scene.png'
@@ -14,13 +15,14 @@ import armyCampScene from '../../assets/army_camp_scene.png'
 // One tab, five sections, sub-navigation always on screen. The art stays — as a banner
 // that follows the section, not as the door you have to find.
 
-export type ArmySection = 'RECRUIT' | 'TRAIN' | 'FORM' | 'INSPECT' | 'CAMPAIGN'
+export type ArmySection = 'RECRUIT' | 'TRAIN' | 'FORM' | 'INSPECT' | 'LEGIONS' | 'CAMPAIGN'
 
 const SECTIONS: { id: ArmySection; label: string; icon: string; hint: string }[] = [
   { id: 'RECRUIT', label: 'Recruit', icon: '📜', hint: 'Take on untyped recruits' },
   { id: 'TRAIN', label: 'Train', icon: '⚔️', hint: 'Turn recruits into soldiers' },
   { id: 'FORM', label: 'Form', icon: '⛺', hint: 'Assemble soldiers into units' },
   { id: 'INSPECT', label: 'Inspect', icon: '🛡️', hint: 'Your standing army' },
+  { id: 'LEGIONS', label: 'Legions', icon: '🚩', hint: 'Formations that outlive their cohorts' },
   { id: 'CAMPAIGN', label: 'Campaign', icon: '🗺️', hint: 'March out and fight' },
 ]
 
@@ -29,6 +31,7 @@ const BANNER: Record<ArmySection, string | null> = {
   TRAIN: barracksScene,
   FORM: armyCampScene,
   INSPECT: armyCampScene,
+  LEGIONS: armyCampScene,
   CAMPAIGN: null, // the battle grid wants the width more than the art does
 }
 
@@ -102,6 +105,9 @@ export default function ArmyTab({
         </div>
         <div className={section === 'INSPECT' ? 'wl-fade' : 'hidden'}>
           <UnitsTab state={state} view="INSPECTION" />
+        </div>
+        <div className={section === 'LEGIONS' ? 'wl-fade' : 'hidden'}>
+          <LegionsTab state={state} />
         </div>
         <div className={section === 'CAMPAIGN' ? 'wl-fade' : 'hidden'}>
           <CampaignTab state={state} />

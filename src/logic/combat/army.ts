@@ -8,6 +8,7 @@ import type { Unit, UnitBucket, Rank, Weapon } from '../types'
 import { Ranks, RankNumber } from '../types'
 import { computeEquipped, computeUnitAvgXP, promoteBuckets, type Promotion } from '../units'
 import { Registry } from '../registry'
+import { unitName } from '../names'
 import type { BattleState, Combatant, Side } from './types'
 import { COMBAT_XP_K, XP_CAP } from './stats'
 
@@ -161,7 +162,7 @@ export function applyBattleResult(units: Unit[], finalState: BattleState, deploy
       destroyed++
       if (c) totalKills += c.kills
       report.push({
-        unitId: u.id, name: prettyName(u.type), type: u.type,
+        unitId: u.id, name: unitName(u.type), type: u.type,
         fielded: before, lost: before, survivors: 0, xpGain: 0, destroyed: true, promotions: [],
       })
       continue
@@ -172,14 +173,14 @@ export function applyBattleResult(units: Unit[], finalState: BattleState, deploy
     if (res.unit) {
       out.push(res.unit)
       report.push({
-        unitId: u.id, name: prettyName(u.type), type: u.type,
+        unitId: u.id, name: unitName(u.type), type: u.type,
         fielded: c.hpStart, lost: Math.max(0, c.hpStart - c.hp), survivors: c.hp,
         xpGain: res.xpGain, destroyed: false, promotions: res.promotions,
       })
     } else {
       destroyed++
       report.push({
-        unitId: u.id, name: prettyName(u.type), type: u.type,
+        unitId: u.id, name: unitName(u.type), type: u.type,
         fielded: c.hpStart, lost: c.hpStart, survivors: 0, xpGain: 0, destroyed: true, promotions: [],
       })
     }

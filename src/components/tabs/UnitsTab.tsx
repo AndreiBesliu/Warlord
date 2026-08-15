@@ -5,6 +5,7 @@ import type { GameStateShape } from '../../state/useGameState'
 import CreateUnitForm from '../barracks/CreateUnitForm'
 import { RankNumber, type Unit } from '../../logic/types'
 import { unitName, rankName } from '../../logic/names'
+import { cohortLabel, legionOfUnit } from '../../logic/legion'
 import { PROMOTE_AT, nextRank } from '../../logic/units'
 
 
@@ -93,6 +94,18 @@ export default function UnitsTab({ state, view }: { state: GameStateShape; view:
                   <div className={`w-3 h-3 rounded-full ${isTraining ? 'bg-wl-warn animate-pulse' : 'bg-wl-good'}`} title={isTraining ? 'In training' : 'Ready'} />
                   <h3 className="font-serif font-bold text-lg text-wl-ink">{unitName(u.type)}</h3>
                   <span className="text-sm text-wl-muted">{size} strong</span>
+                  {(() => {
+                    // A unit's identity is its place in its legion. Unattached is a real
+                    // state and says so, rather than showing nothing.
+                    const l = legionOfUnit(state.legions, u.id)
+                    return l ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full border border-wl-accent-line bg-wl-accent-surface text-wl-ink">
+                        {cohortLabel(l, units, u.id)} · {l.name}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-wl-muted">Unattached</span>
+                    )
+                  })()}
                   <span className="ml-auto text-xs text-wl-subtle font-mono">{u.id}</span>
                 </div>
 

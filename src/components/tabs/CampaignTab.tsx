@@ -175,6 +175,7 @@ export default function CampaignTab({ state }: { state: GameStateShape }) {
       {mode === 'DEPLOY' && pendingDifficulty && (
         <DeployPanel
           units={state.units}
+          legions={state.legions}
           difficulty={pendingDifficulty}
           preset={state.MISSION_PRESETS[pendingDifficulty]}
           clears={campaign.clears?.[pendingDifficulty] ?? 0}
