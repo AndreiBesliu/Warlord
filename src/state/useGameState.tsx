@@ -36,6 +36,7 @@ import {
 } from '../logic/legion'
 import { adoptBlocker, legionEffectsByUnit, outOfKeeping, traditionById } from '../logic/tradition'
 import { inspectSave, stampSave } from '../logic/saveSchema'
+import { creditBattle, legionLevel, noCreditReason, sharesFromBattle } from '../logic/practice'
 import { resolveCatalog, techById, prereqsMet, missingBuildings, hasResearchBuilding, type TechId } from '../logic/research/catalog'
 import { aggregate, availableTechs, onBattleWon, onBattleLost, onResearchCompleted, tickBuffs, resolveBuffs } from '../logic/research/momentum'
 import { BRANCHES, addStudy, spendStudy, studyCostOf } from '../logic/research/study'
@@ -983,10 +984,18 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     const ratioMult = escalationMult(camp.campaign.clears?.[difficulty] ?? 0)
     const rewardMult = streakLootMult(camp.campaign.streak ?? 0) * mods.lootMult
     const created = createBattle(chosen, difficulty, seed, { ratioMult, rewardMult })
+    // Who marched under which banner, taken at the door — see `CampaignState.marchedLegions`.
+    // Only legions that actually put a cohort in the line are recorded; the rest were not
+    // at this battle in any sense.
+    const deployed = new Set(created.deployedIds)
+    const marchedLegions = leg.legions
+      .map(l => ({ id: l.id, unitIds: l.unitIds.filter(id => deployed.has(id)) }))
+      .filter(m => m.unitIds.length > 0)
     camp.setCampaign(c => ({
       ...c,
       battle: created.state,
       deployedIds: created.deployedIds,
+      marchedLegions,
       reward: created.reward,
       lastResult: null,
       lastBattleDay: day,
@@ -1052,18 +1061,44 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
         ).map(l => `${l.name} held to ${traditionById(l.tradition)?.name}`))]
       for (const line of held) addLog(`🚩 ${line}.`)
     }
-    // A legion is decorated when its cohorts come home. `deployedIds` is the wrong list to
-    // ask — it still names the units that were wiped out, and those are gone from
-    // `outcome.units` entirely, so an honour written against them is written to a corpse.
-    // The survivor predicate is the one three lines up, deliberately not a second copy.
-    if (won) {
-      const label = presets[b.difficulty].name
-      // Cohorts fell in this battle, so the same write tidies the rolls.
-      leg.setLegions(ls => awardVictoryHonours(
-        ls.map(l => pruneMembership(l, outcome.units)),
-        [...survived],
-        { key: `WIN:${b.difficulty}`, label: `Victor of ${label}`, day },
-      ))
+    // ── The record, and the decoration ──────────────────────────────────────────────
+    // ONE write. Deeds are credited whether the day went well or badly — a defeat is part
+    // of a legion's history — while honours are only for coming home a winner. The same
+    // pass tidies the rolls, because cohorts fell here.
+    //
+    // `deployedIds` is the wrong list for honours: it still names the units that were
+    // wiped out, and those are gone from `outcome.units` entirely, so an honour written
+    // against them is written to a corpse. The survivor predicate is the one above,
+    // deliberately not a second copy.
+    const { shares, totalFielded } = sharesFromBattle(b, outcome.report, c.marchedLegions ?? [])
+    const shareOf = new Map(shares.map(s => [s.legionId, s]))
+    const bctx = { won, difficulty: b.difficulty, totalFielded }
+    const label = presets[b.difficulty].name
+    leg.setLegions(ls => {
+      const credited = ls.map(l => {
+        const tidied = pruneMembership(l, outcome.units)
+        const s = shareOf.get(l.id)
+        return s ? { ...tidied, practice: creditBattle(tidied.practice ?? {}, s, bctx) } : tidied
+      })
+      return won
+        ? awardVictoryHonours(credited, [...survived], { key: `WIN:${b.difficulty}`, label: `Victor of ${label}`, day })
+        : credited
+    })
+
+    // Said where it happens. A legion that grew is the most interesting thing about the
+    // battle, and computing it out here (rather than inside the updater) keeps the rule
+    // that setState callbacks never call other setState.
+    for (const l of leg.legions) {
+      const s = shareOf.get(l.id)
+      if (!s) continue
+      const before = l.practice ?? {}
+      const why = noCreditReason(s, bctx)
+      if (why) { addLog(`🚩 ${l.name} earns nothing from ${label}: ${why}.`); continue }
+      const after = creditBattle(before, s, bctx)
+      const up = legionLevel(after) - legionLevel(before)
+      if (up > 0) addLog(`🚩 ${l.name} is now Level ${legionLevel(after)}.`)
+      if (after.flawless !== before.flawless) addLog(`🚩 ${l.name} came back from ${label} without a loss.`)
+      else if (after.heldTheLine !== before.heldTheLine) addLog(`🚩 ${l.name} held the line at ${label} and paid for it.`)
     }
     camp.setCampaign(prev => ({
       ...prev,
@@ -1095,6 +1130,23 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     unit.setUnits(outcome.units)
     addLog(`⚑ Retreated from ${presets[b.difficulty].name}. Lost ${outcome.totalLosses} soldiers.`)
     rsc.setResearch(r => ({ ...r, buffs: onBattleLost(r.buffs, buffTable) }))
+    // A retreat is RECORDED and nothing more. This path resolves a battle on which no
+    // command need ever have been issued — zero damage dealt, zero taken — so anything
+    // renown-bearing here would be a level for two clicks a day. It also finally prunes,
+    // which this function has never done: cohorts can die before a retreat too.
+    {
+      const marched = new Set((camp.campaign.marchedLegions ?? []).map(m => m.id))
+      const noShare = { legionId: '', fielded: 0, lost: 0, kills: 0, promotions: 0, killsMounted: 0, killsArcher: 0, killsHeavyFoot: 0 }
+      leg.setLegions(ls => ls.map(l => {
+        const tidied = pruneMembership(l, outcome.units)
+        if (!marched.has(l.id)) return tidied
+        return {
+          ...tidied,
+          practice: creditBattle(tidied.practice ?? {}, { ...noShare, legionId: l.id },
+            { won: false, difficulty: b.difficulty, totalFielded: 0, retreated: true }),
+        }
+      }))
+    }
     camp.setCampaign(prev => ({
       ...prev,
       battle: null,

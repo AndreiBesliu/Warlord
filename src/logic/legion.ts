@@ -14,6 +14,9 @@
 
 import type { Unit } from './types'
 import { joinBan, traditionById } from './tradition'
+// Type-only: `practice.ts` imports `tradition.ts` for the class vocabulary, and this is a
+// type import, so nothing is created at runtime and there is no cycle.
+import type { DeedLedger } from './practice'
 
 export interface Honour {
   /** Dedupe key — the same feat twice is one honour with a count, not two lines. */
@@ -34,6 +37,8 @@ export interface Legion {
   tradition?: string | null
   /** The day of the oath. Part of the record, like `foundedDay`. */
   traditionDay?: number
+  /** What this legion has actually done. Sparse; absent key = 0. See `practice.ts`. */
+  practice?: DeedLedger
 }
 
 /**
@@ -199,7 +204,10 @@ export function pruneMembership(legion: Legion, units: Unit[]): Legion {
 // read back by `hydrateLegions` must have the SAME shape — otherwise which door it came
 // through changes what it is, and that difference surfaces somewhere far away.
 export function emptyLegion(name: string, foundedDay: number): Legion {
-  return { id: newLegionId(), name, foundedDay, unitIds: [], honours: [], tradition: null, traditionDay: 0 }
+  return {
+    id: newLegionId(), name, foundedDay, unitIds: [], honours: [],
+    tradition: null, traditionDay: 0, practice: {},
+  }
 }
 
 /**

@@ -106,6 +106,22 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-16 - Task Completed (felia 1: ce a FĂCUT o legiune, și nivelul care iese din asta)**
+> Prompt: „continua cu felia 1"
+> Model: Claude Opus 5
+> - **Două registre ținute separat, și asta e toată ideea.** **Renumele** (ce cumpără nivel) vine DOAR din ce nu se poate obține gratis: victorii, întoarceri nesângerate, poziții ținute cu preț, misiuni grele. **Palmaresul** (bătălii, înfrângeri, retrageri, uciși pe clase, promovări) se ține minte și va fi dovada pe care o cere un nod de tradiție, dar **nu dă nivel**. Fără separarea asta, „nivel" ar fi doar alt cuvânt pentru „timp petrecut".
+> - **Nivelul e DERIVAT, niciodată stocat.** Ce nu se scrie nu se poate scrie greșit, nu cere migrare, și nicio editare de save nu-l umflă fără să umfle un registru pe care hidratarea îl plafonează oricum.
+> - **Cele trei ferme, închise și verificate PE VIU, nu doar în teste:**
+>   1. **Cohorta simbolică.** 5 oameni lângă o oaste de 400: legiunea „The Mascots" a primit **exact nimic**, cu motivul în log — „held 1% of the line — a legion is credited from 25%". Fără regula asta, ea lua aceeași victorie ca cele 8 cohorte care au sângerat, **și** lua „fără pierderi" fiindcă nimeni n-a ajuns la ea.
+>   2. **Retragerea.** `abandonBattle` rezolvă o bătălie în care nu s-a dat nicio comandă — zero pierderi, zero cost. Pornit și retras imediat: singura schimbare a fost `retreats: 1`, **renumele a rămas 8 → 8** și `battles` neatins. Două clicuri pe zi nu mai cumpără un nivel.
+>   3. **Plafonul per bătălie.** Un măcel a dat `slain: 200`, plafonat — un masacru nu e o specializare.
+> - **Creditul merge la legiunea care A MĂRȘĂLUIT**, dintr-un instantaneu luat la desfășurare (`campaign.marchedLegions`). Ambele taburi sunt montate simultan, deci fără el un jucător care vede măcelul venind își putea rearanja cohortele înainte să culeagă rezultatul și muta creditul pe o legiune care n-a fost acolo. **Efectele** rămân rezolvate live (fereastra e o bătălie, efectul e trecător); **palmaresul e permanent, deci ia instantaneul.**
+> - `abandonBattle` rulează în sfârșit și `pruneMembership` — n-a scris niciodată nimic în legiuni, deși și înaintea unei retrageri pot muri cohorte.
+> - Uciderile se numără **pe clasa a ceea ce a fost ucis** (călăreți / arcași / infanterie grea), dintr-o singură trecere prin log-ul bătăliei. Un arcaș călare intră la ambele, fiindcă e ambele. Asta e materia primă pentru „ai voie la Spărgători de cai când ai spart cai".
+> - `SAVE_SCHEMA` 1 → **2** (`Legion.practice`, `CampaignState.marchedLegions`) — exact regula scrisă ieri, aplicată prima dată.
+> - Reparat pe drum: „1 battles" era o mașină vorbind. `DEED_LABEL` are acum ambele forme.
+> - Contrast: cel mai prost 4,51:1 (dark) / 4,67:1 (light), fără overflow la 375px. **376 teste verzi** (35 noi).
+
 **2026-08-16 - Task Completed (felia 0: save-ul nu mai poate fi mâncat de un tab vechi)**
 > Prompt: „traditiile nu inlocuiesc nivelul, ele sunt un tree de atribute ... vreau sa fie ceva ce userii creeaza" (constatare ieșită din analiza adversarială a redesign-ului; verificată de mine la sursă înainte s-o cred)
 > Model: Claude Opus 5

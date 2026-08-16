@@ -91,6 +91,18 @@ export interface TraditionRules {
   adoptCostCopper: number
 }
 
+export interface LegionDeedsConfig {
+  /** Percent of the men in the line a legion must supply before the battle counts for it. */
+  minSharePct: number
+  /** Losses, as a percent of what it fielded, above which a victory counts as ground out. */
+  heldTheLinePct: number
+  /** Most kills one battle may add to a counter. One slaughter is not a specialisation. */
+  killsPerBattleCap: number
+  levelBase: number
+  levelCurve: number
+  maxLevel: number
+}
+
 export interface MissionOverride {
   ratio?: number
   rewardCopperPerStrength?: number
@@ -124,6 +136,8 @@ export interface GameConfigOverrides {
   intensity?: Record<string, Partial<IntensityConfig>>
   /** How hard it is for a legion to swear to a tradition at all. */
   traditionRules?: Partial<TraditionRules>
+  /** What a legion has to do to earn its level, and what stops that being farmed. */
+  legionDeeds?: Partial<LegionDeedsConfig>
   /** Per-tradition knobs, keyed by tradition id ('SHIELDWALL', 'IRON_VOW', …). */
   traditions?: Record<string, Partial<TraditionNumbers>>
   missions?: Record<string, MissionOverride>
@@ -212,6 +226,23 @@ export const DEFAULT_TRADITION_RULES: TraditionRules = { minHonours: 3, adoptCos
 // battle would simply never lose its nerve — and morale gates `computeReady`, so that would
 // quietly delete a whole pressure from the game. The ceiling keeps it something you spend.
 export const TRADITION_MORALE_CAP = 40
+
+// A quarter of the line: four legions can share a battle and all be credited, five cannot.
+// Low enough that real joint deployments work, high enough that a token cohort parked in
+// the back rank collects nothing.
+//
+// The level curve, against a typical win worth 3 renown and an exceptional one worth 12
+// (victory + hard-won + without-a-loss), and ONE battle per game-day: level 2 arrives in
+// a couple of good days, level 5 around fifteen battles, level 10 around fifty. The pace
+// is the calendar, which is the hardest currency this game has.
+export const DEFAULT_LEGION_DEEDS: LegionDeedsConfig = {
+  minSharePct: 25,
+  heldTheLinePct: 40,
+  killsPerBattleCap: 200,
+  levelBase: 10,
+  levelCurve: 1.6,
+  maxLevel: 10,
+}
 
 export const DEFAULT_STUDY: StudyConfig = {
   baselinePerDay: 100,
@@ -348,6 +379,22 @@ class GameConfigStore {
       xpGranted: num(o.xpGranted, base.xpGranted),
       // Above 99 a batch could finish with nobody in it.
       washoutPct: Math.min(99, num(o.washoutPct, base.washoutPct)),
+    }
+  }
+
+  legionDeeds(): LegionDeedsConfig {
+    const d = this.o.legionDeeds ?? {}
+    const base = DEFAULT_LEGION_DEEDS
+    return {
+      // A share threshold of 0 would re-open token deployment, which is the one thing this
+      // number exists to close; above 100 nothing could ever be credited.
+      minSharePct: Math.min(100, Math.max(1, num(d.minSharePct, base.minSharePct, 1))),
+      heldTheLinePct: Math.min(100, Math.max(1, num(d.heldTheLinePct, base.heldTheLinePct, 1))),
+      killsPerBattleCap: Math.max(1, num(d.killsPerBattleCap, base.killsPerBattleCap, 1)),
+      // A base or curve of 0 would hand out the maximum level for one battle.
+      levelBase: Math.max(1, num(d.levelBase, base.levelBase, 1)),
+      levelCurve: Math.max(1, num(d.levelCurve, base.levelCurve, 1)),
+      maxLevel: Math.min(50, Math.max(1, Math.round(num(d.maxLevel, base.maxLevel, 1)))),
     }
   }
 

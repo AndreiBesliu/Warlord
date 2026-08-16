@@ -7,12 +7,23 @@ import {
   TRADITIONS, adoptBlocker, describeTradition, outOfKeeping, traditionById, victoryCount,
 } from '../../logic/tradition'
 import { GameConfig } from '../../logic/config'
+import { deedLabel, legionLevel, nextLevelAt, type DeedKey, type DeedLedger } from '../../logic/practice'
 import { unitName } from '../../logic/names'
 import { fmtCopper } from '../../logic/types'
 import { armyStrength } from '../../logic/combat/army'
 
 // A legion is a FORMATION that holds units. It is what carries the name, the record, and
 // (later) the traditions — the cohorts inside it come and go, the legion does not.
+
+// The record, written the way a herald would read it: only what happened, in a fixed order
+// so a legion's line does not reshuffle between battles.
+const DEED_ORDER: DeedKey[] = [
+  'battles', 'victories', 'defeats', 'flawless', 'heldTheLine', 'hardWon',
+  'slain', 'slainMounted', 'slainArcher', 'slainHeavyFoot', 'promotions', 'retreats',
+]
+function deedLines(d: DeedLedger): string[] {
+  return DEED_ORDER.filter((k) => (d[k] ?? 0) > 0).map((k) => `${d[k]} ${deedLabel(k, d[k] as number)}`)
+}
 
 export default function LegionsTab({ state }: { state: GameStateShape }) {
   const {
@@ -89,6 +100,26 @@ export default function LegionsTab({ state }: { state: GameStateShape }) {
                   {cohorts.length} / {LEGION_MAX_UNITS} cohorts · fields {strength}
                 </span>
                 <span className="ml-auto text-xs text-wl-subtle">Raised day {l.foundedDay}</span>
+              </div>
+
+              {/* Level and record. A legion that has done nothing says so plainly rather
+                  than showing an empty row — "no record yet" is information. */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="px-2 py-0.5 rounded bg-wl-panel-muted text-wl-ink font-mono text-sm font-bold">
+                  Level {legionLevel(l.practice ?? {})}
+                </span>
+                {nextLevelAt(l.practice ?? {}) ? (
+                  <span className="text-[11px] text-wl-muted">
+                    {nextLevelAt(l.practice ?? {})!.need} renown to Level {nextLevelAt(l.practice ?? {})!.level}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-wl-muted">at the height of its renown</span>
+                )}
+                {deedLines(l.practice ?? {}).length > 0 ? (
+                  <span className="text-[11px] text-wl-muted">· {deedLines(l.practice ?? {}).join(' · ')}</span>
+                ) : (
+                  <span className="text-[11px] text-wl-subtle">· no record yet — it has not taken the field</span>
+                )}
               </div>
 
               {l.honours.length > 0 && (

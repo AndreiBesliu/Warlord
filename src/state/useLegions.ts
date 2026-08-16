@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { LEGION_MAX_HONOURS, LEGION_MAX_UNITS, type Honour, type Legion } from '../logic/legion'
 import { traditionById } from '../logic/tradition'
+import { hydrateLedger } from '../logic/practice'
 
 /** The formations themselves. One field would have been a wrapper for nothing. */
 export type LegionsState = Legion[]
@@ -48,6 +49,9 @@ function hydrateLegion(saved: unknown): Legion | null {
     // tradition whose rules nothing can look up. `traditionById` returns null for both.
     tradition: traditionById(str(l.tradition))?.id ?? null,
     traditionDay: Math.round(num(l.traditionDay)),
+    // The key list inside `hydrateLedger` IS the whitelist — an unknown counter is dropped
+    // rather than carried, so a hand-edited save cannot invent a proof.
+    practice: hydrateLedger(l.practice),
   }
 }
 

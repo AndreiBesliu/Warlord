@@ -35,8 +35,9 @@
  * top-level key, or a new field inside any slice's hydrate.
  *
  * 1 = everything up to and including legion traditions.
+ * 2 = `Legion.practice` (the deed ledger) and `CampaignState.marchedLegions`.
  */
-export const SAVE_SCHEMA = 1
+export const SAVE_SCHEMA = 2
 
 /**
  * The top-level keys this build writes. Anything in a loaded save that is NOT here is

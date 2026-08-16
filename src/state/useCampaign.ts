@@ -20,6 +20,16 @@ export interface LastBattleResult {
 export interface CampaignState {
   battle: BattleState | null
   deployedIds: string[]
+  /**
+   * Who marched under which banner, frozen when the host took the field.
+   *
+   * Not derivable afterwards: legion membership is resolved at read time, both tabs are
+   * mounted at once, and a player watching a battle go badly can reassign cohorts before
+   * collecting the result — moving the credit to a legion that was never there. Effects
+   * stay resolved live (one battle, transient); the RECORD is permanent, so it is taken
+   * at the door.
+   */
+  marchedLegions?: { id: string; unitIds: string[] }[]
   reward: CampaignReward | null
   record: { wins: number; losses: number }
   lastResult: LastBattleResult | null
@@ -33,6 +43,7 @@ export function emptyCampaign(): CampaignState {
   return {
     battle: null,
     deployedIds: [],
+    marchedLegions: [],
     reward: null,
     record: { wins: 0, losses: 0 },
     lastResult: null,
