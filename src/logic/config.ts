@@ -74,6 +74,23 @@ export interface RecruitSourceConfig {
   startingXp: number
 }
 
+/** The two numbers a tradition is worth. Declared HERE, not in `tradition.ts`, so the
+ *  config store never has to import the catalog — `tradition.ts` already imports this file
+ *  for the getters, and a value import back the other way would close a cycle. */
+export interface TraditionNumbers {
+  /** Morale handed to the legion's surviving cohorts after a battle. */
+  moraleBonus: number
+  /** Multiplies battle XP, under the absolute `XP_CAP` which no tradition can lift. */
+  xpMult: number
+}
+
+export interface TraditionRules {
+  /** Victories a legion must have to its name before it may swear at all. */
+  minHonours: number
+  /** Copper the oath costs — arms, banners, and the feast that goes with them. */
+  adoptCostCopper: number
+}
+
 export interface MissionOverride {
   ratio?: number
   rewardCopperPerStrength?: number
@@ -105,6 +122,10 @@ export interface GameConfigOverrides {
   barracks?: Partial<BarracksConfig>
   /** Per-intensity training knobs, keyed by 'RUSHED' | 'STANDARD' | 'DRILLED'. */
   intensity?: Record<string, Partial<IntensityConfig>>
+  /** How hard it is for a legion to swear to a tradition at all. */
+  traditionRules?: Partial<TraditionRules>
+  /** Per-tradition knobs, keyed by tradition id ('SHIELDWALL', 'IRON_VOW', …). */
+  traditions?: Record<string, Partial<TraditionNumbers>>
   missions?: Record<string, MissionOverride>
   catalog?: CatalogOverrides
   buffs?: Record<string, Partial<Omit<BuffDef, 'id'>>>
@@ -177,6 +198,20 @@ export const DEFAULT_RECRUIT_SOURCES: Record<string, RecruitSourceConfig> = {
   VOLUNTEERS: { costMult: 2, startingXp: 40 },
   MERCENARIES: { costMult: 4, startingXp: 90 },
 }
+
+// Three victories is a legion that has done something, not a legion that exists.
+//
+// 25,000c is a quarter of the opening purse and 250 recruits — but the copper is ceremony,
+// not the gate. The real price of a tradition is the CONSTRAINT: a legion sworn to the
+// Shieldwall can never field a horseman again, for the rest of the game. Any coin figure
+// that tried to be the whole cost would either be trivial by mid-game or lock the feature
+// away from a player who has fought three battles and earned the right to it.
+export const DEFAULT_TRADITION_RULES: TraditionRules = { minHonours: 3, adoptCostCopper: 25000 }
+
+// Morale is clamped to 100 wherever it lands, but a legion that gained enough after every
+// battle would simply never lose its nerve — and morale gates `computeReady`, so that would
+// quietly delete a whole pressure from the game. The ceiling keeps it something you spend.
+export const TRADITION_MORALE_CAP = 40
 
 export const DEFAULT_STUDY: StudyConfig = {
   baselinePerDay: 100,
@@ -313,6 +348,25 @@ class GameConfigStore {
       xpGranted: num(o.xpGranted, base.xpGranted),
       // Above 99 a batch could finish with nobody in it.
       washoutPct: Math.min(99, num(o.washoutPct, base.washoutPct)),
+    }
+  }
+
+  traditionRules(): TraditionRules {
+    const t = this.o.traditionRules ?? {}
+    return {
+      minHonours: Math.round(num(t.minHonours, DEFAULT_TRADITION_RULES.minHonours)),
+      adoptCostCopper: num(t.adoptCostCopper, DEFAULT_TRADITION_RULES.adoptCostCopper),
+    }
+  }
+
+  /** `base` is the catalog entry's own numbers — passed in so this file never imports the catalog. */
+  tradition(id: string, base: TraditionNumbers): TraditionNumbers {
+    const o = this.o.traditions?.[id] ?? {}
+    return {
+      moraleBonus: Math.min(TRADITION_MORALE_CAP, num(o.moraleBonus, base.moraleBonus)),
+      // `XP_CAP` is the real bound on this and no admin value can lift it — battle XP is
+      // capped AFTER the multiplier, on purpose. This clamp only keeps out NaN and nonsense.
+      xpMult: Math.min(3, num(o.xpMult, base.xpMult)),
     }
   }
 

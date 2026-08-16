@@ -13,6 +13,7 @@
 // places to forget; resolving on read makes a dead id harmless by construction.
 
 import type { Unit } from './types'
+import { joinBan, traditionById } from './tradition'
 
 export interface Honour {
   /** Dedupe key — the same feat twice is one honour with a count, not two lines. */
@@ -29,6 +30,10 @@ export interface Legion {
   foundedDay: number
   unitIds: string[]
   honours: Honour[]
+  /** The tradition it swore to, if any. Set once and never cleared — see `adoptBlocker`. */
+  tradition?: string | null
+  /** The day of the oath. Part of the record, like `foundedDay`. */
+  traditionDay?: number
 }
 
 /**
@@ -142,14 +147,26 @@ export function cohortLabel(legion: Legion, units: Unit[], unitId: string): stri
   return i < 0 ? '' : `Cohort ${roman(i + 1)}`
 }
 
-/** Why this unit cannot join, said in the words the player needs. `null` = it can. */
+/**
+ * Why this unit cannot join, said in the words the player needs. `null` = it can.
+ *
+ * The single choke point every assignment goes through, which is why the tradition's bans
+ * are enforced HERE rather than at each button: a ban checked in the UI is a ban with as
+ * many holes as there are call sites.
+ */
 export function joinBlocker(legion: Legion, unitId: string, units: Unit[], legions: Legion[]): string | null {
   if (legion.unitIds.includes(unitId)) return 'Already in this legion'
-  if (unitsOfLegion(legion, units).length >= LEGION_MAX_UNITS) {
+  const cohorts = unitsOfLegion(legion, units)
+  if (cohorts.length >= LEGION_MAX_UNITS) {
     return `${legion.name} is at full strength — ${LEGION_MAX_UNITS} cohorts is as many as can take the field together`
   }
   const other = legionOfUnit(legions, unitId)
   if (other && other.id !== legion.id) return `Already serving with ${other.name}`
+  const joiner = units.find((u) => u.id === unitId)
+  if (joiner) {
+    const ban = joinBan(traditionById(legion.tradition), joiner.type, cohorts.length)
+    if (ban) return ban
+  }
   return null
 }
 
@@ -178,8 +195,11 @@ export function pruneMembership(legion: Legion, units: Unit[]): Legion {
   return kept.length === legion.unitIds.length ? legion : { ...legion, unitIds: kept }
 }
 
+// Every field spelled out, including the ones that are empty. A legion built here and one
+// read back by `hydrateLegions` must have the SAME shape — otherwise which door it came
+// through changes what it is, and that difference surfaces somewhere far away.
 export function emptyLegion(name: string, foundedDay: number): Legion {
-  return { id: newLegionId(), name, foundedDay, unitIds: [], honours: [] }
+  return { id: newLegionId(), name, foundedDay, unitIds: [], honours: [], tradition: null, traditionDay: 0 }
 }
 
 /**

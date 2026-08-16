@@ -82,7 +82,7 @@ function applyKillsLowestRankFirst(buckets: UnitBucket[], killCount: number): Un
 }
 
 function applyCasualtiesToUnit(
-  u: Unit, c: Combatant, won: boolean,
+  u: Unit, c: Combatant, won: boolean, xpMult = 1,
 ): { unit: Unit | null; xpGain: number; promotions: Promotion[] } {
   const survivors = c.hp
   if (survivors <= 0) return { unit: null, xpGain: 0, promotions: [] }
@@ -92,7 +92,11 @@ function applyCasualtiesToUnit(
   if (kept.length === 0) return { unit: null, xpGain: 0, promotions: [] }
 
   const survCount = kept.reduce((a, b) => a + b.count, 0)
-  let xpGain = Math.min(XP_CAP, Math.round((COMBAT_XP_K * c.kills) / Math.max(1, survCount)))
+  // `xpMult` (a legion tradition) multiplies the raw earning and is then cut by XP_CAP —
+  // in that order, deliberately. The cap exists so that one battle can never manufacture
+  // veterans, and a multiplier applied AFTER it would be exactly the battle that does. So
+  // a tradition helps in an ordinary fight and does nothing at all in a massacre.
+  let xpGain = Math.min(XP_CAP, Math.round((COMBAT_XP_K * c.kills * xpMult) / Math.max(1, survCount)))
   if (!won) xpGain = Math.round(xpGain * 0.4)
   if (xpGain > 0) for (const b of kept) b.avgXP += xpGain
 
@@ -136,7 +140,17 @@ export interface BattleOutcome {
 // undeployed units pass through unchanged. Destroyed units are removed.
 // `side` = which battle side belongs to THIS army (PvE is always 'PLAYER'; in PvP the
 // defender applies its own casualties from the 'ENEMY' perspective).
-export function applyBattleResult(units: Unit[], finalState: BattleState, deployedUnitIds: string[], side: Side = 'PLAYER'): BattleOutcome {
+// `xpMultFor` lets a caller raise a unit's battle XP — today the legion tradition it serves
+// in. It lands HERE rather than in the caller afterwards because XP granted after this
+// function has already run would skip `promoteBuckets`, leaving men sitting above their own
+// promotion threshold un-promoted until some later battle happened to notice.
+export function applyBattleResult(
+  units: Unit[],
+  finalState: BattleState,
+  deployedUnitIds: string[],
+  side: Side = 'PLAYER',
+  xpMultFor?: (unitId: string) => number,
+): BattleOutcome {
   const won = finalState.winner === side
   const deployed = new Set(deployedUnitIds)
   const bySrc = new Map<string, Combatant>()
@@ -169,7 +183,7 @@ export function applyBattleResult(units: Unit[], finalState: BattleState, deploy
     }
     totalKills += c.kills
     totalLosses += Math.max(0, c.hpStart - c.hp)
-    const res = applyCasualtiesToUnit(u, c, won)
+    const res = applyCasualtiesToUnit(u, c, won, xpMultFor?.(u.id) ?? 1)
     if (res.unit) {
       out.push(res.unit)
       report.push({

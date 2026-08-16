@@ -106,6 +106,25 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-16 - Task Completed (tradițiile: un bonus care refuză ceva)**
+> Prompt: „continua cu traditiile"
+> Model: Claude Opus 5
+> - **Ideea feliei:** un bonus fără constrângere nu diferențiază nimic — toată lumea îl ia, toate legiunile converg, iar „tradiție" devine alt cuvânt pentru „nivel". Constrângerea e ce face ca două legiuni să NU poată fi aceeași legiune. Patru tradiții, fiecare refuză altceva: **The Shieldwall** (fără călăreți, ≥50% infanterie grea), **The Wind's Own** (numai călăreți, maximum 6 cohorte), **The Long Watch** (fără călăreți, ≥50% arcași), **The Iron Vow** (nici călăreți nici arcași, ≥8 cohorte).
+> - **Constrângerea e de DOUĂ feluri, și tratarea lor la fel ar minți.** Interdicțiile sunt monotone (le încalci doar adăugând) → se verifică la intrare și **refuză**, în `joinBlocker`, unicul punct prin care trece orice atribuire. Cerințele de proporție se pot strica fără să faci nimic — îți moare o cohortă în luptă — deci nu refuză nimic și **nu retrag jurământul**: **suspendă bonusul** până readuci legiunea în formă, cu cifrele reale pe ecran („needs 1 of 1 cohorts to be heavy foot, has 0"). Disciplină, nu confiscare.
+> - **Efectele se evaluează pe armata care A PLECAT**, nu pe cea care s-a întors: o legiune care a pierdut o cohortă ÎN lupta asta a luptat-o în formă, iar evaluarea de după i-ar lua bonusul pentru pierderea pe care tocmai a suferit-o.
+> - **`XP_CAP` rămâne absolut.** Multiplicatorul se aplică peste baza brută și *apoi* se taie la 60 — plafonul există ca o singură bătălie să nu fabrice veterani, iar un multiplicator aplicat DUPĂ el ar fi exact bătălia aia. Consecință asumată: tradiția ajută într-o luptă obișnuită și nu face nimic într-un măcel. Aplicat în `applyBattleResult`, **înainte de `promoteBuckets`** — dat după write-back ar fi lăsat oameni peste pragul lor nepromovați.
+> - **Zero atingeri la motor** și niciun deploy de functions: bonusurile merg pe canale de domeniu (moral, XP), regula pe care `research/effects.ts` o are deja scrisă. PvP-ul nu le vede, **și scrie asta în ecran**, nu doar într-un comentariu.
+> - **DEFECT DIN FELIA 1, găsit pe viu și reparat:** `assignToLegion` valida cu `joinBlocker` citit din snapshot-ul de render. Două atribuiri în același frame citeau amândouă același snapshot, iar a doua băga aceeași unitate în **două legiuni deodată** — desfășurată de două ori, numerotată de două ori. Reprodus în browser (H1 în ambele legiuni), reparat repetând verificarea **înăuntrul updater-ului**, pe lista curentă. O funcție pură nu poate vedea un snapshot învechit, deci testele n-aveau cum. În CLAUDE.md ca tipar.
+> - **Verificat pe viu, bucla întreagă:** jurământ 60 000c → 35 000c (−25 000 exact), badge + crez pe card, cavaleria **refuzată** cu motivul pe buton („The Shieldwall is sworn against horsemen") și acceptată în legiunea nejurată de alături, detașare până sub prag → apare suspendarea, bătălie câștigată → moralul cohortei supraviețuitoare **65 → 78** (+15 din tradiție peste delta bătăliei) în timp ce unitățile nedesfășurate au rămas la 65, log `🚩 The First Host held to The Shieldwall`, onoare ×3 → ×4.
+> - **Balans:** costul jurământului 5 000c → **25 000c** după ce l-am văzut pe ecran lângă o vistierie reală; oricum copper-ul e ceremonie, prețul adevărat e constrângerea permanentă.
+> - **Contrast:** cel mai prost raport pe blocul nou era 3,95:1 în dark pe etichetele Takes/Keeps/Gives — mutate pe `wl-muted` cu majuscule+tracking (tiparul „ASSIGN A COHORT" de dedesubt), acum 6,53:1. Fără overflow la 375px, fără ținte de atins sub 28px.
+> - 328 teste verzi (34 noi în `tradition.test.ts`).
+
+**2026-08-16 - Task Started (tradițiile legiunii — felia 2 din north star)**
+> Prompt: „continua cu traditiile"
+> Model: Claude Opus 5
+> Plan: `~/.claude/plans/woolly-meandering-crane.md`. Tradiția = **bonus ȘI constrângere**, adoptată o dată și permanentă. Constrângerea de două feluri: interdicțiile se refuză la intrare, cerințele de proporție doar **suspendă** bonusul (o cohortă poate muri în luptă — un refuz n-are ce refuza acolo). Bonusul stă pe canalele de domeniu (moral după luptă, XP din luptă), NU pe statistici de luptă — aceeași regulă pe care `research/effects.ts` o are deja scrisă, deci zero atingeri la motor și la copia lui server.
+
 **2026-08-15 - Task Completed (fântâna de XP: veteranii plătesc ce-i învață pe noi)**
 > Prompt: „lasa DataRead, continua cu warlord"
 > Model: Claude Opus 5

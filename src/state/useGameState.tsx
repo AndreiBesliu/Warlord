@@ -34,6 +34,7 @@ import {
   emptyLegion, pruneMembership, sanitizeLegionName, suggestLegionName, joinBlocker,
   unitsOfLegion, awardVictoryHonours,
 } from '../logic/legion'
+import { adoptBlocker, legionEffectsByUnit, outOfKeeping, traditionById } from '../logic/tradition'
 import { resolveCatalog, techById, prereqsMet, missingBuildings, hasResearchBuilding, type TechId } from '../logic/research/catalog'
 import { aggregate, availableTechs, onBattleWon, onBattleLost, onResearchCompleted, tickBuffs, resolveBuffs } from '../logic/research/momentum'
 import { BRANCHES, addStudy, spendStudy, studyCostOf } from '../logic/research/study'
@@ -882,19 +883,49 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     if (!target) return
     const blocked = joinBlocker(target, unitId, unit.units, leg.legions)
     if (blocked) { addLog(`Cannot assign: ${blocked}.`); return }
-    // Prune on the way in. Reads already ignore ids whose units are gone, but the array
-    // itself would keep growing: a legion whose twelve cohorts all fell would accept twelve
-    // more and end up holding twenty-four strings, twelve of them ghosts.
-    leg.setLegions(ls => ls.map(l => {
-      if (l.id !== legionId) return l
-      const tidied = pruneMembership(l, unit.units)
-      return { ...tidied, unitIds: [...tidied.unitIds, unitId] }
-    }))
+    leg.setLegions(ls => {
+      // Checked AGAIN, against the current list rather than the render snapshot the message
+      // above was built from. Two assignments dispatched inside one frame both read the same
+      // stale snapshot, and the second one would happily put a unit into a second legion —
+      // fielded twice, numbered twice, in two places at once. The check above exists to tell
+      // the player why; this one is what actually holds the invariant.
+      const t = ls.find(l => l.id === legionId)
+      if (!t || joinBlocker(t, unitId, unit.units, ls)) return ls
+      // Prune on the way in. Reads already ignore ids whose units are gone, but the array
+      // itself would keep growing: a legion whose twelve cohorts all fell would accept twelve
+      // more and end up holding twenty-four strings, twelve of them ghosts.
+      const tidied = pruneMembership(t, unit.units)
+      return ls.map(l => (l.id === legionId ? { ...tidied, unitIds: [...tidied.unitIds, unitId] } : l))
+    })
   }
 
   function removeFromLegion(legionId: string, unitId: string) {
     leg.setLegions(ls => ls.map(l =>
       l.id === legionId ? { ...l, unitIds: l.unitIds.filter(id => id !== unitId) } : l))
+  }
+
+  /**
+   * Swear a legion to a tradition. Once, and for good — the only way out is dissolving the
+   * legion, which costs it every honour it ever earned. That permanence is the point: a
+   * commitment you can walk away from is a preference, not an identity.
+   */
+  function adoptTradition(legionId: string, traditionId: string) {
+    const target = leg.legions.find(l => l.id === legionId)
+    const def = traditionById(traditionId)
+    if (!target || !def) return
+    const cohorts = unitsOfLegion(target, unit.units)
+    const blocked = adoptBlocker(target, def, cohorts, econ.wallet)
+    if (blocked) { addLog(`Cannot swear: ${blocked}.`); return }
+
+    const cost = GameConfig.traditionRules().adoptCostCopper
+    econ.setWallet(w => w - cost)
+    leg.setLegions(ls => ls.map(l =>
+      l.id === legionId ? { ...l, tradition: def.id, traditionDay: day } : l))
+    addLog(`🚩 ${target.name} swore to ${def.name} for ${fmtCopper(cost)}.`)
+    // Said at the moment of the oath, not discovered three battles later when the bonus
+    // never seemed to arrive.
+    const lapsed = outOfKeeping(def, cohorts)
+    if (lapsed) addLog(`${target.name} is out of keeping with ${def.name}: ${lapsed}.`)
   }
 
   /** Disbanding the FORMATION, not its men: the units survive and become unattached. */
@@ -971,7 +1002,11 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     const c = camp.campaign
     const b = c.battle
     if (!b || b.status === 'ONGOING') return
-    const outcome = applyBattleResult(unit.units, b, c.deployedIds)
+    // Resolved against the army as it MARCHED — see `legionEffectsByUnit`. Both channels
+    // read this one map, so a legion out of keeping is out of keeping for both.
+    const trad = legionEffectsByUnit(leg.legions, unit.units)
+    const outcome = applyBattleResult(unit.units, b, c.deployedIds, 'PLAYER',
+      id => trad.get(id)?.xpMult ?? 1)
     unit.setUnits(outcome.units)
     const won = outcome.won
     if (won && c.reward) grantLoot(c.reward)
@@ -986,24 +1021,30 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     // AND the soldiers still in training for a few days. A defeat costs a little output.
     rsc.setResearch(r => ({ ...r, buffs: won ? onBattleWon(r.buffs, buffTable) : onBattleLost(r.buffs, buffTable) }))
     if (won) addLog('🔥 Momentum: War Spoils (+production) and Martial Fervour (+training XP).')
-    // Field surgeons etc. — research keeps survivors steadier after a fight.
-    if (mods.postBattleMoraleBonus > 0) {
-      unit.setUnits(us => us.map(u => outcome.report.some(r => r.unitId === u.id && !r.destroyed)
-        ? { ...u, morale: Math.max(0, Math.min(100, (u.morale ?? 100) + mods.postBattleMoraleBonus)) }
+    // Steadier survivors: field surgeons and the like from research, plus whatever the
+    // legion's own tradition is worth to its cohorts. One write, not two — they are the
+    // same kind of thing arriving at the same moment.
+    const survived = new Set(outcome.report.filter(r => !r.destroyed).map(r => r.unitId))
+    const moraleFor = (id: string) => mods.postBattleMoraleBonus + (trad.get(id)?.moraleBonus ?? 0)
+    if (outcome.report.some(r => !r.destroyed && moraleFor(r.unitId) > 0)) {
+      unit.setUnits(us => us.map(u => survived.has(u.id)
+        ? { ...u, morale: Math.max(0, Math.min(100, (u.morale ?? 100) + moraleFor(u.id))) }
         : u))
+      const held = [...new Set(leg.legions
+        .filter(l => l.tradition && l.unitIds.some(id => survived.has(id) && (trad.get(id)?.moraleBonus ?? 0) > 0)
+        ).map(l => `${l.name} held to ${traditionById(l.tradition)?.name}`))]
+      for (const line of held) addLog(`🚩 ${line}.`)
     }
     // A legion is decorated when its cohorts come home. `deployedIds` is the wrong list to
     // ask — it still names the units that were wiped out, and those are gone from
     // `outcome.units` entirely, so an honour written against them is written to a corpse.
     // The survivor predicate is the one three lines up, deliberately not a second copy.
     if (won) {
-      const survivors = new Set(outcome.report.filter(r => !r.destroyed).map(r => r.unitId))
       const label = presets[b.difficulty].name
-      // Cohorts fell in this battle, so the same write tidies the rolls.
       // Cohorts fell in this battle, so the same write tidies the rolls.
       leg.setLegions(ls => awardVictoryHonours(
         ls.map(l => pruneMembership(l, outcome.units)),
-        [...survivors],
+        [...survived],
         { key: `WIN:${b.difficulty}`, label: `Victor of ${label}`, day },
       ))
     }
@@ -1118,6 +1159,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     // legions
     legions: leg.legions,
     formLegion,
+    adoptTradition,
     renameLegion,
     assignToLegion,
     removeFromLegion,

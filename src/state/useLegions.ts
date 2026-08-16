@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { LEGION_MAX_HONOURS, LEGION_MAX_UNITS, type Honour, type Legion } from '../logic/legion'
+import { traditionById } from '../logic/tradition'
 
 /** The formations themselves. One field would have been a wrapper for nothing. */
 export type LegionsState = Legion[]
@@ -42,6 +43,11 @@ function hydrateLegion(saved: unknown): Legion | null {
     honours: Array.isArray(l.honours)
       ? l.honours.map(hydrateHonour).filter((h): h is Honour => h !== null).slice(0, LEGION_MAX_HONOURS)
       : [],
+    // Resolved against the catalog, not trusted: a save carrying an id that no longer
+    // exists (a tradition renamed or dropped) must read as "no oath" rather than as a
+    // tradition whose rules nothing can look up. `traditionById` returns null for both.
+    tradition: traditionById(str(l.tradition))?.id ?? null,
+    traditionDay: Math.round(num(l.traditionDay)),
   }
 }
 
