@@ -106,6 +106,19 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-16 - Task Completed (felia 2: îndeletnicirile de pace — a doua fântână)**
+> Prompt: „continua cu felia 2"
+> Model: Claude Opus 5
+> - **Problema e de aritmetică, nu de aromă.** Domeniul are voie la **o luptă pe zi**, deci toate contoarele hrănite de bătălii se trag dintr-o singură fântână: calendarul. Ridici opt legiuni și nu primești progres de opt ori — primești o luptă pe zi, iar jocul optim e să trimiți cele mai tari cohorte, care stau într-o singură legiune. Aia adună tot, iar celelalte șapte se deosebesc doar prin nume.
+> - **Regula care ține felia: BĂTĂLIILE CUMPĂRĂ ADÂNCIME, ÎNDELETNICIRILE CUMPĂRĂ DIRECȚIE.** Zilele de serviciu sunt **palmares, niciodată renume** — o zi se obține AȘTEPTÂND, iar ceasul zilei chiar retro-creditează o absență, deci orice ar putea cumpăra o zi s-ar cumpăra lăsând tabul deschis. O legiune care doar stă de gardă rămâne nivel 1; una care doar luptă are nivelul dar nicio dovadă de caracter. Ai nevoie de amândouă — **ăsta e literal „nivel ȘI exersare" din corectura lui Andrei.**
+> - **Trei îndeletniciri, alese ca trei FORME ECONOMICE, nu trei nume:** garnizoană (ieftină, moralul se reface de două ori mai repede), tabără de instrucție (scumpă, cohortele se antrenează), patrulare (**îți aduce** bani din vamă). O a patra care ar fi fost doar un al patrulea nume ar fi adăugat un contor și nicio decizie.
+> - **Niciun canal nou.** Instrucția refolosește exact calea de XP care există (`u.training || drilling.has(u.id)` — `||`, nu `+`, ca o cohortă deja la antrenament să nu fie plătită de două ori). Garnizoana adaugă la recuperarea de moral **pe aceeași condiție** ca ea: oameni după ziduri care nu sunt plătiți și hrăniți nu se odihnesc mai bine.
+> - **Ocuparea E prețul**, și e verificată în `startBattle`, nu doar în ecran — o regulă care trăiește într-un singur ecran are atâtea găuri câte locuri o cheamă.
+> - **Verificat pe viu, o singură zi, trei legiuni de câte 100:** moral 50 → **60** la garnizoană vs 55 la celelalte · XP 10 → **35** doar la instrucție · contoare 1/1/1 · în log `Duty 3s` (100×1 + 100×4 − 100×2 = 300c). Desfășurarea: **toate cele trei legiuni refuzate**, cu motivul pe buton ȘI pe ecran.
+> - **Gol prins pe drum:** butoanele de legiune erau dezactivate, dar cohortele individuale rămâneau selectabile — `startBattle` refuza corect, dar refuzul apărea abia în Log. Acum sunt dezactivate și ele, cu marcajul „· on duty".
+> - **Capcană de contrast plătită:** `disabled:opacity-60` pe cardul de cohortă compunea textul în jos și ducea „· on duty" — singurul cuvânt care explică refuzul — la **3,09:1** în light. Starea dezactivată o poartă acum suprafața și cursorul; cuvintele își păstrează contrastul. **3,09 → 5,65.**
+> - `SAVE_SCHEMA` 2 → **3** (`Legion.duty`). **392 teste verzi** (16 noi).
+
 **2026-08-16 - Task Completed (felia 1: ce a FĂCUT o legiune, și nivelul care iese din asta)**
 > Prompt: „continua cu felia 1"
 > Model: Claude Opus 5

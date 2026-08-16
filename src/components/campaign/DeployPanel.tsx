@@ -7,6 +7,7 @@ import { escalationMult } from '../../logic/combat/enemies'
 import GameIcon from '../common/GameIcon'
 import { getIconForGameItem } from '../../logic/iconHelpers'
 import { cohortLabel, legionOfUnit, unitsOfLegion, type Legion } from '../../logic/legion'
+import { marchBlocker } from '../../logic/duty'
 
 interface Props {
   units: Unit[]
@@ -45,20 +46,32 @@ export default function DeployPanel({ units, legions, preset, clears, onConfirm,
           <div className="flex flex-wrap gap-2">
             {marchable.map(({ legion, ids }) => {
               const all = ids.every((id) => picked.includes(id))
+              const busy = marchBlocker(legion.duty, legion.name)
               return (
                 <button
                   key={legion.id}
+                  disabled={!!busy}
+                  title={busy ? `${busy} — stand it down in the Legions section first` : undefined}
                   onClick={() => setPicked((p) => all
                     ? p.filter((id) => !ids.includes(id))
                     : [...p, ...ids.filter((id) => !p.includes(id))])}
                   className={`px-3 py-2 min-h-[34px] text-sm rounded border font-serif ${all
                     ? 'bg-wl-accent text-wl-accent-ink border-wl-accent'
-                    : 'bg-wl-panel border-wl-line text-wl-ink hover:bg-wl-panel-muted'}`}
+                    : 'bg-wl-panel border-wl-line text-wl-ink hover:bg-wl-panel-muted'} disabled:bg-wl-panel-muted disabled:text-wl-muted disabled:cursor-not-allowed`}
                 >
                   {legion.name} <span className="text-xs opacity-80">({ids.length})</span>
                 </button>
               )
             })}
+          </div>
+          {/* The refusal belongs where you press, not in the Log you have to go and find. */}
+          <div className="mt-1.5 space-y-0.5">
+            {marchable
+              .map(({ legion }) => marchBlocker(legion.duty, legion.name))
+              .filter((x): x is string => !!x)
+              .map((why) => (
+                <div key={why} className="text-[11px] text-wl-bad leading-tight">{why} — stand it down to march.</div>
+              ))}
           </div>
         </div>
       )}
@@ -70,23 +83,32 @@ export default function DeployPanel({ units, legions, preset, clears, onConfirm,
           {units.map((u) => {
             const size = u.buckets.reduce((a, b) => a + b.count, 0)
             const on = picked.includes(u.id)
+            // Disabling the legion button alone would leave the cohorts pickable one by
+            // one — `startBattle` refuses that, but only into the Log, which is the one
+            // place a refusal must never live.
+            const ownLegion = legionOfUnit(legions, u.id)
+            const busy = ownLegion ? marchBlocker(ownLegion.duty, ownLegion.name) : null
             return (
               <button
                 key={u.id}
+                disabled={!!busy}
+                title={busy ?? undefined}
                 onClick={() => toggle(u.id)}
-                className={`flex items-center gap-3 border border-wl-line rounded-lg p-2 text-left transition-all ${on ? 'ring-2 ring-wl-accent bg-wl-accent-surface' : 'bg-wl-panel hover:bg-wl-panel-muted'}`}
+                // NOT `disabled:opacity-60`: opacity composites the text down with the
+                // card, and it took "· on duty" — the one word that explains the refusal —
+                // to 3.09:1 in light. Disabled is carried by the surface and the cursor;
+                // the words keep their own contrast.
+                className={`flex items-center gap-3 border border-wl-line rounded-lg p-2 text-left transition-all ${on ? 'ring-2 ring-wl-accent bg-wl-accent-surface' : 'bg-wl-panel hover:bg-wl-panel-muted'} disabled:bg-wl-panel-muted disabled:cursor-not-allowed disabled:hover:bg-wl-panel-muted`}
               >
                 <GameIcon name={getIconForGameItem(u.type) || 'sword'} size={28} />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold truncate">{unitName(u.type)}</div>
-                  {(() => {
-                    const l = legionOfUnit(legions, u.id)
-                    return l ? (
-                      <div className="text-[11px] text-wl-subtle truncate">
-                        {cohortLabel(l, units, u.id)} · {l.name}
-                      </div>
-                    ) : null
-                  })()}
+                  {ownLegion && (
+                    <div className="text-[11px] truncate">
+                      <span className="text-wl-subtle">{cohortLabel(ownLegion, units, u.id)} · {ownLegion.name}</span>
+                      {busy && <span className="text-wl-bad"> · on duty</span>}
+                    </div>
+                  )}
                   <div className="text-xs text-wl-muted font-mono">{size} soldiers · morale {Math.round(u.morale ?? 100)} · fielded {fieldedStrength(u)}</div>
                 </div>
                 <span className={`w-4 h-4 rounded border border-wl-line flex items-center justify-center text-[10px] ${on ? 'bg-wl-accent text-wl-accent-ink' : 'bg-wl-panel'}`}>{on ? '✓' : ''}</span>

@@ -37,6 +37,7 @@ import {
 import { adoptBlocker, legionEffectsByUnit, outOfKeeping, traditionById } from '../logic/tradition'
 import { inspectSave, stampSave } from '../logic/saveSchema'
 import { creditBattle, legionLevel, noCreditReason, sharesFromBattle } from '../logic/practice'
+import { DUTY_GARRISON_MORALE, creditDuty, dutyBlocker, dutyById, dutyCostCopper, marchBlocker } from '../logic/duty'
 import { resolveCatalog, techById, prereqsMet, missingBuildings, hasResearchBuilding, type TechId } from '../logic/research/catalog'
 import { aggregate, availableTechs, onBattleWon, onBattleLost, onResearchCompleted, tickBuffs, resolveBuffs } from '../logic/research/momentum'
 import { BRANCHES, addStudy, spendStudy, studyCostOf } from '../logic/research/study'
@@ -548,15 +549,42 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       }
     }
 
+    // ── Duty ────────────────────────────────────────────────────────────────────────
+    // Resolved once, from the legions as they stand at the start of this simulated day, so
+    // an offline catch-up credits each caught-up day exactly once. Duty days are RECORD and
+    // never renown: a day is had by waiting, and nothing had by waiting may buy a level.
+    const onDuty = leg.legions
+      .map(l => ({ l, def: dutyById(l.duty), men: unitsOfLegion(l, unit.units).reduce((a, u) => a + u.buckets.reduce((x, b) => x + b.count, 0), 0) }))
+      .filter((d): d is { l: typeof leg.legions[number]; def: NonNullable<ReturnType<typeof dutyById>>; men: number } => !!d.def && d.men > 0)
+    const dutyCopper = onDuty.reduce((a, d) => a + dutyCostCopper(d.def, d.men), 0)
+    if (dutyCopper !== 0) {
+      econ.setWallet(w => w - dutyCopper)
+      notes.push(dutyCopper > 0 ? `Duty ${fmtCopper(dutyCopper)}` : `Tolls +${fmtCopper(-dutyCopper)}`)
+    }
+    if (onDuty.length > 0) {
+      leg.setLegions(ls => ls.map(l => {
+        const d = onDuty.find(x => x.l.id === l.id)
+        return d ? { ...l, practice: creditDuty(l.practice ?? {}, d.def) } : l
+      }))
+    }
+    // Garrison rests the men; drill puts them in the yard. Both ride the channels that
+    // already exist — no second morale source, no second XP source.
+    const garrisoned = new Set(onDuty.filter(d => d.def.id === 'GARRISON').flatMap(d => d.l.unitIds))
+    const drilling = new Set(onDuty.filter(d => d.def.id === 'DRILL').flatMap(d => d.l.unitIds))
+
     // Morale update
-    const canPayUpkeep = postWallet >= upkeep
-    unit.setUnits(us => us.map(u => applyMoraleChange(u, canPayUpkeep, foodShortage)))
+    const canPayUpkeep = postWallet >= upkeep - Math.min(0, dutyCopper)
+    unit.setUnits(us => us.map(u =>
+      applyMoraleChange(u, canPayUpkeep, foodShortage, garrisoned.has(u.id) ? DUTY_GARRISON_MORALE : 0)))
 
     // Training XP + rank promotions. Logging is computed in a pre-pass over the current
     // snapshot (buckets/XP are untouched by the morale update above, so the outcome is
     // identical) — the state write itself stays a pure functional update.
     const applyDailyXP = (u: Unit) => {
-      const base = u.training
+      // A drill camp sets the whole legion training for the day. It reuses this exact
+      // path rather than adding a second XP source — `||`, not `+`, so a cohort already
+      // set to training does not get paid twice for being in a drill camp.
+      const base = (u.training || drilling.has(u.id))
         ? u.buckets.map(b => ({ ...b, avgXP: b.avgXP + Math.round(trainingGainPerDay(b.r) * mods.trainXpMult) }))
         : u.buckets
       return promoteBuckets(base)
@@ -570,7 +598,9 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     }
     unit.setUnits(us => us.map(u => {
       const promo = applyDailyXP(u)
-      if (!u.training && promo.promotions.length === 0) return u
+      // The drill set has to be here too: without it a drilled cohort's new XP is computed
+      // and then thrown away, and the duty would look like it did nothing.
+      if (!u.training && !drilling.has(u.id) && promo.promotions.length === 0) return u
       return { ...u, buckets: promo.buckets, avgXP: computeUnitAvgXP(promo.buckets) }
     }))
 
@@ -923,6 +953,28 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
   }
 
   /**
+   * Put a legion to work, or stand it down. `null` = standing ready.
+   *
+   * A duty takes effect from the NEXT day: the tick reads the legions as they stand when
+   * the day begins, so assigning one now and standing it down before the day turns costs
+   * nothing and credits nothing. That is the honest reading of "spent the day doing it".
+   */
+  function setLegionDuty(legionId: string, dutyId: string | null) {
+    const target = leg.legions.find(l => l.id === legionId)
+    if (!target) return
+    const def = dutyById(dutyId)
+    if (dutyId && !def) return
+    if (def) {
+      const blocked = dutyBlocker(unitsOfLegion(target, unit.units).length)
+      if (blocked) { addLog(`Cannot assign duty: ${blocked}.`); return }
+    }
+    leg.setLegions(ls => ls.map(l => (l.id === legionId ? { ...l, duty: def?.id ?? null } : l)))
+    addLog(def
+      ? `🚩 ${target.name} takes up ${def.name.toLowerCase()} duty.`
+      : `🚩 ${target.name} stands down and is ready to march.`)
+  }
+
+  /**
    * Swear a legion to a tradition. Once, and for good — the only way out is dissolving the
    * legion, which costs it every honour it ever earned. That permanence is the point: a
    * commitment you can walk away from is a preference, not an identity.
@@ -978,6 +1030,13 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     if (camp.campaign.lastBattleDay === day) { addLog('⚔ Your host has already taken the field today. March again tomorrow.'); return }
     const chosen = unit.units.filter(u => deployedUnitIds.includes(u.id))
     if (chosen.length === 0) { addLog('Select at least one unit to deploy.'); return }
+    // The occupation is the price of a duty. Enforced HERE and not only in the picker:
+    // a rule that lives in one screen is a rule with as many holes as there are call sites.
+    for (const l of leg.legions) {
+      if (!l.unitIds.some(id => deployedUnitIds.includes(id))) continue
+      const busy = marchBlocker(l.duty, l.name)
+      if (busy) { addLog(`Cannot march: ${busy}. Stand it down first.`); return }
+    }
     // Seed selection is UI-level (not part of the deterministic engine); the battle is
     // fully reproducible from the seed stored inside its state.
     const seed = (Math.floor(Math.random() * 0x7fffffff)) >>> 0
@@ -1234,6 +1293,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     legions: leg.legions,
     formLegion,
     adoptTradition,
+    setLegionDuty,
     renameLegion,
     assignToLegion,
     removeFromLegion,

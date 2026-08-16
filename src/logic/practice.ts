@@ -33,6 +33,10 @@ export const RENOWN_KEYS = ['victories', 'flawless', 'heldTheLine', 'hardWon'] a
 export const RECORD_KEYS = [
   'battles', 'defeats', 'retreats', 'promotions',
   'slain', 'slainMounted', 'slainArcher', 'slainHeavyFoot',
+  // Days spent on duty. Record only, and that is load-bearing: a day is had by waiting,
+  // and anything obtainable by waiting must never buy a level. Battles buy depth; duties
+  // buy direction. See `duty.ts`.
+  'daysGarrisoned', 'daysDrilled', 'daysPatrolled',
 ] as const
 
 export type DeedKey = (typeof RENOWN_KEYS)[number] | (typeof RECORD_KEYS)[number]
@@ -72,6 +76,9 @@ export const DEED_LABEL: Record<DeedKey, { one: string; many: string }> = {
   slainMounted: { one: 'horseman slain', many: 'horsemen slain' },
   slainArcher: { one: 'archer slain', many: 'archers slain' },
   slainHeavyFoot: { one: 'heavy foot slain', many: 'heavy foot slain' },
+  daysGarrisoned: { one: 'day in garrison', many: 'days in garrison' },
+  daysDrilled: { one: 'day at drill', many: 'days at drill' },
+  daysPatrolled: { one: 'day on patrol', many: 'days on patrol' },
 }
 
 export function deedLabel(key: DeedKey, n: number): string {

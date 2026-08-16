@@ -91,12 +91,16 @@ export const computeReady = (u: Unit): number => {
 }
 
 // Call once per day tick; foodShortage=true dacă armata nu a primit hrană
-export function applyMoraleChange(u: Unit, upkeepPaid: boolean, foodShortage: boolean): Unit {
+export function applyMoraleChange(
+  u: Unit, upkeepPaid: boolean, foodShortage: boolean, extraRecovery = 0,
+): Unit {
   const current = u.morale ?? 100
   let delta = 0
   if (!upkeepPaid) delta -= 10
   if (foodShortage) delta -= 15
-  if (upkeepPaid && !foodShortage) delta += 5  // recuperare lentă
+  // `extraRecovery` (a garrison duty) rides the SAME condition as ordinary recovery, not
+  // beside it: men behind walls who are not being paid or fed do not rest easier.
+  if (upkeepPaid && !foodShortage) delta += 5 + Math.max(0, extraRecovery)  // recuperare lentă
   const newMorale = Math.max(0, Math.min(100, current + delta))
   return { ...u, morale: newMorale }
 }

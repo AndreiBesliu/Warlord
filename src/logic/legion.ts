@@ -39,6 +39,8 @@ export interface Legion {
   traditionDay?: number
   /** What this legion has actually done. Sparse; absent key = 0. See `practice.ts`. */
   practice?: DeedLedger
+  /** What it is doing on the days it does not fight. `null` = standing ready. See `duty.ts`. */
+  duty?: string | null
 }
 
 /**
@@ -206,7 +208,7 @@ export function pruneMembership(legion: Legion, units: Unit[]): Legion {
 export function emptyLegion(name: string, foundedDay: number): Legion {
   return {
     id: newLegionId(), name, foundedDay, unitIds: [], honours: [],
-    tradition: null, traditionDay: 0, practice: {},
+    tradition: null, traditionDay: 0, practice: {}, duty: null,
   }
 }
 

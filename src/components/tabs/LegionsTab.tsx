@@ -8,6 +8,7 @@ import {
 } from '../../logic/tradition'
 import { GameConfig } from '../../logic/config'
 import { deedLabel, legionLevel, nextLevelAt, type DeedKey, type DeedLedger } from '../../logic/practice'
+import { DUTIES, dutyBlocker, dutyById, dutyCostCopper } from '../../logic/duty'
 import { unitName } from '../../logic/names'
 import { fmtCopper } from '../../logic/types'
 import { armyStrength } from '../../logic/combat/army'
@@ -20,6 +21,7 @@ import { armyStrength } from '../../logic/combat/army'
 const DEED_ORDER: DeedKey[] = [
   'battles', 'victories', 'defeats', 'flawless', 'heldTheLine', 'hardWon',
   'slain', 'slainMounted', 'slainArcher', 'slainHeavyFoot', 'promotions', 'retreats',
+  'daysGarrisoned', 'daysDrilled', 'daysPatrolled',
 ]
 function deedLines(d: DeedLedger): string[] {
   return DEED_ORDER.filter((k) => (d[k] ?? 0) > 0).map((k) => `${d[k]} ${deedLabel(k, d[k] as number)}`)
@@ -29,6 +31,7 @@ export default function LegionsTab({ state }: { state: GameStateShape }) {
   const {
     legions, units, wallet,
     formLegion, renameLegion, assignToLegion, removeFromLegion, disbandLegion, adoptTradition,
+    setLegionDuty,
   } = state
   // Which legion has its oath list open. One id, not a set: swearing is a decision you make
   // for one legion at a time, and four traditions unfolded under every legion at once is a
@@ -85,6 +88,7 @@ export default function LegionsTab({ state }: { state: GameStateShape }) {
           const strength = armyStrength(units, l.unitIds)
           const sworn = traditionById(l.tradition)
           const lapsed = outOfKeeping(sworn, cohorts)
+          const onDuty = dutyById(l.duty)
           return (
             <div key={l.id} className="rounded-lg border border-wl-line bg-wl-panel p-4 space-y-3">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-wl-line pb-2">
@@ -121,6 +125,44 @@ export default function LegionsTab({ state }: { state: GameStateShape }) {
                   <span className="text-[11px] text-wl-subtle">· no record yet — it has not taken the field</span>
                 )}
               </div>
+
+              {/* Duty. Battles buy depth, duties buy direction — and the occupation is the
+                  price, so it is said on the control rather than discovered at the muster. */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] uppercase tracking-wide text-wl-muted">Duty</span>
+                {[null, ...DUTIES].map((d) => {
+                  const active = (l.duty ?? null) === (d?.id ?? null)
+                  const men = cohorts.reduce((a, u) => a + u.buckets.reduce((x, b) => x + b.count, 0), 0)
+                  const why = d ? dutyBlocker(cohorts.length) : null
+                  const bill = d ? dutyCostCopper(d, men) : 0
+                  return (
+                    <button
+                      key={d?.id ?? 'READY'}
+                      disabled={!!why}
+                      title={why ?? (d ? `${d.blurb} ${d.effect}` : 'Free to march')}
+                      onClick={() => setLegionDuty(l.id, d?.id ?? null)}
+                      className={`px-2 py-1.5 min-h-[32px] text-xs rounded border ${
+                        active
+                          ? 'border-wl-accent-line bg-wl-accent-surface text-wl-ink font-semibold'
+                          : 'border-wl-line bg-wl-panel-muted text-wl-ink hover:bg-wl-panel'
+                      } disabled:text-wl-muted disabled:cursor-not-allowed`}
+                    >
+                      {d ? d.name : 'Ready'}
+                      {d && men > 0 && (
+                        <span className="text-wl-muted"> · {bill >= 0 ? `${fmtCopper(bill)}/day` : `+${fmtCopper(-bill)}/day`}</span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+              {onDuty && (
+                <div className="text-[11px] text-wl-muted leading-snug">
+                  {onDuty.effect} <span className="text-wl-bad">It cannot march while on duty.</span>
+                </div>
+              )}
+              {cohorts.length === 0 && (
+                <div className="text-[11px] text-wl-subtle">A legion with no cohorts has nobody to send.</div>
+              )}
 
               {l.honours.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">

@@ -36,8 +36,9 @@
  *
  * 1 = everything up to and including legion traditions.
  * 2 = `Legion.practice` (the deed ledger) and `CampaignState.marchedLegions`.
+ * 3 = `Legion.duty`.
  */
-export const SAVE_SCHEMA = 2
+export const SAVE_SCHEMA = 3
 
 /**
  * The top-level keys this build writes. Anything in a loaded save that is NOT here is

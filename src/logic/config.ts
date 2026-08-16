@@ -103,6 +103,11 @@ export interface LegionDeedsConfig {
   maxLevel: number
 }
 
+export interface DutyNumbers {
+  /** Copper per soldier per day. Negative means the duty pays its way. */
+  copperPerSoldier: number
+}
+
 export interface MissionOverride {
   ratio?: number
   rewardCopperPerStrength?: number
@@ -138,6 +143,8 @@ export interface GameConfigOverrides {
   traditionRules?: Partial<TraditionRules>
   /** What a legion has to do to earn its level, and what stops that being farmed. */
   legionDeeds?: Partial<LegionDeedsConfig>
+  /** Per-duty knobs, keyed by duty id ('GARRISON' | 'DRILL' | 'PATROL'). */
+  duties?: Record<string, Partial<DutyNumbers>>
   /** Per-tradition knobs, keyed by tradition id ('SHIELDWALL', 'IRON_VOW', …). */
   traditions?: Record<string, Partial<TraditionNumbers>>
   missions?: Record<string, MissionOverride>
@@ -243,6 +250,13 @@ export const DEFAULT_LEGION_DEEDS: LegionDeedsConfig = {
   levelCurve: 1.6,
   maxLevel: 10,
 }
+
+// Ordinary upkeep is 2-8 copper per soldier per day before rank multipliers, so a duty
+// priced in single copper is felt without dwarfing the thing it sits on top of. The pay
+// bound is the tighter of the two because a duty that pays too much is income proportional
+// to army size — a printer, not a discount.
+export const DUTY_MAX_PAY = 5
+export const DUTY_MAX_CHARGE = 50
 
 export const DEFAULT_STUDY: StudyConfig = {
   baselinePerDay: 100,
@@ -396,6 +410,21 @@ class GameConfigStore {
       levelCurve: Math.max(1, num(d.levelCurve, base.levelCurve, 1)),
       maxLevel: Math.min(50, Math.max(1, Math.round(num(d.maxLevel, base.maxLevel, 1)))),
     }
+  }
+
+  /**
+   * `base` is the catalog entry's own numbers, passed in so this file never imports the
+   * duty list — same shape as `tradition()`.
+   *
+   * A duty that PAYS is bounded harder than one that costs: overpaying is a money printer
+   * that scales with army size, while overcharging merely makes a duty a bad idea. So the
+   * floor is tight and the ceiling is loose, and `num`'s below-minimum fallback means
+   * there is no value an admin can type that removes either bound.
+   */
+  duty(id: string, base: DutyNumbers): DutyNumbers {
+    const o = this.o.duties?.[id] ?? {}
+    const v = num(o.copperPerSoldier, base.copperPerSoldier, -DUTY_MAX_PAY)
+    return { copperPerSoldier: Math.min(DUTY_MAX_CHARGE, v) }
   }
 
   traditionRules(): TraditionRules {
