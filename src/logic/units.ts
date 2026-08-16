@@ -145,6 +145,79 @@ function mergeBucketArrays(a: Bucket[], b: Bucket[]): Bucket[] {
     r, count: v.count, avgXP: v.count ? Math.floor(v.wx / v.count) : 0
   }))
 }
+/**
+ * The most a teacher can hand a pupil before they are level: the transfer stops where the
+ * two sides meet. Solving `(vetXp - T)/vetCount >= (newXp + T)/newCount` for T gives this
+ * closed form, and it falls out to zero on its own when the newcomers already know more —
+ * which is the correct answer, not a special case.
+ */
+export function teachableXp(
+  vetCount: number, vetXp: number, newCount: number, newXp: number, want: number,
+): number {
+  if (vetCount <= 0 || newCount <= 0) return 0
+  const ceiling = (newCount * vetXp - vetCount * newXp) / (vetCount + newCount)
+  return Math.max(0, Math.min(Math.floor(want), Math.floor(ceiling)))
+}
+
+/**
+ * Reinforcements joining a unit, with the veterans bringing them up to speed.
+ *
+ * The teaching was already here, and it was MINTING: every newcomer arrived with a flat
+ * +10% of the unit's average bolted on, out of nothing. On a veteran unit that is ~700 XP
+ * conjured per replenishment, and it compounds — a richer average buys a bigger bonus next
+ * time — which is what turned replenish → disband into a loop that prints ranks. It also
+ * leaked in ordinary play, not just under a player hunting for it.
+ *
+ * Teaching stays, because veterans lifting newcomers is the right mechanic. It is a
+ * TRANSFER now: what the newcomers gain, the teachers spend. **The army's total XP can
+ * never go up.** The unit's average after reinforcement is therefore the plain weighted
+ * average — reinforcement dilutes, as it should — and the teaching decides which RANK holds
+ * the experience, which still matters because promotion is per bucket.
+ */
+export function reinforceBuckets(existing: Bucket[], arrivals: Bucket[], teachPct = 0.10): Bucket[] {
+  const live = (bs: Bucket[]) => bs.filter(b => b.count > 0)
+  const vets = live(existing), news = live(arrivals)
+  const count = (bs: Bucket[]) => bs.reduce((a, b) => a + b.count, 0)
+  const total = (bs: Bucket[]) => bs.reduce((a, b) => a + b.count * Math.max(0, b.avgXP), 0)
+
+  const vetCount = count(vets), vetXp = total(vets)
+  const newCount = count(news), newXp = total(news)
+  const unitAvg = vetCount > 0 ? Math.floor(vetXp / vetCount) : 0
+  const moved = teachableXp(vetCount, vetXp, newCount, newXp, Math.round(unitAvg * teachPct) * newCount)
+
+  // The veterans are debited first and the pupils receive EXACTLY what was debited. Splitting
+  // one budget twice and rounding each half is how a conservation law springs a leak.
+  const debit = new Map<Bucket, number>()
+  let given = 0
+  vets.forEach((b, i) => {
+    const d = i === vets.length - 1 ? moved - given : Math.round(moved * (b.count / vetCount))
+    debit.set(b, d); given += d
+  })
+  const credit = new Map<Bucket, number>()
+  let taken = 0
+  news.forEach((b, i) => {
+    const c = i === news.length - 1 ? given - taken : Math.round(given * (b.count / newCount))
+    credit.set(b, c); taken += c
+  })
+
+  const byRank = new Map<Rank, { count: number; xp: number }>()
+  const add = (b: Bucket, delta: number) => {
+    const cur = byRank.get(b.r) || { count: 0, xp: 0 }
+    cur.count += b.count
+    cur.xp += b.count * Math.max(0, b.avgXP) + delta
+    byRank.set(b.r, cur)
+  }
+  for (const b of vets) add(b, -(debit.get(b) || 0))
+  for (const b of news) add(b, credit.get(b) || 0)
+
+  return RANK_ORDER
+    .filter(r => byRank.has(r))
+    .map(r => {
+      const v = byRank.get(r)!
+      return { r, count: v.count, avgXP: v.count > 0 ? Math.max(0, Math.floor(v.xp / v.count)) : 0 }
+    })
+}
+
 export function splitUnit(u: Unit, takeCount: number): { taken: Unit; remaining: Unit } {
   const size = u.buckets.reduce((a, b) => a + b.count, 0)
   const amt = Math.max(0, Math.min(takeCount, size))

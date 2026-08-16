@@ -106,6 +106,18 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-15 - Task Completed (fântâna de XP: veteranii plătesc ce-i învață pe noi)**
+> Prompt: „lasa DataRead, continua cu warlord"
+> Model: Claude Opus 5
+> - **Defectul, măsurat:** completarea de efective adăuga fiecărui nou-venit `floor(avgXP unitate × 0.10)` **din nimic**. Pe o unitate VETERAN de 40 la 700 XP asta însemna **+700 XP la fiecare apăsare**, și se compunea — o medie mai bogată cumpăra un bonus mai mare data viitoare. Aia era sursa buclei completează→desființează care tipărea ranguri, dar **se scurgea și la joc normal**, nu doar sub un jucător care o căuta.
+> - **Mecanica rămâne, mintul nu.** Veteranii care-i ridică pe novici e designul corect; ce era greșit e că le **fabrica** experiența în loc s-o **transfere**. Acum: ce câștigă noii veniți, plătesc profesorii. **Totalul armatei nu mai poate crește.**
+> - **Plafonul nu e o clemă pusă pe deasupra, e locul unde transferul se termină:** un profesor nu poate duce un elev peste el însuși. Rezolvând `(vetXp − T)/vetCount ≥ (newXp + T)/newCount` iese o formulă închisă, iar când novicii știu deja mai mult ea dă zero singură — nu e caz special.
+> - **Consecință de design, asumată:** media unității după completare e acum media ponderată simplă. **Completarea DILUEAZĂ**, cum ar trebui. Bonusul vechi ascundea asta; acum decide doar în ce RANG stă experiența, ceea ce tot contează fiindcă promovarea e per bucket.
+> - Verificat pe viu, nu doar în teste: 40 VETERAN × 700 + 10 NOVICE × 0 → **28 000 înainte, 27 980 după** (−20 din trunchiere; niciodată în plus). Novicii au ajuns la 70, veteranii au scăzut la 682, 50 de oameni prezenți. Înainte de reparație: 28 700.
+> - **Reparat pe drum:** `npm run dev` fixa `--port 5173`, deci două sesiuni care lucrau în arborele `Apps/` se băteau pe același socket și a doua servea tăcut nimic. Portul vine acum din mediu (`vite.config.ts`).
+> - 294 teste verzi (12 noi în `reinforce.test.ts`, scrise ca invariant: „totalul nu crește NICIODATĂ", pe toate combinațiile de ranguri, plus 100 de cicluri completează→desființează).
+
+
 **2026-08-15 - Task Completed (legiunile: o formațiune care supraviețuiește cohortelor ei)**
 > Prompt: „vreau ca fiecare unitate sa capete identitate ... legiunile Romane ... mai aproape de 40k. Dar in universul nostru", apoi corectura: **„legiunile nu se absorb, vreau un sistem similar cu Total War Rome 2"**
 > Model: Claude Opus 5

@@ -20,7 +20,7 @@ import { useUnits, hydrateUnits } from './useUnits'
 import useBarracks, { emptyBarracks, hydrateRecruits } from './useBarracks'
 import { takeFrom, startingXpOf, type RecruitSourceId } from '../logic/recruitSources'
 import { labelOf, rankName, unitName } from '../logic/names'
-import { computeReady, mergeUnits, splitUnit, applyMoraleChange, trainingGainPerDay, promoteBuckets, computeUnitAvgXP } from '../logic/units'
+import { computeReady, mergeUnits, splitUnit, applyMoraleChange, trainingGainPerDay, promoteBuckets, computeUnitAvgXP, reinforceBuckets } from '../logic/units'
 import { Registry } from '../logic/registry'
 import { rollDailyEvent } from '../logic/events'
 import { recruitCostCopper, barracksCapacity, quarteredCount } from '../logic/barracks'
@@ -809,24 +809,16 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     if (res.spent > 0) econ.setWallet(w => w - res.spent)
     barr.setBarracks(pool)
 
-    // 4) add to unit with +10% avgXP bonus
-    const xpBonus = Math.floor(u.avgXP * 0.10)
-    const newBuckets: Unit['buckets'] = u.buckets.map(b => ({ ...b }))
-    for (const r of Ranks) {
-      const qty = plan[r] || 0
-      if (!qty) continue
-      const incomingAvgXP = (barr.barracks[type][r].avgXP || 0) + xpBonus // use pre-change avg
-      const i = newBuckets.findIndex(b => b.r === r)
-      if (i >= 0) {
-        const prev = newBuckets[i]
-        const newCount = prev.count + qty
-        const newWx = prev.count * prev.avgXP + qty * incomingAvgXP
-        newBuckets[i] = { r, count: newCount, avgXP: Math.floor(newWx / newCount) }
-      } else {
-        newBuckets.push({ r, count: qty, avgXP: incomingAvgXP })
-      }
-    }
+    // 4) the veterans bring the newcomers up — by SPENDING what they know, not by minting it.
+    // The +10% used to be conjured from nothing on every replenishment (~700 XP on a veteran
+    // unit) and it compounded, which is what made replenish → disband a loop that printed
+    // ranks. `reinforceBuckets` keeps the teaching and makes it a transfer.
+    const arrivals: Unit['buckets'] = Ranks
+      .filter(r => (plan[r] || 0) > 0)
+      .map(r => ({ r, count: plan[r] as number, avgXP: barr.barracks[type][r].avgXP || 0 }))
+    const newBuckets = reinforceBuckets(u.buckets, arrivals)
 
+    const unitLabel = `${unitName(type)} ${u.id}`
     const totalCount = newBuckets.reduce((a, b) => a + b.count, 0)
     const wx = newBuckets.reduce((a, b) => a + b.count * b.avgXP, 0)
     const newAvgXP = totalCount ? Math.floor(wx / totalCount) : 0
@@ -835,7 +827,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       ? { ...x, buckets: newBuckets, avgXP: newAvgXP, equip: addEquip(x.equip, equipFromDemand(need)) }
       : x))
 
-    addLog(`Replenished ${total} → ${u.id} (${type}) ${res.spent > 0 ? `(auto-bought ${fmtCopper(res.spent)})` : '(used stock)'}. +XP bonus ${xpBonus}. New size ${totalCount}, avgXP ${newAvgXP}.`)
+    addLog(`Reinforced ${total} → ${unitLabel} ${res.spent > 0 ? `(auto-bought ${fmtCopper(res.spent)})` : '(used stock)'}. Now ${totalCount} strong, ${newAvgXP} XP each.`)
   }
 
   function recruit(qty: number, source: RecruitSourceId = 'LEVY') {
