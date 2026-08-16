@@ -35,7 +35,7 @@ import {
   unitsOfLegion, awardVictoryHonours,
 } from '../logic/legion'
 import {
-  channelsOf, growBlocker, grownNode, legionChannelsByUnit, outOfKeeping, sanitizeAuthoredText,
+  growBlocker, grownNode, legionChannelsByUnit, outOfKeeping, sanitizeAuthoredText,
   validateDesign, type GrowCandidate, type TraditionDesign,
 } from '../logic/tradition'
 import { NO_CHANNELS, TRADITION_CREED_MAX, TRADITION_NAME_MAX, primById, type Constraint } from '../logic/traditionPalette'

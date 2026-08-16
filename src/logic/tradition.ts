@@ -28,7 +28,6 @@
 // client-claimed. A user-authored combat bonus is indistinguishable from a forged one at
 // the payload level, so there is no version of it that is fair.
 
-import { GameConfig } from './config'
 import { DEFAULT_COMBAT_STATS } from './combat/stats'
 import type { SoldierType, Unit } from './types'
 import { LEGION_MAX_UNITS } from './legion'

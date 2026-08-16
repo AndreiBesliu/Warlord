@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { LEGION_MAX_HONOURS, LEGION_MAX_UNITS, type Honour, type Legion } from '../logic/legion'
-import {
-  TraditionDesign, sanitizeAuthoredText, validateDesign,
-} from '../logic/tradition'
+import { sanitizeAuthoredText, validateDesign, type TraditionDesign } from '../logic/tradition'
 import { legacyDesign } from '../logic/traditionLegacy'
 import {
   DESIGN_MAX_CONSTRAINTS, DESIGN_MAX_NODES, TRADITION_CREED_MAX, TRADITION_NAME_MAX, primById,
