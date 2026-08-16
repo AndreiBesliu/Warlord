@@ -35,6 +35,7 @@ import {
   unitsOfLegion, awardVictoryHonours,
 } from '../logic/legion'
 import { adoptBlocker, legionEffectsByUnit, outOfKeeping, traditionById } from '../logic/tradition'
+import { inspectSave, stampSave } from '../logic/saveSchema'
 import { resolveCatalog, techById, prereqsMet, missingBuildings, hasResearchBuilding, type TechId } from '../logic/research/catalog'
 import { aggregate, availableTechs, onBattleWon, onBattleLost, onResearchCompleted, tickBuffs, resolveBuffs } from '../logic/research/momentum'
 import { BRANCHES, addStudy, spendStudy, studyCostOf } from '../logic/research/study'
@@ -95,6 +96,9 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
   // ever changes saveKey without remounting (they should pass key={saveKey}), the
   // persist effect must NOT write state hydrated from another user's key.
   const [hydratedKey] = useState(saveKey)
+  // Read ONCE, from the same snapshot the slices hydrated from. Re-reading storage later
+  // would inspect a different save than the one in memory, which is the whole question.
+  const [inspection, setInspection] = useState(() => inspectSave(saved))
 
   // day + log
   const [day, setDay] = useState<number>(() => saved?.day ?? 1)
@@ -140,6 +144,11 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
 
   useEffect(() => {
     if (saveKey !== hydratedKey) return // never clobber another key's save (see above)
+    // A save written by a NEWER build must not be written back by this one. Whatever this
+    // build could not hydrate is already missing from the state below, so persisting would
+    // truncate it — and `warlordCloud` bumps the rev on every write, so the truncated copy
+    // would then win on the player's other devices. Standing down is the only safe move.
+    if (inspection.fromNewerBuild) return
     const blob = {
       day, lastTickAt, log: log.slice(0, LOG_CAP),
       wallet: econ.wallet, inv: econ.inv, buildings: econ.buildings, resources: econ.resources,
@@ -150,15 +159,23 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       research: rsc.research,
       legions: leg.legions,
     }
-    localStorage.setItem(saveKey, JSON.stringify(blob)) // fast local cache / offline fallback
-    onPersist?.(blob) // e.g. debounced cloud write (OurDaysApp embed)
-  }, [saveKey, day, lastTickAt, log, econ.wallet, econ.inv, econ.buildings, econ.resources, barr.barracks, barr.barracksLevel, barr.recruits, barr.batches, unit.units, camp.campaign, rsc.research, leg.legions]) // econ.resources & camp.campaign included so those-only changes persist
+    // Stamped, and carrying anything this build did not recognise. Both matter for the
+    // same reason: a save must survive a round trip through a build that does not fully
+    // understand it.
+    const stamped = stampSave(blob, inspection.carried)
+    localStorage.setItem(saveKey, JSON.stringify(stamped)) // fast local cache / offline fallback
+    onPersist?.(stamped) // e.g. debounced cloud write (OurDaysApp embed)
+  }, [saveKey, day, lastTickAt, log, econ.wallet, econ.inv, econ.buildings, econ.resources, barr.barracks, barr.barracksLevel, barr.recruits, barr.batches, unit.units, camp.campaign, rsc.research, leg.legions, inspection]) // econ.resources & camp.campaign included so those-only changes persist; `inspection` so pressing Load on a newer save stops the writes immediately
 
   function loadSave() {
     const raw = localStorage.getItem(saveKey)
     if (!raw) return addLog('No save found.')
     try {
       const s = JSON.parse(raw)
+      // Re-inspected, because this is a second door into the same state: the mount-time
+      // reading describes the blob the slices hydrated from, not whatever is being loaded
+      // now. A newer save pressed in through here must stop the writes too.
+      setInspection(inspectSave(s))
       setDay(s.day ?? 1); setLog(s.log ?? [])
       setLastTickAt(typeof s.lastTickAt === 'number' && Number.isFinite(s.lastTickAt) ? s.lastTickAt : Date.now())
       econ.setWallet(s.wallet ?? 5 * GOLD)
@@ -1155,6 +1172,11 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     // What tomorrow adds to each branch, from the same function the tick banks with.
     studyPerDay: forecastDay({ buildings: econ.buildings, resources: econ.resources, inv: econ.inv, units: unit.units, mods }).studyByBranch,
     availableResearch: () => availableTechs(catalog, rsc.research.unlocked, rsc.research.queue.map(p => p.id)),
+
+    // Nothing is being saved, because this build is older than the save it opened. The
+    // screen has to say so: silence here reads as a working game right up until the
+    // player closes the tab and finds an afternoon missing.
+    staleBuild: inspection.fromNewerBuild,
 
     // legions
     legions: leg.legions,

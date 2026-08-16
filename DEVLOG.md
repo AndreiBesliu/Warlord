@@ -106,6 +106,18 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-16 - Task Completed (felia 0: save-ul nu mai poate fi mâncat de un tab vechi)**
+> Prompt: „traditiile nu inlocuiesc nivelul, ele sunt un tree de atribute ... vreau sa fie ceva ce userii creeaza" (constatare ieșită din analiza adversarială a redesign-ului; verificată de mine la sursă înainte s-o cred)
+> Model: Claude Opus 5
+> - **Gaura, în lanț:** blob-ul de save e un **literal fix de 14 chei** (`useGameState.tsx:143`), fără versiune și fără trecere-mai-departe a cheilor necunoscute; fiecare slice hidratează pe listă închisă; jocul **n-are cale de auto-actualizare** (notat deja la ceasul zilei — tab vechi = cod vechi la nesfârșit); iar `warlordCloud.ts:61` adoptă strict după `rev` și **incrementează `rev` la fiecare scriere**. Deci: tab vechi → hidratează save nou → aruncă tăcut ce nu știe → scrie trunchiat → urcă `rev` → împinge în cloud → celălalt dispozitiv adoptă versiunea ciuntită. **Zero erori nicăieri.** Nu e un risc al tradițiilor: **legiunile livrate ieri erau deja expuse.**
+> - **Două apărări, diferite ca fel.** (1) Un build care deschide un save ștampilat mai NOU **refuză să persiste**, total — ce n-a putut hidrata lipsește deja din memorie, deci orice scriere ar fi o trunchiere. (2) Cheile de nivel superior necunoscute sunt **purtate mai departe** prin ciclul de salvare, ca plasă pentru cazul în care cineva adaugă o cheie și uită bump-ul.
+> - **Ce NU poate face, spus pe față:** nu protejează retroactiv. Build-urile de dinainte n-au ce verifica. Gaura se închide pentru tab-urile de la build-ul ăsta încolo, și fiecare zi în care nu era livrat însemna încă un build care n-o să învețe niciodată să se dea la o parte.
+> - **O ștampilă stricată se citește ca VECHE, niciodată ca nouă** (`schema: 'nine'`, `NaN`, negativ) — refuzul de scriere e efectul greu, deci cere un număr real; altfel o greșeală de tastare ar zăvorî un jucător în afara regatului lui.
+> - Refuzul e un **banner deasupra a tot, nedemisibil** — nu o linie în Log. Jocul continuă să se joace în memorie; tăcerea aici s-ar citi ca joc funcțional exact până când închizi tab-ul și constați că lipsește o după-amiază.
+> - **Verificat pe viu, ambele jumătăți:** save cu `schema: 99` + o cheie din viitor → ecranul trece la ziua 556, iar save-ul stocat rămâne **neschimbat octet cu octet** (ziua 555, `schema: 99`, cheia din viitor intactă). Save normal cu o cheie necunoscută → se scrie normal, se ștampilează `schema: 1`, iar **cheia necunoscută supraviețuiește scrierii**.
+> - Contrast pe banner: 12,66:1 (dark) / 14,03:1 (light), fără overflow la 375px. 341 teste verzi (13 noi).
+> - Regula e în `CLAUDE.md`: **orice câmp nou în save cere `SAVE_SCHEMA++`.**
+
 **2026-08-16 - Task Completed (tradițiile: un bonus care refuză ceva)**
 > Prompt: „continua cu traditiile"
 > Model: Claude Opus 5

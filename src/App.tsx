@@ -11,6 +11,7 @@ import ResearchTab from './components/tabs/ResearchTab'
 import ArmyTab, { type ArmySection } from './components/tabs/ArmyTab'
 import ResourceBar from './components/common/ResourceBar'
 import { useGameState } from './state/useGameState'
+import { STALE_BUILD_MESSAGE } from './logic/saveSchema'
 import { GameConfig } from './logic/config'
 import { planTicks, mmss, humanDuration } from './logic/tick'
 import type { GameConfigOverrides } from './logic/config'
@@ -144,6 +145,13 @@ export default function App({
   return (
     <div className={`warlord${dark ? ' dark' : ''} min-h-screen p-3 sm:p-6 space-y-4`}>
       <div className="max-w-6xl mx-auto space-y-4">
+      {/* Above everything, and not dismissible: the game still plays but nothing is being
+          written. A message in the Log would be the worst possible place for this. */}
+      {state.staleBuild && (
+        <div role="alert" className="rounded-lg border border-wl-bad/60 bg-wl-bad-surface p-3 text-sm text-wl-ink">
+          <strong className="font-serif">Not saving.</strong> {STALE_BUILD_MESSAGE}
+        </div>
+      )}
       {/* Two wrapping rows. The controls used to live in a nested `ml-auto` flex that
           could not shrink: ~460px of buttons in a 375px viewport, so every screen in the
           game scrolled sideways. Identity + day on one line, the clock and its actions on
