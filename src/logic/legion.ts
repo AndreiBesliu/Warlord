@@ -13,7 +13,7 @@
 // places to forget; resolving on read makes a dead id harmless by construction.
 
 import type { Unit } from './types'
-import { joinBan, traditionById } from './tradition'
+import { joinBan, type TraditionDesign } from './tradition'
 // Type-only: `practice.ts` imports `tradition.ts` for the class vocabulary, and this is a
 // type import, so nothing is created at runtime and there is no cycle.
 import type { DeedLedger } from './practice'
@@ -33,8 +33,15 @@ export interface Legion {
   foundedDay: number
   unitIds: string[]
   honours: Honour[]
-  /** The tradition it swore to, if any. Set once and never cleared — see `adoptBlocker`. */
-  tradition?: string | null
+  /**
+   * The tradition it swore to, INLINE. `null` = none.
+   *
+   * Inline rather than an id into a shared table: a design belongs to exactly one legion,
+   * so inlining makes hydration local, deletion automatic, and removes the dangling-id bug
+   * class this codebase has already paid for twice. Two legions that start from the same
+   * creed then diverge in what they have grown, which is correct rather than a limitation.
+   */
+  tradition?: TraditionDesign | null
   /** The day of the oath. Part of the record, like `foundedDay`. */
   traditionDay?: number
   /** What this legion has actually done. Sparse; absent key = 0. See `practice.ts`. */
@@ -171,7 +178,7 @@ export function joinBlocker(legion: Legion, unitId: string, units: Unit[], legio
   if (other && other.id !== legion.id) return `Already serving with ${other.name}`
   const joiner = units.find((u) => u.id === unitId)
   if (joiner) {
-    const ban = joinBan(traditionById(legion.tradition), joiner.type, cohorts.length)
+    const ban = joinBan(legion.tradition ?? null, joiner.type, cohorts.length, legion.name)
     if (ban) return ban
   }
   return null

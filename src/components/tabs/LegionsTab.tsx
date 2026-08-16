@@ -3,10 +3,7 @@ import type { GameStateShape } from '../../state/useGameState'
 import {
   LEGION_MAX_UNITS, cohortLabel, joinBlocker, legionOfUnit, suggestLegionName, unitsOfLegion,
 } from '../../logic/legion'
-import {
-  TRADITIONS, adoptBlocker, describeTradition, outOfKeeping, traditionById, victoryCount,
-} from '../../logic/tradition'
-import { GameConfig } from '../../logic/config'
+import TraditionPanel from '../legions/TraditionPanel'
 import { deedLabel, legionLevel, nextLevelAt, type DeedKey, type DeedLedger } from '../../logic/practice'
 import { DUTIES, dutyBlocker, dutyById, dutyCostCopper } from '../../logic/duty'
 import { unitName } from '../../logic/names'
@@ -30,14 +27,9 @@ function deedLines(d: DeedLedger): string[] {
 export default function LegionsTab({ state }: { state: GameStateShape }) {
   const {
     legions, units, wallet,
-    formLegion, renameLegion, assignToLegion, removeFromLegion, disbandLegion, adoptTradition,
-    setLegionDuty,
+    formLegion, renameLegion, assignToLegion, removeFromLegion, disbandLegion,
+    foundTradition, growTradition, setLegionDuty,
   } = state
-  // Which legion has its oath list open. One id, not a set: swearing is a decision you make
-  // for one legion at a time, and four traditions unfolded under every legion at once is a
-  // page nobody can read.
-  const [swearingFor, setSwearingFor] = useState<string | null>(null)
-
   // `null` means "show the live suggestion". It has to be nullable rather than a plain
   // string: every Army section stays MOUNTED so typed input survives navigation, so a
   // field seeded once with a suggestion would still hold the old name after raising a
@@ -47,7 +39,6 @@ export default function LegionsTab({ state }: { state: GameStateShape }) {
   const nameValue = draftName ?? suggestion
 
   const unattached = units.filter((u) => !legionOfUnit(legions, u.id))
-  const rules = GameConfig.traditionRules()
 
   return (
     <div className="space-y-4">
@@ -86,8 +77,6 @@ export default function LegionsTab({ state }: { state: GameStateShape }) {
         legions.map((l) => {
           const cohorts = unitsOfLegion(l, units)
           const strength = armyStrength(units, l.unitIds)
-          const sworn = traditionById(l.tradition)
-          const lapsed = outOfKeeping(sworn, cohorts)
           const onDuty = dutyById(l.duty)
           return (
             <div key={l.id} className="rounded-lg border border-wl-line bg-wl-panel p-4 space-y-3">
@@ -178,90 +167,13 @@ export default function LegionsTab({ state }: { state: GameStateShape }) {
                 </div>
               )}
 
-              {sworn ? (
-                <div className="rounded border border-wl-accent-line bg-wl-accent-surface p-2.5 space-y-1">
-                  <div className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="font-serif font-bold text-wl-ink">🚩 {sworn.name}</span>
-                    {/* `||`, not `??`: an unsworn legion carries 0 here, not undefined. */}
-                    <span className="text-[11px] text-wl-subtle">sworn day {l.traditionDay || l.foundedDay}</span>
-                  </div>
-                  <p className="text-xs text-wl-muted italic leading-snug">{sworn.creed}</p>
-                  <div className="text-[11px] text-wl-muted">
-                    Takes {describeTradition(sworn).refuses} · Gives {describeTradition(sworn).gives}
-                  </div>
-                  {lapsed && (
-                    // Not a punishment and not a revocation — the oath holds, the bonus
-                    // sleeps. Says the real numbers, because "out of keeping" on its own is
-                    // a riddle rather than an instruction.
-                    <div className="text-[11px] text-wl-bad leading-snug pt-0.5">
-                      Out of keeping: {lapsed}. Its bonus sleeps until the legion is put back in shape.
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <button
-                    className="text-xs underline decoration-dotted text-wl-muted hover:text-wl-ink py-2 -my-1"
-                    onClick={() => setSwearingFor(swearingFor === l.id ? null : l.id)}
-                  >
-                    {swearingFor === l.id ? 'Never mind' : 'Swear a tradition…'}
-                  </button>
-                  {swearingFor === l.id && (
-                    <div className="mt-2 space-y-2">
-                      <p className="text-[11px] text-wl-muted leading-snug">
-                        A legion swears <strong>once</strong>, and the oath is permanent — only
-                        dissolving the legion ends it, and that loses its whole record. Costs{' '}
-                        {fmtCopper(rules.adoptCostCopper)} and {rules.minHonours} victories
-                        (this one has {victoryCount(l.honours)}).
-                        {' '}Traditions shape campaign battles; a challenge against another player is fought on plain terms.
-                      </p>
-                      {TRADITIONS.map((def) => {
-                        const why = adoptBlocker(l, def, cohorts, wallet)
-                        const d = describeTradition(def)
-                        return (
-                          <div key={def.id} className="rounded border border-wl-line bg-wl-panel-muted p-2.5">
-                            <div className="font-serif font-bold text-sm text-wl-ink">{def.name}</div>
-                            <p className="text-xs text-wl-muted italic leading-snug mt-0.5">{def.creed}</p>
-                            {/* The label/value split is carried by letter-spacing and case,
-                                not by a dimmer colour — the same treatment as "ASSIGN A
-                                COHORT" below. A third grey here measured 3.95:1 in dark. */}
-                            <div className="text-[11px] text-wl-muted mt-1 space-y-0.5">
-                              <div><span className="uppercase tracking-wide">Takes</span> {d.refuses}</div>
-                              {/* Hidden rather than shown as a dash: a tradition with no
-                                  standing requirement has nothing to say here, and an empty
-                                  row reads as a missing value. */}
-                              {d.keeps !== '—' && <div><span className="uppercase tracking-wide">Keeps</span> {d.keeps}</div>}
-                              <div><span className="uppercase tracking-wide">Gives</span> {d.gives}</div>
-                            </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-2">
-                              <button
-                                disabled={!!why}
-                                className="px-3 py-1.5 min-h-[32px] text-xs rounded bg-wl-accent text-wl-accent-ink font-serif disabled:bg-wl-panel-muted disabled:text-wl-muted disabled:cursor-not-allowed"
-                                onClick={() => {
-                                  const short = outOfKeeping(def, cohorts)
-                                  if (confirm(
-                                    `Swear ${l.name} to ${def.name}?\n\n`
-                                    + `This is permanent. The only way out is dissolving the legion, which loses every honour it has earned.\n\n`
-                                    + `Takes: ${d.refuses}\nKeeps: ${d.keeps}\nGives: ${d.gives}\nCost: ${fmtCopper(rules.adoptCostCopper)}`
-                                    + (short ? `\n\nIt will start OUT OF KEEPING (${short}), so the bonus sleeps until you fix that.` : ''),
-                                  )) {
-                                    adoptTradition(l.id, def.id)
-                                    setSwearingFor(null)
-                                  }
-                                }}
-                              >
-                                Swear
-                              </button>
-                              {/* The refusal belongs next to the button that refused, not in the Log. */}
-                              {why && <span className="text-[11px] text-wl-bad leading-tight">{why}</span>}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
+              <TraditionPanel
+                legion={l}
+                cohorts={cohorts}
+                wallet={wallet}
+                onFound={(name, creed, cs) => foundTradition(l.id, name, creed, cs)}
+                onGrow={(want) => growTradition(l.id, want)}
+              />
 
               {cohorts.length === 0 ? (
                 <p className="text-xs text-wl-muted">

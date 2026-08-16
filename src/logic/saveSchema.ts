@@ -37,8 +37,11 @@
  * 1 = everything up to and including legion traditions.
  * 2 = `Legion.practice` (the deed ledger) and `CampaignState.marchedLegions`.
  * 3 = `Legion.duty`.
+ * 4 = `Legion.tradition` changed from a catalog id (a string) to an inline authored design.
+ *     An older build would read the object as an unknown id and null it, so this one is not
+ *     merely additive — it is exactly the case the guard exists for.
  */
-export const SAVE_SCHEMA = 3
+export const SAVE_SCHEMA = 4
 
 /**
  * The top-level keys this build writes. Anything in a loaded save that is NOT here is

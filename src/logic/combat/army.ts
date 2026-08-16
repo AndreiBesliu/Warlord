@@ -81,8 +81,11 @@ function applyKillsLowestRankFirst(buckets: UnitBucket[], killCount: number): Un
   return copy.filter((b) => b.count > 0)
 }
 
+/** What fraction of battle XP a DEFEAT keeps. A tradition may raise it, never past 1. */
+export const DEFEAT_XP_KEEP = 0.4
+
 function applyCasualtiesToUnit(
-  u: Unit, c: Combatant, won: boolean, xpMult = 1,
+  u: Unit, c: Combatant, won: boolean, defeatKeep = DEFEAT_XP_KEEP,
 ): { unit: Unit | null; xpGain: number; promotions: Promotion[] } {
   const survivors = c.hp
   if (survivors <= 0) return { unit: null, xpGain: 0, promotions: [] }
@@ -92,12 +95,16 @@ function applyCasualtiesToUnit(
   if (kept.length === 0) return { unit: null, xpGain: 0, promotions: [] }
 
   const survCount = kept.reduce((a, b) => a + b.count, 0)
-  // `xpMult` (a legion tradition) multiplies the raw earning and is then cut by XP_CAP —
-  // in that order, deliberately. The cap exists so that one battle can never manufacture
-  // veterans, and a multiplier applied AFTER it would be exactly the battle that does. So
-  // a tradition helps in an ordinary fight and does nothing at all in a massacre.
-  let xpGain = Math.min(XP_CAP, Math.round((COMBAT_XP_K * c.kills * xpMult) / Math.max(1, survCount)))
-  if (!won) xpGain = Math.round(xpGain * 0.4)
+  // XP_CAP is absolute and nothing lifts it: one battle must never manufacture veterans.
+  //
+  // A tradition therefore cannot multiply this, and the first cut that tried was measured
+  // and removed. Because the cap binds whenever a cohort kills more than ~0.6 enemies per
+  // surviving man, a multiplier paid exactly the cohorts that killed LEAST and did nothing
+  // for the ones doing the work — backwards, and worst for the cavalry it was meant to
+  // reward. What a tradition may move is how much of it a DEFEAT keeps: untouched by the
+  // cap, and only ever worth something on a bad day.
+  let xpGain = Math.min(XP_CAP, Math.round((COMBAT_XP_K * c.kills) / Math.max(1, survCount)))
+  if (!won) xpGain = Math.round(xpGain * Math.min(1, Math.max(0, defeatKeep)))
   if (xpGain > 0) for (const b of kept) b.avgXP += xpGain
 
   // Battle veterancy: XP crossing a rank threshold promotes on the spot.
@@ -140,16 +147,16 @@ export interface BattleOutcome {
 // undeployed units pass through unchanged. Destroyed units are removed.
 // `side` = which battle side belongs to THIS army (PvE is always 'PLAYER'; in PvP the
 // defender applies its own casualties from the 'ENEMY' perspective).
-// `xpMultFor` lets a caller raise a unit's battle XP — today the legion tradition it serves
-// in. It lands HERE rather than in the caller afterwards because XP granted after this
-// function has already run would skip `promoteBuckets`, leaving men sitting above their own
-// promotion threshold un-promoted until some later battle happened to notice.
+// `defeatKeepFor` lets a caller say how much of a beaten cohort's XP survives — today the
+// legion tradition it serves in. It lands HERE rather than in the caller afterwards because
+// XP granted after this function has run would skip `promoteBuckets`, leaving men sitting
+// above their own promotion threshold un-promoted until some later battle noticed.
 export function applyBattleResult(
   units: Unit[],
   finalState: BattleState,
   deployedUnitIds: string[],
   side: Side = 'PLAYER',
-  xpMultFor?: (unitId: string) => number,
+  defeatKeepFor?: (unitId: string) => number,
 ): BattleOutcome {
   const won = finalState.winner === side
   const deployed = new Set(deployedUnitIds)
@@ -183,7 +190,7 @@ export function applyBattleResult(
     }
     totalKills += c.kills
     totalLosses += Math.max(0, c.hpStart - c.hp)
-    const res = applyCasualtiesToUnit(u, c, won, xpMultFor?.(u.id) ?? 1)
+    const res = applyCasualtiesToUnit(u, c, won, defeatKeepFor?.(u.id) ?? DEFEAT_XP_KEEP)
     if (res.unit) {
       out.push(res.unit)
       report.push({

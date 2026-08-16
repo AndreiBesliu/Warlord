@@ -106,6 +106,22 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-16 - Task Completed (felia 3: arborele — tradiția devine ceva ce CREȘTI, nu ceva ce alegi)**
+> Prompt: „continua cu felia 3"
+> Model: Claude Opus 5
+> - **Catalogul de patru a dispărut.** O tradiție e acum un **arbore mic** pe care legiunea îl crește: **NIVELUL** spune cât de ADÂNC poate ajunge, **DOVADA** spune CARE atribut, **PUNCTELE** spun cât. Trei porți diferite ca fel — o legiune care doar luptă are adâncimea dar nicio dovadă de caracter; una care doar stă de gardă are dovada și n-are adâncime.
+> - **Descoperire pe drum care a scos un concept întreg din cod:** dacă atributele se adaugă **pe rând, când le poți lua**, atunci *a proiecta* arborele și *a-l crește* sunt același lucru. Nu mai există listă separată de „câștigate": un nod există în design **fiindcă a fost luat**. Asta e literal „un tree de atribute pe care le dezvoltă o legiune", și omoară o clasă de bug în care cele două liste se contrazic.
+> - **Dovada e proprietatea PIESEI, niciodată a designului.** Un atribut care plătește pentru călăreți uciși cere călăreți uciși. Dacă autorul ar alege dovada, ar alege-o pe cea îndeplinită deja, iar „exersează acțiuni relevante" s-ar evapora într-o formalitate. **Verificat pe viu:** o legiune cu 40 de zile de garnizoană și 4 poziții ținute primește oferite fix Steadfast, Unbroken și Spoils; celelalte șapte refuzate cu ce anume îi lipsește („Needs 20 days on patrol, has 0").
+> - **Designul nu conține NICIUN număr** — id-uri de piese, câți pași, ce atârnă de ce, două șiruri. Toate prețurile, pragurile și plafoanele se recalculează local, deci **o tradiție umflată nu e reprezentabilă**, nu doar refuzată.
+> - **REPREŢUIREA, prima** (constatarea măsurată acum două felii): moralul a devenit **PRAG DE JOS** — nu se poate irosi la 100, și contează exact după un măcel. Multiplicatorul de XP de luptă **a fost șters**: plafonul îl mănâncă și e pe dos, plătind exact cohortele care ucid mai puțin. Învățatul s-a mutat unde plafonul nu ajunge — **în curtea de instrucție și în înfrângere**. Cinci canale, toate în locuri care existau deja.
+> - **Refuzul cererilor care nu cer nimic**, jumătatea care ține autoratul în picioare: `MAX_COHORTS 12` nu refuză nimic (12 e deja plafonul), `MIN_COHORTS 1` se îndeplinește existând, `SHARE 1%` cu o cohortă din o sută. Fără podelele astea, un jucător autorează douăsprezece atribute în spatele a douăsprezece promisiuni gratuite.
+> - **Testul de expresivitate și-a făcut treaba de DOUĂ ori**, și de fiecare dată reparația a fost **regula, nu datele**: „rebate ≤ 60% din total" refuza Shieldwall (regulă gândită pentru un arbore autorat dintr-o dată — la unul crescut incremental pedepsește creșterea lentă → plafon absolut); iar „fiecare fel de cerere o dată" refuza Iron Vow, care neagă și călăreți și arcași — două promisiuni diferite, nu una repetată.
+> - **Migrarea rulează ÎN `hydrateLegion`.** Verificat pe viu: `tradition: 'SHIELDWALL'` a devenit un design complet cu constrângeri și două noduri, păstrând ziua jurământului (12). Cele patru trăiesc acum ca **date** în `traditionLegacy.ts`, importate de nimic altceva. Un design care nu mai validează se **păstrează marcat `invalid`** — un id de catalog e proprietatea jocului, un design e autorul jucătorului.
+> - **Două lucruri pe care ecranul le spunea greșit, prinse uitându-mă:** fiecare nod își afișa pragul ca și cum ar fi al lui, deși canalul se **adună** (20 și 12 fac 32 — al doilea citea ca fiind mai slab); nodurile spun acum ce **adaugă**, iar panoul spune **totalul**. Și un enum brut scăpase în tooltip („Needs 2 heldTheLine").
+> - Ținte de atins de 17px la selectorul de părinte — reparate. Fără overflow la 375px, ambele teme.
+> - `SAVE_SCHEMA` 3 → **4**, și e primul bump care **nu e aditiv**: `Legion.tradition` s-a schimbat din șir în obiect, deci un build vechi l-ar citi ca id necunoscut și l-ar anula. Exact cazul pentru care există garda.
+> - **409 teste verzi** (51 pe tradiții).
+
 **2026-08-16 - Task Completed (felia 2: îndeletnicirile de pace — a doua fântână)**
 > Prompt: „continua cu felia 2"
 > Model: Claude Opus 5

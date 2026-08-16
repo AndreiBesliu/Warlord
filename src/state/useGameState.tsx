@@ -34,7 +34,11 @@ import {
   emptyLegion, pruneMembership, sanitizeLegionName, suggestLegionName, joinBlocker,
   unitsOfLegion, awardVictoryHonours,
 } from '../logic/legion'
-import { adoptBlocker, legionEffectsByUnit, outOfKeeping, traditionById } from '../logic/tradition'
+import {
+  channelsOf, growBlocker, grownNode, legionChannelsByUnit, outOfKeeping, sanitizeAuthoredText,
+  validateDesign, type GrowCandidate, type TraditionDesign,
+} from '../logic/tradition'
+import { NO_CHANNELS, TRADITION_CREED_MAX, TRADITION_NAME_MAX, primById, type Constraint } from '../logic/traditionPalette'
 import { inspectSave, stampSave } from '../logic/saveSchema'
 import { creditBattle, legionLevel, noCreditReason, sharesFromBattle } from '../logic/practice'
 import { DUTY_GARRISON_MORALE, creditDuty, dutyBlocker, dutyById, dutyCostCopper, marchBlocker } from '../logic/duty'
@@ -44,7 +48,7 @@ import { BRANCHES, addStudy, spendStudy, studyCostOf } from '../logic/research/s
 import { applyCommand } from '../logic/combat/engine'
 import { chooseEnemyCommands } from '../logic/combat/ai'
 import { createBattle, missionPresets, DIFFICULTIES, escalationMult, streakLootMult } from '../logic/combat/enemies'
-import { applyBattleResult, prettyName } from '../logic/combat/army'
+import { DEFEAT_XP_KEEP, applyBattleResult, prettyName } from '../logic/combat/army'
 import type { Command, Difficulty } from '../logic/combat/types'
 
 // Initialize registry with core data
@@ -556,7 +560,14 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     const onDuty = leg.legions
       .map(l => ({ l, def: dutyById(l.duty), men: unitsOfLegion(l, unit.units).reduce((a, u) => a + u.buckets.reduce((x, b) => x + b.count, 0), 0) }))
       .filter((d): d is { l: typeof leg.legions[number]; def: NonNullable<ReturnType<typeof dutyById>>; men: number } => !!d.def && d.men > 0)
-    const dutyCopper = onDuty.reduce((a, d) => a + dutyCostCopper(d.def, d.men), 0)
+    // A legion's own tradition may make its duties cheaper — or, for a patrol, its tolls
+    // richer, since the multiplier scales a negative bill the same way. Resolved through
+    // the same keeping check as every other channel: a legion out of keeping pays full.
+    const dayChannels = legionChannelsByUnit(leg.legions, unit.units)
+    const legionChannels = (l: { unitIds: string[] }) =>
+      dayChannels.get(l.unitIds[0] ?? '') ?? NO_CHANNELS
+    const dutyCopper = onDuty.reduce(
+      (a, d) => a + Math.round(dutyCostCopper(d.def, d.men) * legionChannels(d.l).dutyCopperMult), 0)
     if (dutyCopper !== 0) {
       econ.setWallet(w => w - dutyCopper)
       notes.push(dutyCopper > 0 ? `Duty ${fmtCopper(dutyCopper)}` : `Tolls +${fmtCopper(-dutyCopper)}`)
@@ -571,6 +582,9 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     // already exist — no second morale source, no second XP source.
     const garrisoned = new Set(onDuty.filter(d => d.def.id === 'GARRISON').flatMap(d => d.l.unitIds))
     const drilling = new Set(onDuty.filter(d => d.def.id === 'DRILL').flatMap(d => d.l.unitIds))
+    // Training XP is where a tradition may make a legion LEARN faster — the drill yard has
+    // no per-day cap, unlike battle XP, so a multiplier here is worth what it says.
+    const drillMultFor = (id: string) => dayChannels.get(id)?.drillXpMult ?? 1
 
     // Morale update
     const canPayUpkeep = postWallet >= upkeep - Math.min(0, dutyCopper)
@@ -585,7 +599,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       // path rather than adding a second XP source — `||`, not `+`, so a cohort already
       // set to training does not get paid twice for being in a drill camp.
       const base = (u.training || drilling.has(u.id))
-        ? u.buckets.map(b => ({ ...b, avgXP: b.avgXP + Math.round(trainingGainPerDay(b.r) * mods.trainXpMult) }))
+        ? u.buckets.map(b => ({ ...b, avgXP: b.avgXP + Math.round(trainingGainPerDay(b.r) * mods.trainXpMult * drillMultFor(u.id)) }))
         : u.buckets
       return promoteBuckets(base)
     }
@@ -975,27 +989,77 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
   }
 
   /**
-   * Swear a legion to a tradition. Once, and for good — the only way out is dissolving the
-   * legion, which costs it every honour it ever earned. That permanence is the point: a
-   * commitment you can walk away from is a preference, not an identity.
+   * Found a tradition: a name, a creed, and what the legion gives up.
+   *
+   * The PROMISE is all that is authored here. Its attributes are not designed up front —
+   * they are added one at a time, when the legion has grown into them (`growTradition`),
+   * which is what "attributes a legion develops" actually means.
+   *
+   * Once, and for good. The only way out is dissolving the legion, which costs it every
+   * honour it earned. That permanence is the point: a commitment you can walk away from is
+   * a preference, not an identity.
    */
-  function adoptTradition(legionId: string, traditionId: string) {
+  function foundTradition(legionId: string, rawName: string, rawCreed: string, constraints: Constraint[]) {
     const target = leg.legions.find(l => l.id === legionId)
-    const def = traditionById(traditionId)
-    if (!target || !def) return
-    const cohorts = unitsOfLegion(target, unit.units)
-    const blocked = adoptBlocker(target, def, cohorts, econ.wallet)
-    if (blocked) { addLog(`Cannot swear: ${blocked}.`); return }
+    if (!target) return
+    if (target.tradition) { addLog(`Cannot swear: ${target.name} is already sworn.`); return }
 
-    const cost = GameConfig.traditionRules().adoptCostCopper
-    econ.setWallet(w => w - cost)
-    leg.setLegions(ls => ls.map(l =>
-      l.id === legionId ? { ...l, tradition: def.id, traditionDay: day } : l))
-    addLog(`🚩 ${target.name} swore to ${def.name} for ${fmtCopper(cost)}.`)
-    // Said at the moment of the oath, not discovered three battles later when the bonus
-    // never seemed to arrive.
-    const lapsed = outOfKeeping(def, cohorts)
-    if (lapsed) addLog(`${target.name} is out of keeping with ${def.name}: ${lapsed}.`)
+    const rules = GameConfig.traditionRules()
+    const wins = target.practice?.victories ?? 0
+    if (wins < rules.minHonours) {
+      addLog(`Cannot swear: ${target.name} needs ${rules.minHonours} victories, has ${wins}.`); return
+    }
+    if (econ.wallet < rules.adoptCostCopper) {
+      addLog(`Cannot swear: the oath costs ${fmtCopper(rules.adoptCostCopper)}.`); return
+    }
+
+    const design: TraditionDesign = {
+      v: 1,
+      name: sanitizeAuthoredText(rawName, target.name, TRADITION_NAME_MAX),
+      creed: sanitizeAuthoredText(rawCreed, '', TRADITION_CREED_MAX),
+      sworeDay: day,
+      constraints,
+      nodes: [],
+    }
+    const check = validateDesign(design)
+    if (!check.ok) { addLog(`Cannot swear: ${check.errors[0]}.`); return }
+    // A legion cannot swear to something it already contradicts — that is a contradiction,
+    // not an aspiration, and the way out is to release the cohorts first.
+    const cohorts = unitsOfLegion(target, unit.units)
+    for (const u of cohorts) {
+      const ban = joinBlocker({ ...target, tradition: design, unitIds: [] }, u.id, unit.units, [])
+      if (ban) { addLog(`Cannot swear: ${ban}. Release them first.`); return }
+    }
+
+    const cost = rules.adoptCostCopper
+    econ.setWallet(w => Math.max(0, w - cost))
+    leg.setLegions(ls => ls.map(l => (l.id === legionId && !l.tradition
+      ? { ...l, tradition: design, traditionDay: day } : l)))
+    addLog(`🚩 ${target.name} swore to ${design.name} for ${fmtCopper(cost)}.`)
+    const lapsed = outOfKeeping(design, cohorts)
+    if (lapsed) addLog(`${target.name} is out of keeping with ${design.name}: ${lapsed}.`)
+  }
+
+  /**
+   * Add one attribute to a legion's tradition.
+   *
+   * The message is computed outside so it can say WHY; the same check runs again inside the
+   * updater, against the current list, because a check made on the render snapshot is not
+   * an invariant — see `assignToLegion` and the note in CLAUDE.md.
+   */
+  function growTradition(legionId: string, want: GrowCandidate) {
+    const target = leg.legions.find(l => l.id === legionId)
+    if (!target?.tradition) return
+    const blocked = growBlocker(target.tradition, target.practice ?? {}, want)
+    if (blocked) { addLog(`Cannot take it: ${blocked}.`); return }
+
+    leg.setLegions(ls => ls.map(l => {
+      if (l.id !== legionId || !l.tradition) return l
+      if (growBlocker(l.tradition, l.practice ?? {}, want)) return l
+      return { ...l, tradition: { ...l.tradition, nodes: [...l.tradition.nodes, grownNode(l.tradition, want)] } }
+    }))
+    const prim = primById(want.prim)
+    addLog(`🚩 ${target.name} takes up ${prim?.name ?? want.prim} (${want.steps}).`)
   }
 
   /** Disbanding the FORMATION, not its men: the units survive and become unattached. */
@@ -1087,14 +1151,25 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     const c = camp.campaign
     const b = c.battle
     if (!b || b.status === 'ONGOING') return
-    // Resolved against the army as it MARCHED — see `legionEffectsByUnit`. Both channels
-    // read this one map, so a legion out of keeping is out of keeping for both.
-    const trad = legionEffectsByUnit(leg.legions, unit.units)
+    // Resolved against the army as it MARCHED — see `legionChannelsByUnit`. Every channel
+    // reads this one map, so a legion out of keeping is out of keeping for all of them.
+    const trad = legionChannelsByUnit(leg.legions, unit.units)
     const outcome = applyBattleResult(unit.units, b, c.deployedIds, 'PLAYER',
-      id => trad.get(id)?.xpMult ?? 1)
+      id => DEFEAT_XP_KEEP + (trad.get(id)?.defeatXpBonus ?? 0))
     unit.setUnits(outcome.units)
     const won = outcome.won
     if (won && c.reward) grantLoot(c.reward)
+    // A flat stipend, not a multiplier on loot: loot is already proportional to army size,
+    // so a multiplier there compounds into an income that dwarfs everything else in the
+    // game. Paid once per victory, to the legions that were actually in it.
+    const stipend = won
+      ? [...new Set(outcome.report.filter(r => !r.destroyed).map(r => trad.get(r.unitId)))]
+          .reduce((a, ch) => a + (ch?.victoryStipend ?? 0), 0)
+      : 0
+    if (stipend > 0) {
+      econ.setWallet(w => w + stipend)
+      addLog(`🚩 Tradition stipend: ${fmtCopper(stipend)}.`)
+    }
     const rewardText = won && c.reward
       ? ` Loot: ${fmtCopper(c.reward.copper)}${Object.keys(c.reward.resources).length ? ' + resources' : ''}.`
       : ''
@@ -1109,15 +1184,22 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     // Steadier survivors: field surgeons and the like from research, plus whatever the
     // legion's own tradition is worth to its cohorts. One write, not two — they are the
     // same kind of thing arriving at the same moment.
+    // Research still ADDS morale; a tradition instead sets a FLOOR. That difference is the
+    // whole repricing: morale recovers +5/day for free and clamps at 100, so an addition is
+    // worth nothing to a healthy domain and a floor is worth nothing until the day it is
+    // worth everything. Floor applied after the addition, so the two never fight.
     const survived = new Set(outcome.report.filter(r => !r.destroyed).map(r => r.unitId))
-    const moraleFor = (id: string) => mods.postBattleMoraleBonus + (trad.get(id)?.moraleBonus ?? 0)
-    if (outcome.report.some(r => !r.destroyed && moraleFor(r.unitId) > 0)) {
-      unit.setUnits(us => us.map(u => survived.has(u.id)
-        ? { ...u, morale: Math.max(0, Math.min(100, (u.morale ?? 100) + moraleFor(u.id))) }
-        : u))
+    const bonus = mods.postBattleMoraleBonus
+    const floorFor = (id: string) => trad.get(id)?.moraleFloor ?? 0
+    if (outcome.report.some(r => !r.destroyed && (bonus > 0 || floorFor(r.unitId) > 0))) {
+      unit.setUnits(us => us.map(u => {
+        if (!survived.has(u.id)) return u
+        const raised = Math.min(100, (u.morale ?? 100) + bonus)
+        return { ...u, morale: Math.max(0, Math.min(100, Math.max(raised, floorFor(u.id)))) }
+      }))
       const held = [...new Set(leg.legions
-        .filter(l => l.tradition && l.unitIds.some(id => survived.has(id) && (trad.get(id)?.moraleBonus ?? 0) > 0)
-        ).map(l => `${l.name} held to ${traditionById(l.tradition)?.name}`))]
+        .filter(l => l.tradition && l.unitIds.some(id => survived.has(id) && floorFor(id) > 0))
+        .map(l => `${l.name} held to ${l.tradition!.name}`))]
       for (const line of held) addLog(`🚩 ${line}.`)
     }
     // ── The record, and the decoration ──────────────────────────────────────────────
@@ -1292,7 +1374,8 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     // legions
     legions: leg.legions,
     formLegion,
-    adoptTradition,
+    foundTradition,
+    growTradition,
     setLegionDuty,
     renameLegion,
     assignToLegion,

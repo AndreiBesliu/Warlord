@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import { LEGION_MAX_HONOURS, LEGION_MAX_UNITS, type Honour, type Legion } from '../logic/legion'
-import { traditionById } from '../logic/tradition'
+import {
+  TraditionDesign, sanitizeAuthoredText, validateDesign,
+} from '../logic/tradition'
+import { legacyDesign } from '../logic/traditionLegacy'
+import {
+  DESIGN_MAX_CONSTRAINTS, DESIGN_MAX_NODES, TRADITION_CREED_MAX, TRADITION_NAME_MAX, primById,
+} from '../logic/traditionPalette'
 import { hydrateLedger } from '../logic/practice'
 import { dutyById } from '../logic/duty'
 
@@ -28,6 +34,73 @@ function hydrateHonour(saved: unknown): Honour | null {
   }
 }
 
+
+/**
+ * Rebuild an authored tradition from an untrusted save — REBUILD, never pass through, the
+ * way `sanitizeDeploy` does it rather than the spread-merge tier. Everything is resolved
+ * against THIS build's palette, so a design can never carry a price, a threshold or a
+ * ceiling of its own.
+ *
+ * Two policies worth reading:
+ *
+ *   A legacy oath (`tradition` was a plain string like 'SHIELDWALL') is migrated HERE, not
+ *   after mount. Whatever hydrate returns is what the save effect persists on the very next
+ *   state change, so a post-mount migration would already be writing over the old ids.
+ *
+ *   A design that no longer validates is KEPT and marked `invalid`, not nulled. A catalog
+ *   id is the game's property and may be dropped; a design is the player's authorship, and
+ *   it must never vanish without a sentence on screen.
+ */
+function hydrateDesign(saved: unknown, sworeDay: number): TraditionDesign | null {
+  const legacy = legacyDesign(saved, sworeDay)
+  if (legacy) return legacy
+  if (!saved || typeof saved !== 'object') return null
+  const d = saved as Record<string, unknown>
+
+  const nodes: TraditionDesign['nodes'] = []
+  const ids = new Set<string>()
+  if (Array.isArray(d.nodes)) {
+    for (const raw of d.nodes.slice(0, DESIGN_MAX_NODES)) {
+      if (!raw || typeof raw !== 'object') continue
+      const n = raw as Record<string, unknown>
+      const prim = primById(str(n.prim))
+      const id = str(n.id)
+      if (!prim || !id || ids.has(id)) continue
+      // A parent must already be present, which is also what makes a cycle unrepresentable.
+      const parent = typeof n.parent === 'string' && ids.has(n.parent) ? n.parent : null
+      nodes.push({ id, parent, prim: prim.id, steps: Math.min(prim.maxSteps, Math.max(1, Math.round(num(n.steps, 1)))) })
+      ids.add(id)
+    }
+  }
+
+  const constraints: TraditionDesign['constraints'] = []
+  if (Array.isArray(d.constraints)) {
+    for (const raw of d.constraints.slice(0, DESIGN_MAX_CONSTRAINTS)) {
+      if (!raw || typeof raw !== 'object') continue
+      const c = raw as Record<string, unknown>
+      const cls = str(c.cls) as 'MOUNTED' | 'FOOT' | 'ARCHER' | 'HEAVY_FOOT'
+      switch (str(c.kind)) {
+        case 'DENY': constraints.push({ kind: 'DENY', cls }); break
+        case 'MAX_COHORTS': constraints.push({ kind: 'MAX_COHORTS', n: Math.round(num(c.n)) }); break
+        case 'MIN_COHORTS': constraints.push({ kind: 'MIN_COHORTS', n: Math.round(num(c.n)) }); break
+        case 'SHARE': constraints.push({ kind: 'SHARE', cls, minPct: Math.round(num(c.minPct)) }); break
+      }
+    }
+  }
+
+  const name = sanitizeAuthoredText(str(d.name), '', TRADITION_NAME_MAX)
+  if (!name && nodes.length === 0 && constraints.length === 0) return null
+  const design: TraditionDesign = {
+    v: 1,
+    name: name || 'A nameless tradition',
+    creed: sanitizeAuthoredText(str(d.creed), '', TRADITION_CREED_MAX),
+    sworeDay: Math.round(num(d.sworeDay, sworeDay)),
+    constraints,
+    nodes,
+  }
+  return validateDesign(design).ok ? design : { ...design, invalid: true }
+}
+
 function hydrateLegion(saved: unknown): Legion | null {
   if (!saved || typeof saved !== 'object') return null
   const l = saved as Record<string, unknown>
@@ -45,10 +118,7 @@ function hydrateLegion(saved: unknown): Legion | null {
     honours: Array.isArray(l.honours)
       ? l.honours.map(hydrateHonour).filter((h): h is Honour => h !== null).slice(0, LEGION_MAX_HONOURS)
       : [],
-    // Resolved against the catalog, not trusted: a save carrying an id that no longer
-    // exists (a tradition renamed or dropped) must read as "no oath" rather than as a
-    // tradition whose rules nothing can look up. `traditionById` returns null for both.
-    tradition: traditionById(str(l.tradition))?.id ?? null,
+    tradition: hydrateDesign(l.tradition, Math.round(num(l.traditionDay))),
     traditionDay: Math.round(num(l.traditionDay)),
     // The key list inside `hydrateLedger` IS the whitelist — an unknown counter is dropped
     // rather than carried, so a hand-edited save cannot invent a proof.
