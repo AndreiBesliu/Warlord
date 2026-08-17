@@ -35,10 +35,12 @@ import {
   unitsOfLegion, awardVictoryHonours,
 } from '../logic/legion'
 import {
-  growBlocker, grownNode, legionChannelsByUnit, outOfKeeping, sanitizeAuthoredText,
+  deepenBlocker, deepenedNodes, growBlocker, grownNode, legionChannelsByUnit, outOfKeeping,
+  sanitizeAuthoredText,
   validateDesign, type GrowCandidate, type TraditionDesign,
 } from '../logic/tradition'
 import { NO_CHANNELS, TRADITION_CREED_MAX, TRADITION_NAME_MAX, primById, type Constraint } from '../logic/traditionPalette'
+import { decodeDesign } from '../logic/traditionCode'
 import { inspectSave, stampSave } from '../logic/saveSchema'
 import { creditBattle, legionLevel, noCreditReason, sharesFromBattle } from '../logic/practice'
 import { DUTY_GARRISON_MORALE, creditDuty, dutyBlocker, dutyById, dutyCostCopper, marchBlocker } from '../logic/duty'
@@ -1062,6 +1064,41 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     addLog(`🚩 ${target.name} takes up ${prim?.name ?? want.prim} (${want.steps}).`)
   }
 
+  /**
+   * Deepen an attribute the legion already has.
+   *
+   * `growBlocker` refuses a piece already in the tree and tells the player to deepen it —
+   * so this has to exist, or that message points at nothing the game can do.
+   */
+  function deepenTradition(legionId: string, nodeId: string, toSteps: number) {
+    const target = leg.legions.find(l => l.id === legionId)
+    if (!target?.tradition) return
+    const blocked = deepenBlocker(target.tradition, target.practice ?? {}, nodeId, toSteps)
+    if (blocked) { addLog(`Cannot deepen it: ${blocked}.`); return }
+
+    leg.setLegions(ls => ls.map(l => {
+      if (l.id !== legionId || !l.tradition) return l
+      if (deepenBlocker(l.tradition, l.practice ?? {}, nodeId, toSteps)) return l
+      return { ...l, tradition: { ...l.tradition, nodes: deepenedNodes(l.tradition, nodeId, toSteps) } }
+    }))
+    const prim = primById(target.tradition.nodes.find(n => n.id === nodeId)?.prim ?? '')
+    addLog(`🚩 ${target.name} deepens ${prim?.name ?? 'an attribute'} to ${toSteps}.`)
+  }
+
+  /**
+   * Swear to a tradition somebody else wrote down.
+   *
+   * The code brings the PROMISE — the name, the creed, the demands — and nothing else. Its
+   * attributes come across as an empty tree: you can be handed a tradition, never a
+   * history. Everything still has to be earned by the legion that swore to it.
+   */
+  function foundTraditionFromCode(legionId: string, code: string) {
+    const decoded = decodeDesign(code, day)
+    if (!decoded.ok) { addLog(`Cannot read that code: ${decoded.error}.`); return }
+    const d = decoded.design
+    foundTradition(legionId, d.name, d.creed, d.constraints)
+  }
+
   /** Disbanding the FORMATION, not its men: the units survive and become unattached. */
   function disbandLegion(legionId: string) {
     const doomed = leg.legions.find(l => l.id === legionId)
@@ -1375,7 +1412,9 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     legions: leg.legions,
     formLegion,
     foundTradition,
+    foundTraditionFromCode,
     growTradition,
+    deepenTradition,
     setLegionDuty,
     renameLegion,
     assignToLegion,

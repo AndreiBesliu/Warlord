@@ -349,6 +349,46 @@ export function growBlocker(
   return null
 }
 
+/**
+ * Why this attribute cannot be deepened to `toSteps`. `null` = it can.
+ *
+ * Deepening exists because `growBlocker` refuses a piece the tree already holds and tells
+ * the player to deepen it instead. Without this that message pointed at nothing — an
+ * instruction the game could not carry out, which is worse than no instruction.
+ *
+ * You pay the DIFFERENCE in points but must meet the proof for the NEW TOTAL: the deeper
+ * claim is the one being made, and part-paying for it would let a legion ladder up to a
+ * demand it never met. Level is not re-checked — the attribute already sits where it sits,
+ * and its depth has not changed.
+ */
+export function deepenBlocker(
+  design: TraditionDesign, practice: DeedLedger, nodeId: string, toSteps: number,
+): string | null {
+  if (design.invalid) return 'This tradition no longer makes sense to the game'
+  const node = design.nodes.find((n) => n.id === nodeId)
+  if (!node) return 'That attribute is not part of this tradition'
+  const prim = primById(node.prim)
+  if (!prim) return 'Unknown attribute'
+
+  const steps = Math.floor(toSteps)
+  if (steps <= node.steps) return `${prim.name} is already at ${node.steps}`
+  if (steps > prim.maxSteps) return `${prim.name} goes no further than ${prim.maxSteps}`
+
+  const needProof = prim.proofPerStep * steps
+  const have = practice[prim.proof] ?? 0
+  if (have < needProof) return `Needs ${needProof} ${proofLabel(prim.proof)}, has ${have}`
+
+  const cost = prim.points * (steps - node.steps)
+  const left = availablePoints(design, practice) - spentPoints(design)
+  if (cost > left) return `Costs ${cost} more points; ${left} left`
+
+  return null
+}
+
+export function deepenedNodes(design: TraditionDesign, nodeId: string, toSteps: number): DesignNode[] {
+  return design.nodes.map((n) => (n.id === nodeId ? { ...n, steps: Math.floor(toSteps) } : n))
+}
+
 /** The candidate as a node, once it has passed. Ids are positional and therefore stable. */
 export function grownNode(design: TraditionDesign, want: GrowCandidate): DesignNode {
   return { id: `n${design.nodes.length}`, parent: want.parent, prim: want.prim, steps: Math.floor(want.steps) }

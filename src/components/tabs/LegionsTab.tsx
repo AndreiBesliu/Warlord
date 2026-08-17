@@ -28,7 +28,7 @@ export default function LegionsTab({ state }: { state: GameStateShape }) {
   const {
     legions, units, wallet,
     formLegion, renameLegion, assignToLegion, removeFromLegion, disbandLegion,
-    foundTradition, growTradition, setLegionDuty,
+    foundTradition, foundTraditionFromCode, growTradition, deepenTradition, setLegionDuty,
   } = state
   // `null` means "show the live suggestion". It has to be nullable rather than a plain
   // string: every Army section stays MOUNTED so typed input survives navigation, so a
@@ -172,7 +172,9 @@ export default function LegionsTab({ state }: { state: GameStateShape }) {
                 cohorts={cohorts}
                 wallet={wallet}
                 onFound={(name, creed, cs) => foundTradition(l.id, name, creed, cs)}
+                onFoundFromCode={(code) => foundTraditionFromCode(l.id, code)}
                 onGrow={(want) => growTradition(l.id, want)}
+                onDeepen={(nodeId, toSteps) => deepenTradition(l.id, nodeId, toSteps)}
               />
 
               {cohorts.length === 0 ? (

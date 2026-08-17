@@ -106,6 +106,19 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-17 - Task Completed (felia 4: forja — pași, adâncire, și o tradiție pe care o poți da mai departe)**
+> Prompt: „continua cu felia 4"
+> Model: Claude Opus 5
+> - **Am început cu un defect al meu din felia 3:** `growBlocker` refuza o piesă deja luată cu „deepen it instead of repeating it" — iar jocul **nu avea** cum s-o adâncești. O instrucțiune care nu duce nicăieri e mai rea decât nicio instrucțiune. `deepenBlocker` plătește **diferența** de puncte dar cere dovada pentru **totalul nou**: pretenția care se face e cea adâncă, iar plata parțială ar lăsa o legiune să urce din treaptă în treaptă spre o cerință pe care n-a îndeplinit-o niciodată.
+> - **Pașii se aleg la luare**, cu prețul și dovada actualizate live. Verificat: la 3 pași, Unbroken trece de la 3pt la **9pt**.
+> - **Coduri de tradiție.** Ce face codul sigur nu e codificarea, ci **ce NU poate purta**: id-uri de piese, număr de pași, legături de părinte ca POZIȚII, cererile, două șiruri. **Niciun preț, niciun prag, niciun plafon** — toate se recalculează din paleta celui care importă. Deci o tradiție umflată **nu e reprezentabilă**, nu ceva de detectat și respins. Cine editează un cod de mână poate produce una ilegală (refuzată cu motiv) sau alta legală — niciodată una mai puternică.
+> - **Regula pe care o poartă mecanismul: poți primi o tradiție, niciodată o istorie.** Codul aduce promisiunea — nume, crez, cereri — și un arbore GOL. Verificat pe viu: dătătorul avea Spoils la 4 trepte, primitorul a rămas cu `nodes: []`. Arborele tot trebuie crescut de legiunea aia, din faptele ei.
+> - **Sumă de control de patru caractere** — nu securitate (n-are ce falsifica), ci cazul obișnuit: un cod căruia i s-a pierdut coada la wrap-ul unui chat s-ar decoda altfel într-o tradiție mai mică, legală la vedere, și ar fi acceptat tăcut. Verificat: cod trunchiat → refuzat, legiunea rămâne nejurată.
+> - Un cod ilegal e refuzat **în cuvintele validatorului**, nu cu o eroare de import mai vagă — cele două uși spun același lucru.
+> - **Reparat pe drum:** refuzul codului apărea doar în Log. Acum se decodează în timp ce tastezi, motivul stă lângă buton, iar un cod bun își arată promisiunea înainte s-o juri: *„The Unmoved" — never horsemen · at most 9 cohorts*.
+> - Contrast: linia care explică pașii era 3,62:1 în dark pe tokenul mai șters — e instrucțiune, nu decor, deci a trecut pe `wl-muted`. Fără overflow la 375px, fără ținte sub 28px.
+> - **429 teste verzi** (20 noi).
+
 **2026-08-16 - Task Completed (felia 3: arborele — tradiția devine ceva ce CREȘTI, nu ceva ce alegi)**
 > Prompt: „continua cu felia 3"
 > Model: Claude Opus 5
