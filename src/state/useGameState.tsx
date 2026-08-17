@@ -41,6 +41,7 @@ import {
 } from '../logic/tradition'
 import { NO_CHANNELS, TRADITION_CREED_MAX, TRADITION_NAME_MAX, primById, type Constraint } from '../logic/traditionPalette'
 import { decodeDesign } from '../logic/traditionCode'
+import { isStandardLost, standardBlocker, standardFalls, standardRecovered } from '../logic/standard'
 import { inspectSave, stampSave } from '../logic/saveSchema'
 import { creditBattle, legionLevel, noCreditReason, sharesFromBattle } from '../logic/practice'
 import { DUTY_GARRISON_MORALE, creditDuty, dutyBlocker, dutyById, dutyCostCopper, marchBlocker } from '../logic/duty'
@@ -565,7 +566,8 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     // A legion's own tradition may make its duties cheaper — or, for a patrol, its tolls
     // richer, since the multiplier scales a negative bill the same way. Resolved through
     // the same keeping check as every other channel: a legion out of keeping pays full.
-    const dayChannels = legionChannelsByUnit(leg.legions, unit.units)
+    const dayChannels = legionChannelsByUnit(
+      leg.legions.map(l => ({ ...l, standardLost: isStandardLost(l.standard) })), unit.units)
     const legionChannels = (l: { unitIds: string[] }) =>
       dayChannels.get(l.unitIds[0] ?? '') ?? NO_CHANNELS
     const dutyCopper = onDuty.reduce(
@@ -1005,6 +1007,9 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     const target = leg.legions.find(l => l.id === legionId)
     if (!target) return
     if (target.tradition) { addLog(`Cannot swear: ${target.name} is already sworn.`); return }
+    // Nothing about a tradition moves while its eagle is in somebody else's hands.
+    const noEagle = standardBlocker(target.standard, target.name, presets[target.standard?.lostTo ?? 'BANDIT_RAID'].name)
+    if (noEagle) { addLog(`Cannot swear: ${noEagle}.`); return }
 
     const rules = GameConfig.traditionRules()
     const wins = target.practice?.victories ?? 0
@@ -1052,6 +1057,9 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
   function growTradition(legionId: string, want: GrowCandidate) {
     const target = leg.legions.find(l => l.id === legionId)
     if (!target?.tradition) return
+    // Nothing about a tradition moves while its eagle is in somebody else's hands.
+    const noEagle = standardBlocker(target.standard, target.name, presets[target.standard?.lostTo ?? 'BANDIT_RAID'].name)
+    if (noEagle) { addLog(`Cannot take it: ${noEagle}.`); return }
     const blocked = growBlocker(target.tradition, target.practice ?? {}, want)
     if (blocked) { addLog(`Cannot take it: ${blocked}.`); return }
 
@@ -1073,6 +1081,9 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
   function deepenTradition(legionId: string, nodeId: string, toSteps: number) {
     const target = leg.legions.find(l => l.id === legionId)
     if (!target?.tradition) return
+    // Nothing about a tradition moves while its eagle is in somebody else's hands.
+    const noEagle = standardBlocker(target.standard, target.name, presets[target.standard?.lostTo ?? 'BANDIT_RAID'].name)
+    if (noEagle) { addLog(`Cannot deepen it: ${noEagle}.`); return }
     const blocked = deepenBlocker(target.tradition, target.practice ?? {}, nodeId, toSteps)
     if (blocked) { addLog(`Cannot deepen it: ${blocked}.`); return }
 
@@ -1190,7 +1201,8 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     if (!b || b.status === 'ONGOING') return
     // Resolved against the army as it MARCHED — see `legionChannelsByUnit`. Every channel
     // reads this one map, so a legion out of keeping is out of keeping for all of them.
-    const trad = legionChannelsByUnit(leg.legions, unit.units)
+    const trad = legionChannelsByUnit(
+      leg.legions.map(l => ({ ...l, standardLost: isStandardLost(l.standard) })), unit.units)
     const outcome = applyBattleResult(unit.units, b, c.deployedIds, 'PLAYER',
       id => DEFEAT_XP_KEEP + (trad.get(id)?.defeatXpBonus ?? 0))
     unit.setUnits(outcome.units)
@@ -1252,11 +1264,25 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     const shareOf = new Map(shares.map(s => [s.legionId, s]))
     const bctx = { won, difficulty: b.difficulty, totalFielded }
     const label = presets[b.difficulty].name
+    // The eagle. It falls when EVERY cohort a legion put in the line is destroyed — a
+    // total wipe, derived from the report that already exists, with no bearer to maintain.
+    // It comes home by winning at the mission that took it. Both ride the same write as the
+    // deeds, because they are the same event.
+    const destroyedIds = new Set(outcome.report.filter(r => r.destroyed).map(r => r.unitId))
+    const marchedOf = new Map((c.marchedLegions ?? []).map(m => [m.id, m.unitIds]))
     leg.setLegions(ls => {
       const credited = ls.map(l => {
         const tidied = pruneMembership(l, outcome.units)
         const s = shareOf.get(l.id)
-        return s ? { ...tidied, practice: creditBattle(tidied.practice ?? {}, s, bctx) } : tidied
+        const marched = marchedOf.get(l.id) ?? []
+        let standard = tidied.standard ?? null
+        if (!isStandardLost(standard) && standardFalls(marched, destroyedIds)) {
+          standard = { lostTo: b.difficulty, lostDay: day }
+        } else if (standardRecovered(standard, won, b.difficulty, marched)) {
+          standard = null
+        }
+        const withStandard = standard === (tidied.standard ?? null) ? tidied : { ...tidied, standard }
+        return s ? { ...withStandard, practice: creditBattle(withStandard.practice ?? {}, s, bctx) } : withStandard
       })
       return won
         ? awardVictoryHonours(credited, [...survived], { key: `WIN:${b.difficulty}`, label: `Victor of ${label}`, day })
@@ -1272,6 +1298,12 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       const before = l.practice ?? {}
       const why = noCreditReason(s, bctx)
       if (why) { addLog(`🚩 ${l.name} earns nothing from ${label}: ${why}.`); continue }
+      const marched = marchedOf.get(l.id) ?? []
+      if (!isStandardLost(l.standard) && standardFalls(marched, destroyedIds)) {
+        addLog(`🚩 ${l.name} was wiped out at ${label} and its standard was taken.`)
+      } else if (standardRecovered(l.standard, won, b.difficulty, marched)) {
+        addLog(`🚩 ${l.name} won back its standard at ${label}.`)
+      }
       const after = creditBattle(before, s, bctx)
       const up = legionLevel(after) - legionLevel(before)
       if (up > 0) addLog(`🚩 ${l.name} is now Level ${legionLevel(after)}.`)

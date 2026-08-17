@@ -17,6 +17,7 @@ import { joinBan, type TraditionDesign } from './tradition'
 // Type-only: `practice.ts` imports `tradition.ts` for the class vocabulary, and this is a
 // type import, so nothing is created at runtime and there is no cycle.
 import type { DeedLedger } from './practice'
+import type { StandardLost } from './standard'
 
 export interface Honour {
   /** Dedupe key — the same feat twice is one honour with a count, not two lines. */
@@ -48,6 +49,8 @@ export interface Legion {
   practice?: DeedLedger
   /** What it is doing on the days it does not fight. `null` = standing ready. See `duty.ts`. */
   duty?: string | null
+  /** Where its eagle is, if somebody else has it. `null` = the legion holds it. */
+  standard?: StandardLost | null
 }
 
 /**
@@ -215,7 +218,7 @@ export function pruneMembership(legion: Legion, units: Unit[]): Legion {
 export function emptyLegion(name: string, foundedDay: number): Legion {
   return {
     id: newLegionId(), name, foundedDay, unitIds: [], honours: [],
-    tradition: null, traditionDay: 0, practice: {}, duty: null,
+    tradition: null, traditionDay: 0, practice: {}, duty: null, standard: null,
   }
 }
 

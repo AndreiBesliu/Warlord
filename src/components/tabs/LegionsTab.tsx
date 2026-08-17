@@ -9,6 +9,7 @@ import { DUTIES, dutyBlocker, dutyById, dutyCostCopper } from '../../logic/duty'
 import { unitName } from '../../logic/names'
 import { fmtCopper } from '../../logic/types'
 import { armyStrength } from '../../logic/combat/army'
+import { missionPresets } from '../../logic/combat/enemies'
 
 // A legion is a FORMATION that holds units. It is what carries the name, the record, and
 // (later) the traditions — the cohorts inside it come and go, the legion does not.
@@ -20,6 +21,9 @@ const DEED_ORDER: DeedKey[] = [
   'slain', 'slainMounted', 'slainArcher', 'slainHeavyFoot', 'promotions', 'retreats',
   'daysGarrisoned', 'daysDrilled', 'daysPatrolled',
 ]
+/** The mission's name, resolved once per render rather than threaded down as a table. */
+const missionName = (d: string) => missionPresets()[d as keyof ReturnType<typeof missionPresets>]?.name ?? d
+
 function deedLines(d: DeedLedger): string[] {
   return DEED_ORDER.filter((k) => (d[k] ?? 0) > 0).map((k) => `${d[k]} ${deedLabel(k, d[k] as number)}`)
 }
@@ -171,6 +175,7 @@ export default function LegionsTab({ state }: { state: GameStateShape }) {
                 legion={l}
                 cohorts={cohorts}
                 wallet={wallet}
+                lostAt={l.standard ? missionName(l.standard.lostTo) : null}
                 onFound={(name, creed, cs) => foundTradition(l.id, name, creed, cs)}
                 onFoundFromCode={(code) => foundTraditionFromCode(l.id, code)}
                 onGrow={(want) => growTradition(l.id, want)}

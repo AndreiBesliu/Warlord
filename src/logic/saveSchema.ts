@@ -40,8 +40,9 @@
  * 4 = `Legion.tradition` changed from a catalog id (a string) to an inline authored design.
  *     An older build would read the object as an unknown id and null it, so this one is not
  *     merely additive — it is exactly the case the guard exists for.
+ * 5 = `Legion.standard` (where its eagle is, if somebody else has it).
  */
-export const SAVE_SCHEMA = 4
+export const SAVE_SCHEMA = 5
 
 /**
  * The top-level keys this build writes. Anything in a loaded save that is NOT here is

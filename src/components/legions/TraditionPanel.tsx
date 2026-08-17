@@ -12,6 +12,7 @@ import {
   type Constraint,
 } from '../../logic/traditionPalette'
 import { GameConfig } from '../../logic/config'
+import { describeLoss, isStandardLost } from '../../logic/standard'
 import { legionLevel } from '../../logic/practice'
 
 // A tradition is founded as a PROMISE and grown one attribute at a time. This panel is
@@ -22,13 +23,15 @@ interface Props {
   legion: Legion
   cohorts: Unit[]
   wallet: number
+  /** Where the eagle was taken, in words — the panel has no mission table of its own. */
+  lostAt: string | null
   onFound: (name: string, creed: string, constraints: Constraint[]) => void
   onFoundFromCode: (code: string) => void
   onGrow: (want: GrowCandidate) => void
   onDeepen: (nodeId: string, toSteps: number) => void
 }
 
-export default function TraditionPanel({ legion, cohorts, wallet, onFound, onFoundFromCode, onGrow, onDeepen }: Props) {
+export default function TraditionPanel({ legion, cohorts, wallet, lostAt, onFound, onFoundFromCode, onGrow, onDeepen }: Props) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [creed, setCreed] = useState('')
@@ -47,7 +50,10 @@ export default function TraditionPanel({ legion, cohorts, wallet, onFound, onFou
 
   if (!design) {
     const wins = practice.victories ?? 0
-    const why = wins < rules.minHonours
+    const lost = isStandardLost(legion.standard)
+    const why = lost
+      ? `${legion.name} has lost its standard — win it back at ${lostAt} first`
+      : wins < rules.minHonours
       ? `Needs ${rules.minHonours} victories to its name, has ${wins}`
       : wallet < rules.adoptCostCopper
         ? `Costs ${fmtCopper(rules.adoptCostCopper)} — you have ${fmtCopper(Math.floor(wallet))}`
@@ -59,7 +65,8 @@ export default function TraditionPanel({ legion, cohorts, wallet, onFound, onFou
     // button, and `decodeDesign` is pure, so reading it while typing costs nothing.
     const decoded = code.trim() ? decodeDesign(code) : null
     const codeWhy = !code.trim() ? null
-      : decoded && !decoded.ok ? decoded.error
+      : lost ? `${legion.name} has lost its standard — win it back at ${lostAt} first`
+        : decoded && !decoded.ok ? decoded.error
         : wins < rules.minHonours ? `Needs ${rules.minHonours} victories to its name, has ${wins}`
           : wallet < rules.adoptCostCopper ? `Costs ${fmtCopper(rules.adoptCostCopper)}`
             : null
@@ -184,6 +191,11 @@ This is permanent.`)) {
   }
 
   // ── Sworn: the tree it has grown, and what it may take next ──────────────────────────
+  // Nothing about a tradition moves while its eagle is held. Computed once, here, so the
+  // refusal reaches every control rather than only the Log — the state layer refuses too,
+  // but a rule the screen does not show is a rule the player meets as a dead button.
+  const eagleGone = isStandardLost(legion.standard)
+  const eagleWhy = eagleGone ? `Its standard is at ${lostAt} — win it back first` : null
   const lapsed = outOfKeeping(design, cohorts)
   const left = availablePoints(design, practice) - spentPoints(design)
 
@@ -202,7 +214,7 @@ This is permanent.`)) {
           accumulate — a reader must never have to sum them in their head. */}
       {describeChannels(channelsOf(design)).length > 0 && (
         <div className="text-[11px] text-wl-ink">
-          Worth now: {describeChannels(channelsOf(design)).join(' · ')}
+          {eagleGone || lapsed ? 'Would be worth' : 'Worth now'}: {describeChannels(channelsOf(design)).join(' · ')}
         </div>
       )}
 
@@ -213,7 +225,13 @@ This is permanent.`)) {
         </div>
       )}
 
-      {lapsed && !design.invalid && (
+      {isStandardLost(legion.standard) && (
+        <div className="text-[11px] text-wl-bad leading-snug">
+          {describeLoss(legion.standard, lostAt ?? 'that field')}
+        </div>
+      )}
+
+      {lapsed && !design.invalid && !isStandardLost(legion.standard) && (
         <div className="text-[11px] text-wl-bad leading-snug">
           Out of keeping: {lapsed}. Everything it has earned sleeps until the legion is put back in shape.
         </div>
@@ -224,7 +242,7 @@ This is permanent.`)) {
           {design.nodes.map((n) => {
             const prim = primById(n.prim)
             const next = n.steps + 1
-            const why = deepenBlocker(design, practice, n.id, next)
+            const why = eagleWhy ?? deepenBlocker(design, practice, n.id, next)
             const maxed = !!prim && n.steps >= prim.maxSteps
             return (
               <div key={n.id} className="text-[11px] text-wl-ink flex flex-wrap items-baseline gap-x-2" style={{ paddingLeft: `${nodeDepth(design, n.id) * 14}px` }}>
@@ -242,7 +260,9 @@ This is permanent.`)) {
                     deepen
                   </button>
                 )}
-                {why && !maxed && <span className="text-wl-subtle">({why})</span>}
+                {/* wl-bad like every other inline refusal here: this is a reason to read,
+                    not a footnote — it measured 3.62:1 in dark on the dimmer token. */}
+                {why && !maxed && <span className="text-wl-bad">({why})</span>}
               </div>
             )
           })}
@@ -299,7 +319,7 @@ This is permanent.`)) {
         <div className="flex flex-wrap gap-1.5">
           {EFFECT_PRIMS.map((p) => {
             const want: GrowCandidate = { prim: p.id, steps, parent: parentOf }
-            const why = growBlocker(design, practice, want)
+            const why = eagleWhy ?? growBlocker(design, practice, want)
             const depth = parentOf === null ? 0 : nodeDepth(design, parentOf) + 1
             return (
               <button
@@ -339,7 +359,7 @@ This is permanent.`)) {
 
         {/* Every piece refused means the legion has nothing it can take yet — say why, once,
             rather than leaving a row of dead buttons and a tooltip nobody opens. */}
-        {EFFECT_PRIMS.every((p) => growBlocker(design, practice, { prim: p.id, steps, parent: parentOf })) && (
+        {!eagleGone && EFFECT_PRIMS.every((p) => growBlocker(design, practice, { prim: p.id, steps, parent: parentOf })) && (
           <div className="mt-1 text-[11px] text-wl-bad leading-tight">
             Nothing can be taken here yet. This legion is Level {level}; attributes hang off what it
             has actually done, so fight, garrison, drill or patrol and come back.

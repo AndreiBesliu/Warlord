@@ -7,6 +7,16 @@ import {
 } from '../logic/traditionPalette'
 import { hydrateLedger } from '../logic/practice'
 import { dutyById } from '../logic/duty'
+import type { StandardLost } from '../logic/standard'
+import { DIFFICULTIES } from '../logic/combat/enemies'
+
+function hydrateStandard(saved: unknown): StandardLost | null {
+  if (!saved || typeof saved !== 'object') return null
+  const s = saved as Record<string, unknown>
+  const to = str(s.lostTo)
+  if (!(DIFFICULTIES as readonly string[]).includes(to)) return null
+  return { lostTo: to as StandardLost['lostTo'], lostDay: Math.round(num(s.lostDay)) }
+}
 
 /** The formations themselves. One field would have been a wrapper for nothing. */
 export type LegionsState = Legion[]
@@ -124,6 +134,9 @@ function hydrateLegion(saved: unknown): Legion | null {
     // Resolved against the list, not trusted: a duty the game no longer has must read as
     // "standing ready" rather than as an occupation nothing can look up or lift.
     duty: dutyById(str(l.duty))?.id ?? null,
+    // Rebuilt against the real difficulty list: a save naming a mission the game no longer
+    // has would strand a legion with an eagle it could never win back anywhere.
+    standard: hydrateStandard(l.standard),
   }
 }
 

@@ -106,6 +106,19 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-17 - Task Completed (stindardul: identitatea ca obiect care poate fi luat)**
+> Prompt: „continua cu stindardul"
+> Model: Claude Opus 5
+> - **Fără port-drapel, și asta e decizia.** Un port-drapel ar fi însemnat o corvoadă per bătălie („cine-l duce azi?"), un câmp de întreținut prin split/merge, și o regulă de re-explicat de fiecare dată când moare o cohortă. Stindardul cade când **FIECARE cohortă pe care legiunea a pus-o în linie e nimicită** — se derivă din raportul care există deja, n-are nimic de întreținut, și pică exact pe momentul care trebuie să doară. **O legiune care a păstrat o cohortă și-a păstrat vulturul:** aia e povestea și mecanica în același timp.
+> - **Ce costă:** tradiția **DOARME**. Nu se retrage — o legiune nu încetează să fie ce a jurat fiindcă a fost bătută. Reutilizează suspendarea pe care `outOfKeeping` o avea deja, deci în joc există o singură idee numită „tradiția ta e adormită, uite de ce", nu două.
+> - **Cum îl iei înapoi:** câștigi la misiunea care ți l-a luat, cu aceeași legiune. Un obiectiv găsibil și numibil, construit doar din fapte pe care bătălia le poartă deja.
+> - **Nu e nimic de fermat, și e scris ca test:** pierderea costă o desfășurare întreagă, recucerirea îți dă înapoi ce aveai. De-aia mecanica n-are nevoie de plafon, de răcire sau de contor — bucla n-are direcție profitabilă.
+> - **Verificat pe viu, toată bucla:** legiune de 6 oameni nimicită la Invasion → `standard: {lostTo:'INVASION', lostDay:400}` + linia din log · cardul spune unde e și că totul doarme · **fiecare buton de creștere și adâncire dezactivat cu motivul** · o ÎNFRÂNGERE la misiunea aia NU-l recuperează · o victorie acolo îl aduce acasă (`standard: null`, „won back its standard at Bandit Raid").
+> - **Două lucruri pe care ecranul le spunea greșit, prinse uitându-mă:** butoanele de creștere rămâneau active (refuzul exista în state, dar ajungea doar în Log — aceeași regulă pe care o încălcasem la codul de tradiție); și „Worth now: 300c" contrazicea direct propoziția de sub el care zicea că totul doarme — acum scrie **„Would be worth"** cât timp e adormită.
+> - O misiune pe care jocul n-o mai are se citește ca **niciun stindard pierdut** — altfel vulturul ar sta pe un câmp care nu poate fi luptat, iar tradiția ar dormi pentru totdeauna fără cale de întoarcere.
+> - Contrast: motivul din paranteză de la „deepen" era 3,62:1 în dark pe tokenul mai șters — e un refuz de citit, nu o notă de subsol, deci a trecut pe `wl-bad` ca toate celelalte refuzuri din panou.
+> - `SAVE_SCHEMA` 4 → **5**. **447 teste verzi** (18 noi).
+
 **2026-08-17 - Task Completed (felia 4: forja — pași, adâncire, și o tradiție pe care o poți da mai departe)**
 > Prompt: „continua cu felia 4"
 > Model: Claude Opus 5

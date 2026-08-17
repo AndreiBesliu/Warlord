@@ -452,13 +452,17 @@ export function isNoChannels(c: LegionChannels): boolean {
  * for the loss it just suffered.
  */
 export function legionChannelsByUnit(
-  legions: { unitIds: string[]; tradition?: TraditionDesign | null }[],
+  legions: { unitIds: string[]; tradition?: TraditionDesign | null; standardLost?: boolean }[],
   units: Unit[],
 ): Map<string, LegionChannels> {
   const byId = new Map(units.map((u) => [u.id, u]))
   const out = new Map<string, LegionChannels>()
   for (const l of legions) {
     if (!l.tradition) continue
+    // A legion whose eagle is in somebody else's hands is dormant for exactly the same
+    // reason an out-of-keeping one is, so it is the same check in the same place rather
+    // than a second idea called "your tradition does nothing right now".
+    if (l.standardLost) continue
     const cohorts = l.unitIds.map((id) => byId.get(id)).filter((u): u is Unit => !!u)
     if (outOfKeeping(l.tradition, cohorts)) continue
     const ch = channelsOf(l.tradition)
