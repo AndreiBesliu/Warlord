@@ -9,6 +9,23 @@ import { hydrateLedger } from '../logic/practice'
 import { dutyById } from '../logic/duty'
 import type { StandardLost } from '../logic/standard'
 import { DIFFICULTIES } from '../logic/combat/enemies'
+import { COMMANDER_NAME_MAX, traitById, type Commander } from '../logic/commander'
+
+/** Rebuilt, not trusted: a trait the game no longer has must read as no commander at all. */
+function hydrateCommander(saved: unknown): Commander | null {
+  if (!saved || typeof saved !== 'object') return null
+  const c = saved as Record<string, unknown>
+  const trait = traitById(str(c.trait))
+  if (!trait) return null
+  const name = sanitizeAuthoredText(str(c.name), '', COMMANDER_NAME_MAX)
+  if (!name) return null
+  return {
+    name,
+    trait: trait.id,
+    appointedDay: Math.round(num(c.appointedDay)),
+    battles: Math.round(num(c.battles)),
+  }
+}
 
 function hydrateStandard(saved: unknown): StandardLost | null {
   if (!saved || typeof saved !== 'object') return null
@@ -137,6 +154,7 @@ function hydrateLegion(saved: unknown): Legion | null {
     // Rebuilt against the real difficulty list: a save naming a mission the game no longer
     // has would strand a legion with an eagle it could never win back anywhere.
     standard: hydrateStandard(l.standard),
+    commander: hydrateCommander(l.commander),
   }
 }
 

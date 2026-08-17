@@ -452,22 +452,46 @@ export function isNoChannels(c: LegionChannels): boolean {
  * for the loss it just suffered.
  */
 export function legionChannelsByUnit(
-  legions: { unitIds: string[]; tradition?: TraditionDesign | null; standardLost?: boolean }[],
+  legions: {
+    unitIds: string[]
+    tradition?: TraditionDesign | null
+    standardLost?: boolean
+    /** What the man at its head is worth, if it has one. Folded here, clamped with the rest. */
+    commander?: LegionChannels | null
+  }[],
   units: Unit[],
 ): Map<string, LegionChannels> {
   const byId = new Map(units.map((u) => [u.id, u]))
   const out = new Map<string, LegionChannels>()
   for (const l of legions) {
-    if (!l.tradition) continue
-    // A legion whose eagle is in somebody else's hands is dormant for exactly the same
-    // reason an out-of-keeping one is, so it is the same check in the same place rather
-    // than a second idea called "your tradition does nothing right now".
-    if (l.standardLost) continue
     const cohorts = l.unitIds.map((id) => byId.get(id)).filter((u): u is Unit => !!u)
-    if (outOfKeeping(l.tradition, cohorts)) continue
-    const ch = channelsOf(l.tradition)
-    if (isNoChannels(ch)) continue
-    for (const u of cohorts) out.set(u.id, ch)
+    if (cohorts.length === 0) continue
+
+    // A commander answers to nobody's oath: he is the legion's, not the tradition's, so
+    // what he is worth survives a dormant tradition and a lost eagle. That is exactly what
+    // makes him the piece you reach for when everything else has gone wrong.
+    let ch: LegionChannels = { ...(l.commander ?? NO_CHANNELS) }
+
+    // The tradition, on the other hand, sleeps for either reason — and it is the SAME
+    // check in the same place, so the game never grows a second idea called "your
+    // tradition does nothing right now".
+    const traditionAwake = !!l.tradition && !l.standardLost && !outOfKeeping(l.tradition, cohorts)
+    if (traditionAwake) {
+      const t = channelsOf(l.tradition!)
+      ch = {
+        moraleFloor: ch.moraleFloor + t.moraleFloor,
+        defeatXpBonus: ch.defeatXpBonus + t.defeatXpBonus,
+        victoryStipend: ch.victoryStipend + t.victoryStipend,
+        drillXpMult: ch.drillXpMult * t.drillXpMult,
+        dutyCopperMult: ch.dutyCopperMult * t.dutyCopperMult,
+      }
+    }
+
+    // Clamped on the SUM, once, here — a commander stacked on a tradition must not slip
+    // past a ceiling either of them respects alone.
+    const clamped = clampChannels(ch)
+    if (isNoChannels(clamped)) continue
+    for (const u of cohorts) out.set(u.id, clamped)
   }
   return out
 }

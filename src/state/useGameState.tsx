@@ -42,6 +42,10 @@ import {
 import { NO_CHANNELS, TRADITION_CREED_MAX, TRADITION_NAME_MAX, primById, type Constraint } from '../logic/traditionPalette'
 import { decodeDesign } from '../logic/traditionCode'
 import { isStandardLost, standardBlocker, standardFalls, standardRecovered } from '../logic/standard'
+import {
+  COMMANDER_NAME_MAX, appointBlocker, commanderChannels, commanderFalls, traitById, traitFor,
+  transferBlocker, type Commander,
+} from '../logic/commander'
 import { inspectSave, stampSave } from '../logic/saveSchema'
 import { creditBattle, legionLevel, noCreditReason, sharesFromBattle } from '../logic/practice'
 import { DUTY_GARRISON_MORALE, creditDuty, dutyBlocker, dutyById, dutyCostCopper, marchBlocker } from '../logic/duty'
@@ -566,8 +570,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     // A legion's own tradition may make its duties cheaper — or, for a patrol, its tolls
     // richer, since the multiplier scales a negative bill the same way. Resolved through
     // the same keeping check as every other channel: a legion out of keeping pays full.
-    const dayChannels = legionChannelsByUnit(
-      leg.legions.map(l => ({ ...l, standardLost: isStandardLost(l.standard) })), unit.units)
+    const dayChannels = legionChannelsByUnit(forChannels(leg.legions), unit.units)
     const legionChannels = (l: { unitIds: string[] }) =>
       dayChannels.get(l.unitIds[0] ?? '') ?? NO_CHANNELS
     const dutyCopper = onDuty.reduce(
@@ -924,6 +927,19 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
   }
 
 
+  /**
+   * The legions as `legionChannelsByUnit` wants them. One function rather than a spread at
+   * each call site: the two callers (a battle and a day) must never disagree about what a
+   * legion is owed, and a spread carries `commander` as a PERSON where a set of channels
+   * is expected — which is exactly the mistake the shape caught.
+   */
+  const forChannels = (ls: typeof leg.legions) => ls.map(l => ({
+    unitIds: l.unitIds,
+    tradition: l.tradition,
+    standardLost: isStandardLost(l.standard),
+    commander: commanderChannels(l.commander),
+  }))
+
   // ---- Legions ----
   // A legion holds units; it does not hold soldiers. Everything here writes only the
   // formation — no unit is ever created, moved or destroyed by these.
@@ -1110,6 +1126,63 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     foundTradition(legionId, d.name, d.creed, d.constraints)
   }
 
+  /**
+   * Raise a commander from the legion that earned him.
+   *
+   * The TRAIT is derived from what the legion had actually done, never chosen. Anything a
+   * player picks freely they pick to suit themselves, and the connection between the man
+   * and the legion that made him evaporates — the same reason a palette piece carries its
+   * own proof.
+   */
+  function appointCommander(legionId: string, rawName: string) {
+    const target = leg.legions.find(l => l.id === legionId)
+    if (!target) return
+    const cohorts = unitsOfLegion(target, unit.units)
+    const blocked = appointBlocker(target, cohorts.length, econ.wallet)
+    if (blocked) { addLog(`Cannot raise a commander: ${blocked}.`); return }
+
+    const trait = traitFor(target.practice ?? {})
+    const commander: Commander = {
+      name: sanitizeAuthoredText(rawName, `Commander of ${target.name}`, COMMANDER_NAME_MAX),
+      trait: trait.id,
+      appointedDay: day,
+      battles: 0,
+    }
+    const cost = GameConfig.commander().appointCostCopper
+    econ.setWallet(w => Math.max(0, w - cost))
+    leg.setLegions(ls => ls.map(l => (l.id === legionId && !l.commander ? { ...l, commander } : l)))
+    addLog(`🚩 ${commander.name}, ${trait.name}, takes command of ${target.name} for ${fmtCopper(cost)}.`)
+  }
+
+  /**
+   * Move him to another legion, experience and all.
+   *
+   * This is the whole reason a commander exists beside a tradition: the tradition is bound
+   * to its legion for life, and he is not. Moving costs nothing but the fact that the
+   * legion which made him no longer has him.
+   */
+  function transferCommander(fromId: string, toId: string) {
+    const from = leg.legions.find(l => l.id === fromId)
+    const to = leg.legions.find(l => l.id === toId)
+    if (!from || !to) return
+    const blocked = transferBlocker(from, to, unitsOfLegion(to, unit.units).length)
+    if (blocked) { addLog(`Cannot move him: ${blocked}.`); return }
+    const man = from.commander!
+    leg.setLegions(ls => {
+      // Re-checked against the CURRENT list, not the render snapshot — the pattern in
+      // CLAUDE.md. Without it two transfers in one frame would clone a man.
+      const f = ls.find(l => l.id === fromId)
+      const t = ls.find(l => l.id === toId)
+      if (!f?.commander || t?.commander) return ls
+      return ls.map(l => {
+        if (l.id === fromId) return { ...l, commander: null }
+        if (l.id === toId) return { ...l, commander: f.commander }
+        return l
+      })
+    })
+    addLog(`🚩 ${man.name} leaves ${from.name} and takes command of ${to.name}.`)
+  }
+
   /** Disbanding the FORMATION, not its men: the units survive and become unattached. */
   function disbandLegion(legionId: string) {
     const doomed = leg.legions.find(l => l.id === legionId)
@@ -1201,8 +1274,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     if (!b || b.status === 'ONGOING') return
     // Resolved against the army as it MARCHED — see `legionChannelsByUnit`. Every channel
     // reads this one map, so a legion out of keeping is out of keeping for all of them.
-    const trad = legionChannelsByUnit(
-      leg.legions.map(l => ({ ...l, standardLost: isStandardLost(l.standard) })), unit.units)
+    const trad = legionChannelsByUnit(forChannels(leg.legions), unit.units)
     const outcome = applyBattleResult(unit.units, b, c.deployedIds, 'PLAYER',
       id => DEFEAT_XP_KEEP + (trad.get(id)?.defeatXpBonus ?? 0))
     unit.setUnits(outcome.units)
@@ -1282,7 +1354,16 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
           standard = null
         }
         const withStandard = standard === (tidied.standard ?? null) ? tidied : { ...tidied, standard }
-        return s ? { ...withStandard, practice: creditBattle(withStandard.practice ?? {}, s, bctx) } : withStandard
+        // He commanded it, so it counts for him — and a hard enough defeat takes him.
+        let commander = withStandard.commander ?? null
+        if (commander && marched.length > 0) {
+          commander = commanderFalls(commander, won, s?.fielded ?? 0, s?.lost ?? 0)
+            ? null
+            : { ...commander, battles: commander.battles + 1 }
+        }
+        const withMan = commander === (withStandard.commander ?? null)
+          ? withStandard : { ...withStandard, commander }
+        return s ? { ...withMan, practice: creditBattle(withMan.practice ?? {}, s, bctx) } : withMan
       })
       return won
         ? awardVictoryHonours(credited, [...survived], { key: `WIN:${b.difficulty}`, label: `Victor of ${label}`, day })
@@ -1299,6 +1380,9 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       const why = noCreditReason(s, bctx)
       if (why) { addLog(`🚩 ${l.name} earns nothing from ${label}: ${why}.`); continue }
       const marched = marchedOf.get(l.id) ?? []
+      if (l.commander && marched.length > 0 && commanderFalls(l.commander, won, s.fielded, s.lost)) {
+        addLog(`🚩 ${l.commander.name} fell at ${label}. ${l.name} is without a commander.`)
+      }
       if (!isStandardLost(l.standard) && standardFalls(marched, destroyedIds)) {
         addLog(`🚩 ${l.name} was wiped out at ${label} and its standard was taken.`)
       } else if (standardRecovered(l.standard, won, b.difficulty, marched)) {
@@ -1448,6 +1532,8 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     growTradition,
     deepenTradition,
     setLegionDuty,
+    appointCommander,
+    transferCommander,
     renameLegion,
     assignToLegion,
     removeFromLegion,

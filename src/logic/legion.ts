@@ -18,6 +18,7 @@ import { joinBan, type TraditionDesign } from './tradition'
 // type import, so nothing is created at runtime and there is no cycle.
 import type { DeedLedger } from './practice'
 import type { StandardLost } from './standard'
+import type { Commander } from './commander'
 
 export interface Honour {
   /** Dedupe key — the same feat twice is one honour with a count, not two lines. */
@@ -51,6 +52,8 @@ export interface Legion {
   duty?: string | null
   /** Where its eagle is, if somebody else has it. `null` = the legion holds it. */
   standard?: StandardLost | null
+  /** The man at its head. Mortal, and the one part of a legion that can be MOVED. */
+  commander?: Commander | null
 }
 
 /**
@@ -218,7 +221,7 @@ export function pruneMembership(legion: Legion, units: Unit[]): Legion {
 export function emptyLegion(name: string, foundedDay: number): Legion {
   return {
     id: newLegionId(), name, foundedDay, unitIds: [], honours: [],
-    tradition: null, traditionDay: 0, practice: {}, duty: null, standard: null,
+    tradition: null, traditionDay: 0, practice: {}, duty: null, standard: null, commander: null,
   }
 }
 

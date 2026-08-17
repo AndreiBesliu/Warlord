@@ -106,6 +106,18 @@
 
 ### Session 4 — 2026-08-01
 
+**2026-08-17 - Task Completed (comandantul: singura piesă a unei legiuni care se poate MUTA)**
+> Prompt: „continua cu comandantul"
+> Model: Claude Opus 5
+> - **De ce nu e a doua tradiție.** O tradiție e permanentă, instituțională și legată de legiunea ei pe viață. Un comandant e opusul tuturor celor trei: **muritor, personal, și transferabil**. **Comandantul e piesa pe care o poți muta; tradiția e cea pe care nu.** Aia e decizia pe care feature-ul o creează: comandantul tău încercat stă cu legiunea care l-a făcut, iar mâine altă legiune e cea care trebuie să câștige.
+> - **Oastea îl face pe om.** Trăsătura NU se alege — se derivă din ce făcuse legiunea în ziua în care l-a ridicat, același principiu ca dovada purtată de o piesă din paletă, și din același motiv: orice alege jucătorul liber, alege ca să-i convină, iar legătura cu ce ESTE legiunea se evaporă. **Verificat pe viu:** legiunea cu 400 de zile de gardă ar ridica **un Warden**, cea cu victorii și fără gardă **un Victor** — și scrie asta pe ecran **înainte** să plătești, ca nimeni să nu descopere ce i-a ridicat propriul palmares abia după.
+> - **Zilele cântăresc mai puțin decât faptele**, altfel fiecare comandant din joc ar fi Warden până în luna a doua: o sută de zile pe zid e o carieră, o sută de victorii nu e un lucru care se întâmplă.
+> - **E muritor, și DETERMINIST.** Cade la o înfrângere în care legiunea a pierdut peste jumătate din ce a pus în linie — momentul în care acoperea retragerea. Declanșator diferit de al stindardului (nimicire totală), ca să nu fie același eveniment cu două nume. Fără zar: o bătălie din jocul ăsta se rejoacă exact din sămânța ei, iar o aruncare de zar aici ar fi singura parte a unei bătălii rezolvate care nu s-ar putea rejuca.
+> - **El nu răspunde niciunui jurământ:** ce valorează supraviețuiește unei tradiții adormite ȘI unui stindard pierdut. Exact asta îl face piesa spre care întinzi mâna când tot restul a mers prost. Dar **plafonul se aplică pe SUMĂ**, o dată, în același loc — un comandant peste o tradiție nu poate trece pe lângă un tavan pe care fiecare dintre ei îl respectă separat.
+> - **Verificat pe viu, tot lanțul:** numire (−1g, trăsătură WARDEN derivată) → **mutare cu cariera intactă** (rang 3, nouă bătălii, +12 moral, iar legiunea care l-a făcut rămâne fără) → **cădere** la o înfrângere care a costat 70 din 80 („Aulus Verrus fell at Rival Baron. The Others is without a commander.").
+> - Prins de tipuri, nu de mine: cele două locuri care cer canalele răspândeau `{...l}`, care duce `commander` ca **persoană** acolo unde se aștepta un set de canale. Acum o singură funcție de formatare, ca cei doi apelanți (o bătălie și o zi) să nu poată ajunge să nu fie de acord.
+> - `SAVE_SCHEMA` 5 → **6**. **481 teste verzi** (34 noi).
+
 **2026-08-17 - Task Completed (stindardul: identitatea ca obiect care poate fi luat)**
 > Prompt: „continua cu stindardul"
 > Model: Claude Opus 5

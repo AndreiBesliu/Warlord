@@ -4,6 +4,7 @@ import {
   LEGION_MAX_UNITS, cohortLabel, joinBlocker, legionOfUnit, suggestLegionName, unitsOfLegion,
 } from '../../logic/legion'
 import TraditionPanel from '../legions/TraditionPanel'
+import CommanderPanel from '../legions/CommanderPanel'
 import { deedLabel, legionLevel, nextLevelAt, type DeedKey, type DeedLedger } from '../../logic/practice'
 import { DUTIES, dutyBlocker, dutyById, dutyCostCopper } from '../../logic/duty'
 import { unitName } from '../../logic/names'
@@ -33,6 +34,7 @@ export default function LegionsTab({ state }: { state: GameStateShape }) {
     legions, units, wallet,
     formLegion, renameLegion, assignToLegion, removeFromLegion, disbandLegion,
     foundTradition, foundTraditionFromCode, growTradition, deepenTradition, setLegionDuty,
+    appointCommander, transferCommander,
   } = state
   // `null` means "show the live suggestion". It has to be nullable rather than a plain
   // string: every Army section stays MOUNTED so typed input survives navigation, so a
@@ -170,6 +172,16 @@ export default function LegionsTab({ state }: { state: GameStateShape }) {
                   ))}
                 </div>
               )}
+
+              <CommanderPanel
+                legion={l}
+                cohortCount={cohorts.length}
+                wallet={wallet}
+                others={legions.filter((o) => o.id !== l.id)
+                  .map((o) => ({ legion: o, cohortCount: unitsOfLegion(o, units).length }))}
+                onAppoint={(name) => appointCommander(l.id, name)}
+                onTransfer={(toId) => transferCommander(l.id, toId)}
+              />
 
               <TraditionPanel
                 legion={l}

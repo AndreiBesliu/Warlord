@@ -108,6 +108,16 @@ export interface DutyNumbers {
   copperPerSoldier: number
 }
 
+export interface CommanderConfig {
+  /** Battles a legion must have behind it before it can raise one of its own. */
+  minBattles: number
+  appointCostCopper: number
+  /** Battles commanded per rank. */
+  battlesPerRank: number
+  /** Losses, as a percent of what the legion fielded, above which a defeat kills him. */
+  fallsAboveLossPct: number
+}
+
 export interface MissionOverride {
   ratio?: number
   rewardCopperPerStrength?: number
@@ -145,6 +155,8 @@ export interface GameConfigOverrides {
   legionDeeds?: Partial<LegionDeedsConfig>
   /** Per-duty knobs, keyed by duty id ('GARRISON' | 'DRILL' | 'PATROL'). */
   duties?: Record<string, Partial<DutyNumbers>>
+  /** What it takes to raise a commander, and what kills one. */
+  commander?: Partial<CommanderConfig>
   /** Per-tradition knobs, keyed by tradition id ('SHIELDWALL', 'IRON_VOW', …). */
   traditions?: Record<string, Partial<TraditionNumbers>>
   missions?: Record<string, MissionOverride>
@@ -257,6 +269,16 @@ export const DEFAULT_LEGION_DEEDS: LegionDeedsConfig = {
 // to army size — a printer, not a discount.
 export const DUTY_MAX_PAY = 5
 export const DUTY_MAX_CHARGE = 50
+
+// Five battles is a legion with a history rather than a roster. 10,000c is a tenth of the
+// opening purse — he is a person you pay, not a building you buy. Four battles per rank puts
+// rank 5 at sixteen battles commanded, which at one battle a game-day is a real career.
+export const DEFAULT_COMMANDER: CommanderConfig = {
+  minBattles: 5,
+  appointCostCopper: 10_000,
+  battlesPerRank: 4,
+  fallsAboveLossPct: 50,
+}
 
 export const DEFAULT_STUDY: StudyConfig = {
   baselinePerDay: 100,
@@ -425,6 +447,19 @@ class GameConfigStore {
     const o = this.o.duties?.[id] ?? {}
     const v = num(o.copperPerSoldier, base.copperPerSoldier, -DUTY_MAX_PAY)
     return { copperPerSoldier: Math.min(DUTY_MAX_CHARGE, v) }
+  }
+
+  commander(): CommanderConfig {
+    const c = this.o.commander ?? {}
+    const base = DEFAULT_COMMANDER
+    return {
+      minBattles: Math.round(num(c.minBattles, base.minBattles)),
+      appointCostCopper: num(c.appointCostCopper, base.appointCostCopper),
+      // A rank every zero battles would hand out the ceiling on day one.
+      battlesPerRank: Math.max(1, num(c.battlesPerRank, base.battlesPerRank, 1)),
+      // At 0 he would die in every defeat; above 100 he could never die at all.
+      fallsAboveLossPct: Math.min(100, Math.max(1, num(c.fallsAboveLossPct, base.fallsAboveLossPct, 1))),
+    }
   }
 
   traditionRules(): TraditionRules {
