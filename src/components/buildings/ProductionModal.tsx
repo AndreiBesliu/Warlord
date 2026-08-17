@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { type Building } from '../../logic/types'
-import { buildingCostCopper, BuildingOutputChoices, passiveIncomeAndProduction } from '../../logic/economy'
+import { buildingCostCopper, BuildingOutputChoices, hasNoItemToMake, passiveIncomeAndProduction } from '../../logic/economy'
 import { branchOfBuilding, studyFromValue } from '../../logic/research/study'
 import { BRANCH_LABEL } from '../../logic/research/catalog'
 import { getIconForGameItem } from '../../logic/iconHelpers'
@@ -45,6 +45,9 @@ const InteriorMap: Record<string, string> = {
 export default function ProductionModal({ building, onClose, onSetOutput, onSetFocus, onSetResearchFocus, prodMult = 1, craftEfficiency = 1 }: Props) {
     const bg = InteriorMap[building.type] || bgBlacksmith
     const options = BuildingOutputChoices[building.type]?.options || []
+    // Nothing to make means nothing for a coin/goods split to split: the whole output is
+    // coin. Showing the slider anyway offered a choice that could only make it worse.
+    const onlyCoin = hasNoItemToMake(building.type)
 
     // Preview MUST come from the same function the daily tick runs, otherwise the
     // modal advertises numbers the game never pays (it used to hardcode 0.10*cost / 0.7*mv,
@@ -157,34 +160,48 @@ export default function ProductionModal({ building, onClose, onSetOutput, onSetF
                                 <span className="text-yellow-400 font-bold text-xl drop-shadow-sm">
                                     <MoneyDisplay amount={coinGain} />
                                 </span>
-                                <span className="text-wl-contrast-ink/60 font-serif italic text-sm">and</span>
-                                <span className="text-wl-contrast-ink font-bold text-xl drop-shadow-sm">
-                                    {items} {building.outputItem?.replace(/_/g, ' ') || 'Items'}
-                                </span>
+                                {!onlyCoin && (
+                                    <>
+                                        <span className="text-wl-contrast-ink/60 font-serif italic text-sm">and</span>
+                                        <span className="text-wl-contrast-ink font-bold text-xl drop-shadow-sm">
+                                            {items} {building.outputItem?.replace(/_/g, ' ') || 'Items'}
+                                        </span>
+                                    </>
+                                )}
                             </div>
                         </div>
                         <div className="text-right">
                             <span className="text-xs text-wl-contrast-ink/60 block">Current Focus</span>
-                            <span className="text-2xl font-mono text-amber-500">{building.focusCoinPct}% Coin</span>
+                            <span className="text-2xl font-mono text-amber-500">
+                                {onlyCoin ? 'Coin' : `${building.focusCoinPct}% Coin`}
+                            </span>
                         </div>
                     </div>
 
-                    {/* Slider Control */}
-                    <div className="pt-2">
-                        <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            step="20"
-                            value={building.focusCoinPct}
-                            onChange={(e) => onSetFocus(parseInt(e.target.value))}
-                            className="w-full h-2 bg-wl-contrast-ink/20 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                        />
-                        <div className="flex justify-between text-[10px] text-wl-contrast-ink/60 uppercase mt-2 font-bold tracking-widest">
-                            <span>100% Goods</span>
-                            <span>100% Coin</span>
+                    {/* Slider Control. Absent where there is nothing to make — and SAID, because
+                        a control that silently disappears reads as a bug. */}
+                    {onlyCoin ? (
+                        <p className="pt-2 text-[11px] text-wl-contrast-ink/60">
+                            This building makes no goods — its product is money. Everything it turns
+                            out is paid in coin; the only choice here is how much of it goes to study.
+                        </p>
+                    ) : (
+                        <div className="pt-2">
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                step="20"
+                                value={building.focusCoinPct}
+                                onChange={(e) => onSetFocus(parseInt(e.target.value))}
+                                className="w-full h-2 bg-wl-contrast-ink/20 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                            <div className="flex justify-between text-[10px] text-wl-contrast-ink/60 uppercase mt-2 font-bold tracking-widest">
+                                <span>100% Goods</span>
+                                <span>100% Coin</span>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Study. A separate slider rather than a third pole on the one above:
                         research is taken off the top and the coin/goods split then applies
@@ -210,8 +227,9 @@ export default function ProductionModal({ building, onClose, onSetOutput, onSetF
                                     className="mt-2 w-full h-2 bg-wl-contrast-ink/20 rounded-lg appearance-none cursor-pointer accent-amber-500"
                                 />
                                 <p className="mt-2 text-[11px] text-wl-contrast-ink/60">
-                                    Taken before the split above — whatever you dedicate here stops becoming
-                                    coin and goods entirely.
+                                    {onlyCoin
+                                        ? 'Taken off the top — whatever you dedicate here stops becoming coin entirely.'
+                                        : 'Taken before the split above — whatever you dedicate here stops becoming coin and goods entirely.'}
                                 </p>
                             </>
                         ) : (

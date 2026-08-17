@@ -4,6 +4,7 @@ import {
   explainRecipe, explainBuildingCost, explainCompany, explainMission, explainStudy,
   explainRecruitSources,
 } from './explain'
+import { buildingCostCopper, passiveIncomeAndProduction } from './economy'
 import { sourceCostCopper, startingXpOf } from './recruitSources'
 import { scriptoriumStudy } from './research/study'
 import { GameConfig } from './config'
@@ -206,16 +207,27 @@ describe('explainMission', () => {
   })
 })
 
-describe('a building with no item to make does not quietly eat its own output', () => {
-  it('the Minter loses everything the focus slider leaves on the material side', () => {
-    const e = explainBuilding('MINTER', { focusCoinPct: 0 })
-    expect(e.coinPerDay).toBe(0)
-    expect(e.itemsPerDay).toBe(0)
-    expect(e.valueLostPerDay).toBeGreaterThan(0)
+describe('a building with no item to make cannot lose its own output', () => {
+  // It used to: the focus split ran anyway and the material share was annihilated, which
+  // gave the one building whose entire product IS money a knob for burning it.
+  it('the Minter pays its whole value as coin at EVERY focus setting', () => {
+    for (const focusCoinPct of [0, 20, 60, 100] as const) {
+      const e = explainBuilding('MINTER', { focusCoinPct })
+      expect(e.valueLostPerDay).toBe(0)
+      expect(e.itemsPerDay).toBe(0)
+      expect(e.coinPerDay).toBe(explainBuilding('MINTER', { focusCoinPct: 100 }).coinPerDay)
+      expect(e.coinPerDay).toBeGreaterThan(0)
+    }
   })
 
-  it('loses nothing at full coin focus', () => {
-    expect(explainBuilding('MINTER', { focusCoinPct: 100 }).valueLostPerDay).toBe(0)
+  it('research still comes off the top — the rule removes a loss, it does not add income', () => {
+    const mint = (focusResearchPct: number) => passiveIncomeAndProduction({
+      type: 'MINTER', costCopper: buildingCostCopper('MINTER'), focusCoinPct: 0,
+      outputItem: '', fractionalBuffer: 0, level: 1, focusResearchPct,
+    })
+    const studying = mint(40)
+    expect(studying.researchValue).toBeGreaterThan(0)
+    expect(studying.coinGain + studying.researchValue).toBe(mint(0).coinGain)
   })
 
   it('a building that makes an item loses nothing at either end', () => {
@@ -223,10 +235,11 @@ describe('a building with no item to make does not quietly eat its own output', 
     expect(explainBuilding('LUMBER_MILL', { focusCoinPct: 100 }).valueLostPerDay).toBe(0)
   })
 
-  it('says so in the formula rather than claiming the value becomes coin', () => {
+  it('the formula says the focus does not apply, and never tells you to go set it', () => {
     const lines = buildingFormula('MINTER', 1, 0).join(' | ')
-    expect(lines).toMatch(/DESTROYED/)
-    expect(buildingFormula('MINTER', 1, 100).join(' | ')).not.toMatch(/DESTROYED/)
+    expect(lines).toMatch(/does not apply/)
+    expect(lines).not.toMatch(/DESTROYED/)
+    expect(lines).toMatch(/coin\/day = the whole value/)
   })
 })
 

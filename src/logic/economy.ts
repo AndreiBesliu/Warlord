@@ -102,6 +102,18 @@ export const BuildingOutputChoices: Record<string, { options: string[] }> = {
   SCRIPTORIUM: { options: [] },
 }
 
+/**
+ * A building with nothing to make. Its whole output is coin (or, for the four that skip the
+ * production math entirely, nothing at all) — so the coin/goods focus has nothing to split
+ * and is neither shown nor consulted for it.
+ *
+ * Asked of the output table rather than of a list of building names, so a building added
+ * tomorrow with no item to make inherits the rule instead of quietly burning its output.
+ */
+export function hasNoItemToMake(type: BuildingType): boolean {
+  return (BuildingOutputChoices[type]?.options.length ?? 0) === 0
+}
+
 // How much VALUE a building turns out per day at level 1, in copper.
 //
 // This used to be "10% of the building's price", which made the scale of a workshop an
@@ -257,9 +269,12 @@ export function passiveIncomeAndProduction(args: {
   const researchValue = Math.round(basePerDay * (researchPct / 100))
   const afterResearch = basePerDay - researchValue
 
-  const coinGain = Math.round(afterResearch * (focusCoinPct / 100))
-  const remainderValue = afterResearch - coinGain
   const mv = itemValueCopper(outputItem) || 0
+  // A building with no item to make has nothing for the coin/goods split to split, so its
+  // whole output is coin. It used to keep the coin share and DESTROY the rest — which made
+  // that slider, on the one building whose entire product IS money, a knob for burning it.
+  const coinGain = mv <= 0 ? afterResearch : Math.round(afterResearch * (focusCoinPct / 100))
+  const remainderValue = afterResearch - coinGain
 
   if (remainderValue <= 0 || mv <= 0) {
     return { coinGain, items: 0, newBuffer: fractionalBuffer, researchValue }
@@ -407,23 +422,11 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
           notes.push(`${row.type} → Idle (missing ore/coal)`)
         }
       }
-    } else if (row.type === 'MINTER') {
-      if (items > 0) {
-        const run = Math.min(items, nres['SILVER_INGOT'] || 0)
-        if (run > 0) {
-          nres['SILVER_INGOT'] -= run
-          line.inputsConsumed['SILVER_INGOT'] = run
-          const mintedValue = run * 600
-          walletDelta += mintedValue
-          line.coinGain += mintedValue
-          line.itemsProduced = run
-          notes.push(`${row.type} → Minted ${run} Silver Ingots into ${fmtCopper(mintedValue)}`)
-        } else {
-          line.blocked = true
-          notes.push(`${row.type} → Idle (missing silver)`)
-        }
-      }
     } else {
+      // The Minter used to have a branch here that melted SILVER_INGOT into coin. It could
+      // never run: the Minter has no output item, so `items` is always 0 for it. Removed
+      // rather than wired up — the Minter's product is coin, and silver already has two
+      // sinks (research costs and the market).
       if (items > 0 && outItem) {
         const recipe = manufacturingRecipe(outItem)
         let actualItems = items

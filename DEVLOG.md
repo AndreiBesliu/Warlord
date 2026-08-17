@@ -2,7 +2,17 @@
 
 ## Reguli DEVLOG
 - **Append-only** — nu se șterg intrări istorice
-- Fiecare task are **Task Started** și **Task Completed** cu timestamp, prompt exact, model
+- Fiecare task are **Task Started** și **Task Completed (Minter: o clădire care face doar bani n-are ce împărți)**
+> Prompt: „minter-ul, din moment ce doar face bani, ca produs, ar trebui sa aiba doar slider de research"
+> Model: Claude Opus 5
+> - Andrei are dreptate, și e mai rău decât un slider inutil: **sliderul monedă/marfă ARDEA producția Minter-ului.** N-are item de făcut (`options: []`), deci partea lăsată pe marfă nu devenea nimic — se anula. Pe un domeniu cu Minter la 40% asta însemna **4.800c/zi distruși**, iar ecranul îți explica politicos „the other 60% is DESTROYED — set its focus to 100% coin": o interfață care își cere scuze pentru un control care n-ar fi trebuit să existe.
+> - Regula e **generală, nu un caz special pe nume**: `hasNoItemToMake(type)` întreabă tabelul de output, nu o listă de clădiri. O clădire adăugată mâine fără item de făcut moștenește regula în loc să-și ardă tăcut producția.
+> - Studiul rămâne neatins — se ia tot de deasupra. Verificat pe viu: 8.000c/zi la 0% studiu, 4.800c/zi + 64 studiu/zi la 40%.
+> - **Cod mort scos:** ramura care topea SILVER_INGOT în monedă nu putea rula niciodată (fără item ⇒ `items` mereu 0). Ștearsă, nu cârpită — argintul are deja două ieșiri (costuri de research și piața).
+> - Fără câmp nou în save ⇒ fără `SAVE_SCHEMA++`. Saveurile existente cu Minter prost reglat se repară singure la prima zi.
+> - Moara de cherestea, pe același ecran, a rămas exact cum era: două slidere, „40% Coin". 481 teste verzi.
+
+**Task Completed** cu timestamp, prompt exact, model
 - Roadmap-ul e updatat la fiecare sesiune
 - Format timestamp: `YYYY-MM-DD HH:MM`
 

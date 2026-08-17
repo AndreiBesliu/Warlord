@@ -172,12 +172,14 @@ function buildingFormulaNow(type: BuildingType, level: number, focusCoinPct: num
   const outputItem = BuildingOutputChoices[type]?.options?.[0] ?? ''
   const mv = priceOf(outputItem)
   const value = (base ?? 0.1 * price) * lvl
-  const coin = Math.round(value * (focusCoinPct / 100))
+  const coin = mv > 0 ? Math.round(value * (focusCoinPct / 100)) : Math.round(value)
   const lines = [
     base !== undefined
       ? `value/day = ${fmtCopper(base)} (this building) × ${lvl.toFixed(1)} (level ${level}) = ${fmtCopper(Math.round(value))}`
       : `value/day = 10% of the price ${fmtCopper(price)} × ${lvl.toFixed(1)} (level ${level}) = ${fmtCopper(Math.round(value))}`,
-    `coin/day = value × ${focusCoinPct}% focus = ${fmtCopper(coin)}`,
+    mv > 0
+      ? `coin/day = value × ${focusCoinPct}% focus = ${fmtCopper(coin)}`
+      : `coin/day = the whole value = ${fmtCopper(coin)}`,
   ]
   if (mv > 0) {
     lines.push(
@@ -189,12 +191,7 @@ function buildingFormulaNow(type: BuildingType, level: number, focusCoinPct: num
       lines.push(`each ${outputItem} consumes ${per}`)
     }
   } else {
-    // Not "all of its value is coin": the engine converts only the coin share and drops the
-    // rest, so a Minter left on the default material focus turns out nothing at all.
-    lines.push(`this building has NO item to make — only the coin share is paid`)
-    if (focusCoinPct < 100) {
-      lines.push(`the other ${100 - focusCoinPct}% (${fmtCopper(Math.round(value - coin))}/day) is DESTROYED — set its focus to 100% coin`)
-    }
+    lines.push(`this building has NO item to make — its whole value is paid as coin, and the coin/goods focus does not apply to it`)
   }
   lines.push(`research multiplies value (production ×) and item yield (crafting ×) on top`)
   return lines

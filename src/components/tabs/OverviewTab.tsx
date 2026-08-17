@@ -2,6 +2,7 @@ import Card from '../common/Card'
 import InvSummary from '../common/InvSummary'
 import type { GameStateShape } from '../../state/useGameState'
 import MoneyDisplay from '../common/MoneyDisplay'
+import { hasNoItemToMake } from '../../logic/economy'
 
 export default function OverviewTab({ state }: { state: GameStateShape }) {
   const { buildings, wallet, inv } = state
@@ -13,7 +14,7 @@ export default function OverviewTab({ state }: { state: GameStateShape }) {
         <ul className="text-sm list-disc ml-4">
           {buildingsArr.map((b: any) => (
             <li key={b.id}>
-              {b.type} — focus {b.focusCoinPct}%{b.outputItem ? ` → ${b.outputItem}` : ''}
+              {b.type}{hasNoItemToMake(b.type) ? '' : ` — focus ${b.focusCoinPct}%`}{b.outputItem ? ` → ${b.outputItem}` : ''}
             </li>
           ))}
         </ul>

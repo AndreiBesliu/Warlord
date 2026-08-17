@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Card from '../common/Card'
 import { fmtCopper, type Building } from '../../logic/types'
 import type { GameStateShape } from '../../state/useGameState'
-import { buildingUpgradeCostCopper, buildingLevelMult, BUILDING_MAX_LEVEL } from '../../logic/economy'
+import { buildingUpgradeCostCopper, buildingLevelMult, BUILDING_MAX_LEVEL, hasNoItemToMake } from '../../logic/economy'
 import { formatGameTooltip } from '../../logic/iconHelpers'
 import CostList from '../common/CostList'
 import { evaluateCost } from '../../logic/costs'
@@ -210,7 +210,7 @@ export default function BuildingsTab({ state, setTab }: Props) {
                   <BuildingImg type={b.type} />
 
                   <div className="space-y-2 mt-auto pt-2" onClick={(e) => e.stopPropagation()}>
-                    {!['STABLE', 'MARKET', 'BARRACKS'].includes(b.type) && (
+                    {!hasNoItemToMake(b.type) && (
                       <div className="text-[11px] text-wl-muted px-1 bg-wl-accent-surface/30 rounded py-1 border border-wl-accent-line">
                         <div className="flex justify-between">
                           <span>{b.focusCoinPct}% Tax</span>
