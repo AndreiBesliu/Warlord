@@ -8,6 +8,7 @@ import CostList from '../common/CostList'
 import { evaluateCost } from '../../logic/costs'
 import parchmentBg from '../../assets/parchment_bg.png'
 import ProductionModal from '../buildings/ProductionModal'
+import CrewRow from '../buildings/CrewRow'
 
 import bBarracks from '../../assets/building_barracks.png'
 import bWoodworker from '../../assets/building_woodworker.png'
@@ -151,6 +152,10 @@ export default function BuildingsTab({ state, setTab }: Props) {
           onSetResearchFocus={(pct) => setBuildingResearchFocus(selectedBuilding.id, pct)}
           prodMult={mods?.prodMult ?? 1}
           craftEfficiency={mods?.craftEfficiency ?? 1}
+          population={state.population}
+          idleHands={state.idleHands}
+          whyNotAssign={(d) => state.whyNotAssign(selectedBuilding, d)}
+          onAssign={(d) => state.assignWorkers(selectedBuilding, d)}
         />
       )}
 
@@ -210,6 +215,15 @@ export default function BuildingsTab({ state, setTab }: Props) {
                   <BuildingImg type={b.type} />
 
                   <div className="space-y-2 mt-auto pt-2" onClick={(e) => e.stopPropagation()}>
+                    {/* OUTSIDE the focus guard on purpose: the Minter has no goods to make
+                        and the second largest crew in the game. */}
+                    <CrewRow
+                      building={b}
+                      population={state.population}
+                      idle={state.idleHands}
+                      whyNot={(d) => state.whyNotAssign(b, d)}
+                      onAssign={(d) => state.assignWorkers(b, d)}
+                    />
                     {!hasNoItemToMake(b.type) && (
                       <div className="text-[11px] text-wl-muted px-1 bg-wl-accent-surface/30 rounded py-1 border border-wl-accent-line">
                         <div className="flex justify-between">

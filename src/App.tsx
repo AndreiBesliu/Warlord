@@ -218,6 +218,7 @@ export default function App({
         buildings={state.buildings}
         units={state.units}
         mods={state.mods}
+        population={state.population}
       />
 
       {/* Nine equal pills in one row gave no map of the game. Grouped by what you are

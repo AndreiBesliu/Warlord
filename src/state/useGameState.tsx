@@ -30,6 +30,10 @@ import { GameConfig, type GameConfigOverrides } from '../logic/config'
 import { useCampaign, emptyCampaign, hydrateCampaign, type CampaignReward } from './useCampaign'
 import { useResearch, emptyResearch, hydrateResearch, type ResearchProject } from './useResearch'
 import { useLegions, emptyLegions, hydrateLegions } from './useLegions'
+import { usePopulation } from './usePopulation'
+import {
+  assignBlocker, emptyPopulation, hydratePopulation, idleHands, levyBlocker,
+} from '../logic/population'
 import {
   emptyLegion, pruneMembership, sanitizeLegionName, suggestLegionName, joinBlocker,
   unitsOfLegion, awardVictoryHonours,
@@ -142,6 +146,9 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
   const camp = useCampaign(saved?.campaign)
   const rsc = useResearch(saved?.research, cfg?.catalog)
   const leg = useLegions(saved?.legions)
+  // Takes the WHOLE save, unlike every sibling: with no `population` key the seed depends on
+  // what the domain has already built, so it needs `saved.buildings` to read.
+  const pop = usePopulation(saved ?? undefined)
 
   // The tech catalog and the momentum table are DATA — the admin ships an override
   // object and everything downstream resolves against it.
@@ -171,6 +178,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       campaign: camp.campaign,
       research: rsc.research,
       legions: leg.legions,
+      population: pop.population,
     }
     // Stamped, and carrying anything this build did not recognise. Both matter for the
     // same reason: a save must survive a round trip through a build that does not fully
@@ -178,7 +186,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     const stamped = stampSave(blob, inspection.carried)
     localStorage.setItem(saveKey, JSON.stringify(stamped)) // fast local cache / offline fallback
     onPersist?.(stamped) // e.g. debounced cloud write (OurDaysApp embed)
-  }, [saveKey, day, lastTickAt, log, econ.wallet, econ.inv, econ.buildings, econ.resources, barr.barracks, barr.barracksLevel, barr.recruits, barr.batches, unit.units, camp.campaign, rsc.research, leg.legions, inspection]) // econ.resources & camp.campaign included so those-only changes persist; `inspection` so pressing Load on a newer save stops the writes immediately
+  }, [saveKey, day, lastTickAt, log, econ.wallet, econ.inv, econ.buildings, econ.resources, barr.barracks, barr.barracksLevel, barr.recruits, barr.batches, unit.units, camp.campaign, rsc.research, leg.legions, pop.population, inspection]) // econ.resources & camp.campaign included so those-only changes persist; `inspection` so pressing Load on a newer save stops the writes immediately
 
   function loadSave() {
     const raw = localStorage.getItem(saveKey)
@@ -203,6 +211,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       camp.setCampaign(hydrateCampaign(s.campaign))
       rsc.setResearch(hydrateResearch(s.research, cfg?.catalog))
       leg.setLegions(hydrateLegions(s.legions))
+      pop.replace(hydratePopulation(s)) // the whole blob, not `s.population` — see the hook
       addLog('Loaded save.')
     } catch { addLog('Failed to load save.') }
   }
@@ -221,6 +230,10 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     camp.setCampaign(emptyCampaign())
     rsc.setResearch(emptyResearch())
     leg.setLegions(emptyLegions())
+    // NOT zeroes, unlike every sibling above: a domain with no souls refuses every action
+    // there is. `emptyPopulation()` means "a new town", and there is a test pinning it to
+    // what the absent-key branch of `hydratePopulation` hands a fresh game.
+    pop.replace(emptyPopulation())
     setMergePick([])
   }
 
@@ -530,8 +543,11 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       typeof anchorTo === 'number' && Number.isFinite(anchorTo) ? anchorTo : t + GameConfig.tickMs()
     )
     const notes: string[] = []
-    const income = econ.applyBuildingIncome(s => notes.push(s), mods)
+    const income = econ.applyBuildingIncome(s => notes.push(s), mods, pop.population)
     const delta = income.walletDelta
+    // The town grows from what the farms turned out today; the food is already out of
+    // `income.resources`, so the army's meal below sees what is left after the newcomers.
+    pop.applyDay(income.peopleGrown)
     // Post-income/production values for this tick's checks: the setState updates from
     // applyBuildingIncome are queued, so the render snapshot is one day behind.
     const postWallet = econ.wallet + delta
@@ -918,7 +934,14 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       addLog(`No room: ${quartered} of ${capacity} quartered. Form units or upgrade the barracks.`)
       return
     }
+    // The third price, and the one that makes the army a decision rather than a purchase:
+    // these men come out of the town. `freeNow` — not `idleHands` — because this is the one
+    // path that writes three slices, and only one of them could refuse; the claim ledger is
+    // what stops two recruitments in one frame from spending the same hands twice.
+    const why = levyBlocker(n, pop.freeNow(econ.buildings))
+    if (why) { addLog(why); return }
     if (cost > 0) econ.setWallet(w => w - cost)
+    pop.conscript(n)
     barr.recruit(n, source)
     const xp = startingXpOf(source)
     addLog(
@@ -1473,6 +1496,14 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     buildingResCost: (t: Building['type']) => buildingResourceCost(t),
     BuildingOutputChoices, FocusOptions,
     buy, sell, buyBuilding, setBuildingFocus, setBuildingResearchFocus, setBuildingOutput, upgradeBuilding,
+
+    // population — one pool, either at work or under arms
+    population: pop.population,
+    idleHands: idleHands(pop.population, econ.buildings),
+    assignWorkers: (b: Building, delta: number) => pop.assign(b, delta, econ.buildings),
+    // The message, for the control that is about to refuse. The state repeats the check
+    // itself; this is only what the player reads.
+    whyNotAssign: (b: Building, delta: number) => assignBlocker(b, delta, pop.population, econ.buildings),
 
     // barracks (state)
     recruits: barr.recruits,

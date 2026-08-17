@@ -1,7 +1,9 @@
 import { createPortal } from 'react-dom'
 import { type Building } from '../../logic/types'
 import { buildingCostCopper, BuildingOutputChoices, hasNoItemToMake, passiveIncomeAndProduction } from '../../logic/economy'
+import { staffMultOf, type PopulationState } from '../../logic/population'
 import { branchOfBuilding, studyFromValue } from '../../logic/research/study'
+import CrewRow from './CrewRow'
 import { BRANCH_LABEL } from '../../logic/research/catalog'
 import { getIconForGameItem } from '../../logic/iconHelpers'
 import MoneyDisplay from '../common/MoneyDisplay'
@@ -22,6 +24,10 @@ type Props = {
     onSetResearchFocus: (pct: number) => void
     prodMult?: number      // research/momentum production bonus (1 = unchanged)
     craftEfficiency?: number
+    population: PopulationState
+    idleHands: number
+    whyNotAssign: (delta: number) => string | null
+    onAssign: (delta: number) => void
 }
 
 const InteriorMap: Record<string, string> = {
@@ -42,7 +48,10 @@ const InteriorMap: Record<string, string> = {
     MARKET: bgTailor,
 }
 
-export default function ProductionModal({ building, onClose, onSetOutput, onSetFocus, onSetResearchFocus, prodMult = 1, craftEfficiency = 1 }: Props) {
+export default function ProductionModal({
+    building, onClose, onSetOutput, onSetFocus, onSetResearchFocus, prodMult = 1, craftEfficiency = 1,
+    population, idleHands, whyNotAssign, onAssign,
+}: Props) {
     const bg = InteriorMap[building.type] || bgBlacksmith
     const options = BuildingOutputChoices[building.type]?.options || []
     // Nothing to make means nothing for a coin/goods split to split: the whole output is
@@ -68,6 +77,10 @@ export default function ProductionModal({ building, onClose, onSetOutput, onSetF
             outputMult: prodMult,
             craftEfficiency: craftEfficiency,
             focusResearchPct: building.focusResearchPct,
+            // The fourth reader of the day, and the one that does NOT go through
+            // simulateEconomyDay — so the crew multiplier has to be handed to it by the
+            // same helper the day uses, or this slab advertises a number the tick won't pay.
+            staffMult: staffMultOf(building, population),
         })
         coinGain = out.coinGain
         studyPerDay = Math.round(studyFromValue(out.researchValue) * 10) / 10
@@ -177,6 +190,17 @@ export default function ProductionModal({ building, onClose, onSetOutput, onSetF
                             </span>
                         </div>
                     </div>
+
+                    {/* Who is working it. Above the focus slider because it multiplies the
+                        whole day — coin, goods and study alike — rather than splitting it. */}
+                    <CrewRow
+                        building={building}
+                        population={population}
+                        idle={idleHands}
+                        whyNot={whyNotAssign}
+                        onAssign={onAssign}
+                        contrast
+                    />
 
                     {/* Slider Control. Absent where there is nothing to make — and SAID, because
                         a control that silently disappears reads as a bug. */}

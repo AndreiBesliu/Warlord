@@ -33,7 +33,8 @@ export default function BarracksTab({ state, view }: { state: GameStateShape; vi
             check={(qty, source) => checkRecruit(qty,
               { wallet: state.wallet, resources: state.resources, inv: state.inv },
               { quartered: state.quartered, capacity: state.barracksCapacity },
-              source)}
+              source,
+              { idle: state.idleHands })}
           />
           <div className="mt-4 text-sm text-wl-muted">
             Untyped recruits waiting: <span className="font-bold text-wl-ink">{state.recruits.count}</span>

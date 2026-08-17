@@ -4,6 +4,7 @@ import { formatGameTooltip, getIconForGameItem } from '../../logic/iconHelpers'
 import GameIcon from './GameIcon'
 import { BRANCHES } from '../../logic/research/study'
 import { BRANCH_LABEL } from '../../logic/research/catalog'
+import { idleHands, totalCrewPosts, type PopulationState } from '../../logic/population'
 
 type Props = {
   wallet: number
@@ -12,6 +13,7 @@ type Props = {
   buildings: Building[]
   units: Unit[]
   mods?: { prodMult?: number; craftEfficiency?: number; upkeepMult?: number; foodMult?: number }
+  population?: PopulationState
 }
 
 // Always shown even at zero: these three decide whether the domain lives or starves.
@@ -27,11 +29,15 @@ function Delta({ n }: { n: number }) {
   )
 }
 
-export default function ResourceBar({ wallet, resources, inv, buildings, units, mods }: Props) {
+export default function ResourceBar({ wallet, resources, inv, buildings, units, mods, population }: Props) {
   // Recomputed every render on purpose. It is one pass over a handful of buildings, and
   // memoising on `inv` would be WRONG: queueLightTraining mutates the inventory object in
   // place, so its identity does not change when equipment is spent.
-  const f = forecastDay({ buildings, resources, inv, units, mods })
+  const f = forecastDay({ buildings, resources, inv, units, mods, population })
+
+  const idle = population ? idleHands(population, buildings) : 0
+  const posts = population ? totalCrewPosts(buildings) : 0
+  const posted = Math.max(0, (population?.souls ?? 0) - idle)
 
   const studyTotal = BRANCHES.reduce((sum, br) => sum + (f.studyByBranch[br] ?? 0), 0)
 
@@ -53,6 +59,29 @@ export default function ResourceBar({ wallet, resources, inv, buildings, units, 
         <span className="font-mono">{fmtCopper(wallet)}</span>
         <Delta n={f.walletDelta} />
       </span>
+
+      {/* Souls sit next to coin for the same reason study does: posting hands is a lever,
+          and a lever with no gauge is not a decision. The growth line reads from the SAME
+          forecast the resource chips do, so the chip and the granary cannot disagree. */}
+      {population && (
+        <span
+          className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-wl-panel border border-wl-line"
+          title={
+            `${population.souls} souls in the domain\n`
+            + `${idle} idle · ${posted} posted of ${posts} post${posts === 1 ? '' : 's'} the buildings offer\n`
+            + (f.peopleGrown > 0
+              ? `+${f.peopleGrown} tomorrow, eating ${f.peopleFoodSpent} of today's harvest`
+              : `Nobody tomorrow — ${f.growthBlocked ?? 'no farm'}`)
+            + '\nOnly food grown TODAY makes people; a bought granary feeds soldiers, not children.'
+            + '\nRecruiting takes them out of this pool for good.'
+          }
+        >
+          <span aria-hidden>👥</span>
+          <span className="font-mono text-wl-ink">{population.souls}</span>
+          <span className="text-wl-muted text-[11px]">{idle} idle</span>
+          <Delta n={f.peopleGrown} />
+        </span>
+      )}
 
       {/* Study is the third thing a building's day can become, so it belongs in the same
           bar as coin and goods — otherwise the Research% slider is a lever with no gauge. */}

@@ -17,6 +17,7 @@ import { evaluateCost, type CostReport, type CostSpec, type Holdings } from './c
 import { demandFor } from './equipment'
 import { itemValueCopper } from './items'
 import { drillPayFor, type Intensity } from './batches'
+import { levyBlocker } from './population'
 import { sourceCostCopper, type RecruitSourceId } from './recruitSources'
 import type { Rank, SoldierType } from './types'
 
@@ -98,9 +99,15 @@ export function checkRecruit(
   have: Holdings,
   quarters?: { quartered: number; capacity: number },
   source?: RecruitSourceId,
+  /**
+   * Hands the domain still has. Absent means unbounded, which is exactly the behaviour
+   * before population existed — so every older caller and every test is unaffected.
+   */
+  people?: { idle: number },
 ): ActionCheck {
   const n = Math.max(0, Math.floor(qty || 0))
   const room = quarters ? quarters.capacity - quarters.quartered : Infinity
+  const idle = people ? people.idle : Infinity
   return checkAction({ copper: recruitCostCopper(n, source) }, have, [
     { ok: n > 0, says: 'Enter how many to recruit' },
     {
@@ -111,6 +118,9 @@ export function checkRecruit(
             : `Only room for ${room} more — ${quarters.quartered} of ${quarters.capacity} quartered.`)
         : '',
     },
+    // The third price. Copper was never the constraint — a levy costs 100c against a
+    // 100,000c treasury — so this is the one that makes recruiting a decision.
+    { ok: n <= idle, says: levyBlocker(n, idle) ?? '' },
   ])
 }
 

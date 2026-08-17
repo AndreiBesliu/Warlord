@@ -108,6 +108,41 @@ export interface DutyNumbers {
   copperPerSoldier: number
 }
 
+/** What a crew is worth and how fast the town grows. Declared here, like `DutyNumbers`,
+ *  so the config store never imports `population.ts` — that file imports this one. */
+export interface PopulationConfig {
+  /** What a FULL crew adds to a building's day. 0.5 = ×1.5. */
+  staffBonus: number
+  /** Share of the souls that would be born in a day, if the harvest allowed it. */
+  growthPctPerDay: number
+  /** Food one newcomer eats on arrival. */
+  foodPerPerson: number
+  /** Percent of the day's harvest the town may spend on growth; the rest fills the granary. */
+  growthFoodSharePct: number
+}
+
+/** Most hands any building may ever hold, whatever an admin types. */
+export const POP_MAX_CREW = 50
+/** Most a full crew may ever be worth. `+1.0` means the day at most doubles. */
+export const POP_MAX_STAFF_BONUS = 1.0
+/** A town cannot be tuned into doubling overnight. */
+export const POP_MAX_GROWTH_PCT = 0.25
+
+export const DEFAULT_POPULATION: PopulationConfig = {
+  // A hand at full crew is worth 0.5 × output / crew: 83c/day at the lumber mill, 100 at the
+  // farm, 150 at the blacksmith, 250 at the Minter, 417 at the armoury. Against a levy at
+  // 100c once plus 2-8c/day upkeep and 1-3 food/day, THAT is the trade being asked for.
+  staffBonus: 0.5,
+  // 100 souls make one a day; doubling takes ~70 game days. Deliberately slower than a
+  // session: you must not be able to grow your way out of the recruiting decision while
+  // you watch. Offline catch-up is capped at 24 days, so a return is worth at most +24.
+  growthPctPerDay: 0.01,
+  foodPerPerson: 10,
+  // A farm at full material focus turns out 800 / (0.7 × 50) = 22.86 food/day. Half of that
+  // is 11, which buys exactly one birth and leaves 12 food — the ration of 12 light infantry.
+  growthFoodSharePct: 50,
+}
+
 export interface CommanderConfig {
   /** Battles a legion must have behind it before it can raise one of its own. */
   minBattles: number
@@ -157,6 +192,10 @@ export interface GameConfigOverrides {
   duties?: Record<string, Partial<DutyNumbers>>
   /** What it takes to raise a commander, and what kills one. */
   commander?: Partial<CommanderConfig>
+  /** What a crew is worth and how fast the town grows. */
+  population?: Partial<PopulationConfig>
+  /** Per-building crew sizes, keyed by BuildingType. Can RESIZE a crew, never create one. */
+  crew?: Partial<Record<BuildingType, number>>
   /** Per-tradition knobs, keyed by tradition id ('SHIELDWALL', 'IRON_VOW', …). */
   traditions?: Record<string, Partial<TraditionNumbers>>
   missions?: Record<string, MissionOverride>
@@ -460,6 +499,34 @@ class GameConfigStore {
       // At 0 he would die in every defeat; above 100 he could never die at all.
       fallsAboveLossPct: Math.min(100, Math.max(1, num(c.fallsAboveLossPct, base.fallsAboveLossPct, 1))),
     }
+  }
+
+  /**
+   * A crew that is worth nothing makes the whole feature inert; one worth too much makes
+   * working strictly better than fighting. Both bounds live here, so no value anybody can
+   * type removes either — `num`'s below-minimum fallback returns the DEFAULT, not the floor.
+   */
+  population(): PopulationConfig {
+    const p = this.o.population ?? {}
+    const base = DEFAULT_POPULATION
+    return {
+      staffBonus: Math.min(POP_MAX_STAFF_BONUS, num(p.staffBonus, base.staffBonus)),
+      growthPctPerDay: Math.min(POP_MAX_GROWTH_PCT, num(p.growthPctPerDay, base.growthPctPerDay)),
+      // At 0 food a head, a single farm would print the whole growth allowance every day.
+      foodPerPerson: Math.max(1, num(p.foodPerPerson, base.foodPerPerson, 1)),
+      // At 100 the town eats the entire harvest and the army starves behind it.
+      growthFoodSharePct: Math.min(90, num(p.growthFoodSharePct, base.growthFoodSharePct)),
+    }
+  }
+
+  /**
+   * `base` is the crew table's own row, passed in so this file never imports `population.ts`.
+   * An override can RESIZE a crew but never create one: a type with no row passes base 0 and
+   * the clamp keeps it there, so a config edit cannot hand the barracks a production bonus.
+   */
+  crew(type: BuildingType, base: number): number {
+    if (base <= 0) return 0
+    return Math.min(POP_MAX_CREW, Math.max(1, Math.round(num(this.o.crew?.[type], base, 1))))
   }
 
   traditionRules(): TraditionRules {

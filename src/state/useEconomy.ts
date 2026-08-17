@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { GOLD, type Building, type ResourceMap } from '../logic/types'
 import { simulateEconomyDay } from '../logic/economy'
+import type { PopulationState } from '../logic/population'
 
 // Optional pre-parsed save blob for hydrate-on-init (fixes the save being clobbered
 // by the first render's save-effect before the player could press Load).
@@ -44,8 +45,9 @@ export function useEconomy(initialWallet = 5 * GOLD, defaultBuildings: () => Bui
   function applyBuildingIncome(
     addNote: (s: string) => void,
     mods?: { prodMult?: number; craftEfficiency?: number },
+    population?: PopulationState,
   ) {
-    const day = simulateEconomyDay({ buildings, resources, inv, units: [], mods })
+    const day = simulateEconomyDay({ buildings, resources, inv, units: [], mods, population })
     for (const n of day.notes) addNote(n)
 
     setBuildings(day.buildings)
@@ -55,7 +57,14 @@ export function useEconomy(initialWallet = 5 * GOLD, defaultBuildings: () => Bui
     // Return the post-production values too: same-tick checks (upkeep affordability,
     // food shortage) must be computed against TODAY's income/production, not the stale
     // render snapshot — the queued setState updates aren't visible to the caller yet.
-    return { walletDelta: day.incomeWalletDelta, resources: day.resources, studyByBranch: day.studyByBranch }
+    // `peopleGrown` is handed back rather than committed here: this hook does not own the
+    // town, and the food those newcomers ate is already out of `day.resources`.
+    return {
+      walletDelta: day.incomeWalletDelta,
+      resources: day.resources,
+      studyByBranch: day.studyByBranch,
+      peopleGrown: day.peopleGrown,
+    }
   }
 
   return {

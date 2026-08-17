@@ -4,6 +4,8 @@ import { GOLD, fmtCopper, ResourceTypes, WeaponTypes, ArmorTypes } from './types
 import { itemValueCopper } from './items'
 import { GameConfig } from './config'
 import { studyPerDay, type StudyPools } from './research/study'
+// One-way: `population.ts` never imports this file back.
+import { growthFromHarvest, handsAt, staffMultOf, type PopulationState } from './population'
 
 // Daily upkeep cost per soldier (in copper), by type
 export const UPKEEP_BASE: Record<SoldierType, number> = {
@@ -258,11 +260,22 @@ export function passiveIncomeAndProduction(args: {
    * existing save — this way an absent field means 0 and nothing changes.
    */
   focusResearchPct?: number
+  /**
+   * What the hands posted here multiply the day by (1 = nobody, or a building with no crew).
+   *
+   * It lands in `basePerDay`, in the same expression as the level and the research bonus and
+   * BEFORE research is taken off the top — so a fully crewed building turns out more coin,
+   * more goods AND more study, with one rule to learn instead of three exceptions. It is
+   * never below 1: staffing is a bonus, never a condition (a factor of 0 would fall through
+   * the `!basePerDay` guard below and silently zero the Research% slider).
+   */
+  staffMult?: number
 }): { coinGain: number; items: number; newBuffer: number; researchValue: number } {
   const { costCopper, focusCoinPct, outputItem, fractionalBuffer } = args
 
   const basePerDay = buildingOutputValue(args.type, outputItem, costCopper)
     * buildingLevelMult(args.level ?? 1) * (args.outputMult ?? 1)
+    * Math.max(1, args.staffMult ?? 1)
   if (!basePerDay) return { coinGain: 0, items: 0, newBuffer: fractionalBuffer, researchValue: 0 }
 
   const researchPct = Math.min(100, Math.max(0, args.focusResearchPct ?? 0))
@@ -306,6 +319,12 @@ export interface DayEconomyInput {
   inv: Inventories
   units: Unit[] // pass [] to get income only (what the tick's income step does)
   mods?: { prodMult?: number; craftEfficiency?: number; upkeepMult?: number; foodMult?: number }
+  /**
+   * The souls of the domain and where their hands are. ABSENT means today's behaviour
+   * exactly: every `staffMult` is 1 and nobody is born — which is why every existing test
+   * that pins a number keeps passing without being touched.
+   */
+  population?: PopulationState
 }
 
 export interface BuildingDayLine {
@@ -320,6 +339,8 @@ export interface BuildingDayLine {
   blocked: boolean // wanted > 0 but produced 0 — the shortfall is destroyed, not banked
   inputsConsumed: Partial<Record<string, number>>
   researchValue: number // copper of output diverted to study instead of coin/goods
+  workers: number // hands posted here today
+  staffMult: number // what those hands multiplied the day by (1 = no crew, or nobody in it)
 }
 
 export interface DayEconomyResult {
@@ -340,6 +361,14 @@ export interface DayEconomyResult {
    * that keeps coin and goods honest.
    */
   studyByBranch: StudyPools
+  /** Food the farms turned out today. What growth is allowed to eat — never the granary. */
+  foodProduced: number
+  /** Souls born today. RETURNED, never committed: this function does not own the town. */
+  peopleGrown: number
+  /** Food those newcomers ate. Already taken out of `resources`, before the army's meal. */
+  peopleFoodSpent: number
+  /** Why nobody was born, in three words, or `null` when somebody was. */
+  growthBlocked: string | null
 }
 
 export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
@@ -365,7 +394,7 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
       breakdown.push({
         id: row.id, type: row.type, outputItem: '', skipped: true,
         coinGain: 0, itemsFloat: 0, itemsWanted: 0, itemsProduced: 0, blocked: false, inputsConsumed: {},
-        researchValue: 0,
+        researchValue: 0, workers: 0, staffMult: 1,
       })
       return row
     }
@@ -374,6 +403,8 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
     const cost = buildingCostCopper(row.type)
     const outItem = row.outputItem ?? BuildingOutputChoices[row.type].options[0] ?? ''
     const bufferBefore = row.fractionalBuffer ?? 0
+    const workers = handsAt(input.population, row)
+    const staffMult = input.population ? staffMultOf(row, input.population) : 1
     const { coinGain, items, newBuffer, researchValue } = passiveIncomeAndProduction({
       type: row.type,
       costCopper: cost,
@@ -384,6 +415,7 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
       outputMult: mods?.prodMult ?? 1,
       craftEfficiency: mods?.craftEfficiency ?? 1,
       focusResearchPct: row.focusResearchPct,
+      staffMult,
     })
     if (researchValue > 0) diverted[row.id] = researchValue
 
@@ -396,7 +428,7 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
       // The rate the buffer is filling at, independent of which day the integer lands.
       itemsFloat: items + newBuffer - bufferBefore,
       itemsWanted: items, itemsProduced: 0, blocked: false, inputsConsumed: {},
-      researchValue,
+      researchValue, workers, staffMult,
     }
 
     if (row.type === 'SMELTER') {
@@ -485,6 +517,26 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
 
   const incomeWalletDelta = walletDelta
 
+  // ── The town grows ──────────────────────────────────────────────────────────────────
+  //
+  // Fed by the food PRODUCED today, never by the granary — read `growthFromHarvest` for why
+  // (short version: FOOD is a market good at 50c in both directions, so a granary-fed town
+  // is a town you can buy). Summed from the breakdown, which is the same list in both
+  // callers, so the tick and the forecast cannot disagree about how many were born.
+  //
+  // Placed BEFORE the army's meal because the tick eats separately, afterwards, out of the
+  // resources this function returns: newcomers first in both paths, or the two would drift.
+  const foodProduced = breakdown.reduce(
+    (sum, l) => sum + (l.outputItem === 'FOOD' ? l.itemsProduced : 0), 0,
+  )
+  const growth = input.population
+    ? growthFromHarvest(input.population.souls, foodProduced)
+    : { grown: 0, foodSpent: 0, reason: null }
+  if (growth.foodSpent > 0) {
+    nres.FOOD = Math.max(0, (nres.FOOD ?? 0) - growth.foodSpent)
+    notes.push(`Town → +${growth.grown} ${growth.grown === 1 ? 'soul' : 'souls'} (${growth.foodSpent} food)`)
+  }
+
   // The army half. Empty `units` reproduces the income-only step the tick commits first.
   const soldierUpkeep = input.units.length > 0 ? dailyUpkeepCopper(input.units, mods?.upkeepMult) : 0
   const foodNeeded = input.units.length > 0 ? dailyFoodConsumption(input.units, mods?.foodMult) : 0
@@ -505,5 +557,9 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
     breakdown,
     notes,
     studyByBranch: studyPerDay(buildings, diverted),
+    foodProduced,
+    peopleGrown: growth.grown,
+    peopleFoodSpent: growth.foodSpent,
+    growthBlocked: growth.reason,
   }
 }

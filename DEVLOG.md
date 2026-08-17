@@ -2,7 +2,20 @@
 
 ## Reguli DEVLOG
 - **Append-only** — nu se șterg intrări istorice
-- Fiecare task are **Task Started** și **Task Completed (Minter: o clădire care face doar bani n-are ce împărți)**
+- Fiecare task are **Task Started** și **Task Completed (Populație — felia 1: un singur rezervor, ori la muncă, ori sub arme)**
+> Prompt: „continua cu felia 1" (după decizia „recrutarea sa consume populatie si economia primeste un boost")
+> Model: Claude Opus 5
+> - **O sută de suflete îți încadrează domeniul SAU îți umple barăcile, niciodată amândouă.** Recrutarea nu mai e „am destui bani?" (un levy costă 100c dintr-o vistierie de 100.000c — banii n-au fost niciodată decizia), ci „pe care motor îl înfometez".
+> - **Fără catalog de joburi: clădirea E jobul.** Omul de la mina de fier e miner fiindcă mina e mină. O listă `JOB_TYPES` ar fi cerut matrice de legalitate, a doua hidratare cu rezolvare de id-uri și al doilea ecran — și toate trei proprietățile cerute se livrează fără ea.
+> - **Bonusul intră în `basePerDay`**, lângă nivel și `outputMult`, ÎNAINTE de research: o echipă completă dă +50% și la monedă, și la marfă, și la studiu, cu o singură regulă de învățat. Niciodată sub 1 — un factor 0 ar trece prin gardul `!basePerDay` și ar anula tăcut sliderul de Research%.
+> - **Capcana FATALĂ prinsă înainte de prima linie:** dacă populația ar fi crescut din grânar, ar fi fost CUMPĂRABILĂ. FOOD e marfă de piață la 50c în ambele sensuri, fără spread și fără stoc. Creșterea mănâncă **doar hrana produsă azi**, însumată din defalcarea zilei — deci plafonul e ferma, exact unde designul pretindea că e. Verificat pe viu: 500 de hrană cumpărate n-au făcut niciun om.
+> - **A doua capcană:** postările NU stau pe `Building`. `econ.buildings` e singura felie fără hidratare, iar un build de dinainte de 16.08 ar fi șters `population` și ar fi păstrat `buildings[].workers` — jumătatea supraviețuitoare ar fi făcut `idle` negativ pentru totdeauna. Într-o singură cheie, un build vechi le pierde pe amândouă odată și save-ul degradează la „toată lumea e acasă".
+> - **Ledger sincron pentru recrutare:** e singura cale care scrie trei felii, și doar una poate refuza. Un updater care refuză acolo ar produce soldați plătiți din nimic, deci ledgerul e invarianta și updater-ul de suflete e necondiționat. La postare e invers — o singură felie, deci cureaua stă în updater.
+> - Numerele, calibrate pe valorile reale: 60 de suflete la start (sub cele 80 de locuri din barăci, ca prima recrutare mare să REFUZE și refuzul să fie tutorialul) · 138 de posturi în domeniul complet · o mână la echipă plină valorează 83c/zi la moară și 417c/zi la armurărie (bandă de 5×, nu de 40×) · o fermă la 22,9 hrană/zi susține exact o naștere.
+> - Verificat pe viu tot lanțul, inclusiv migrarea unui save real de ziua 527 fără cheia `population`: primește `60 + 14 + 24 = 98` de suflete, toate acasă.
+> - `SAVE_SCHEMA` 6 → 7. 518 teste verzi (37 noi), contrast cel mai prost 5,54 (light) / 6,28 (dark), zero overflow la 375px.
+
+**Task Completed (Minter: o clădire care face doar bani n-are ce împărți)**
 > Prompt: „minter-ul, din moment ce doar face bani, ca produs, ar trebui sa aiba doar slider de research"
 > Model: Claude Opus 5
 > - Andrei are dreptate, și e mai rău decât un slider inutil: **sliderul monedă/marfă ARDEA producția Minter-ului.** N-are item de făcut (`options: []`), deci partea lăsată pe marfă nu devenea nimic — se anula. Pe un domeniu cu Minter la 40% asta însemna **4.800c/zi distruși**, iar ecranul îți explica politicos „the other 60% is DESTROYED — set its focus to 100% coin": o interfață care își cere scuze pentru un control care n-ar fi trebuit să existe.

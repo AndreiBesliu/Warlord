@@ -25,6 +25,11 @@ export interface DayForecast {
   daysToEmpty: Partial<Record<ResourceType, number>>
   /** Study each branch gains tomorrow — the third thing a building's day can become. */
   studyByBranch: StudyPools
+  /** Souls born tomorrow, and what they will eat. */
+  peopleGrown: number
+  peopleFoodSpent: number
+  /** Why nobody will be born, in three words, or `null` when somebody will. */
+  growthBlocked: string | null
 }
 
 const zeroDeltas = (): Record<ResourceType, number> =>
@@ -58,6 +63,9 @@ export function forecastDay(input: DayEconomyInput): DayForecast {
     breakdown: after.breakdown,
     daysToEmpty,
     studyByBranch: after.studyByBranch,
+    peopleGrown: after.peopleGrown,
+    peopleFoodSpent: after.peopleFoodSpent,
+    growthBlocked: after.growthBlocked,
   }
 }
 
@@ -77,6 +85,9 @@ export function explainResource(f: DayForecast, res: ResourceType): string[] {
     }
   }
   if (res === 'WOOD') out.push('Nature +1')
+  if (res === 'FOOD' && f.peopleFoodSpent > 0) {
+    out.push(`Town −${f.peopleFoodSpent} (${f.peopleGrown} newcomer${f.peopleGrown === 1 ? '' : 's'})`)
+  }
   if (res === 'FOOD' && f.foodNeeded > 0) {
     out.push(`Army −${f.foodConsumed}${f.foodShortage ? ` (needs ${f.foodNeeded} — starving)` : ''}`)
   }

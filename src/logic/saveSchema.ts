@@ -42,8 +42,13 @@
  *     merely additive — it is exactly the case the guard exists for.
  * 5 = `Legion.standard` (where its eagle is, if somebody else has it).
  * 6 = `Legion.commander`.
+ * 7 = `population` — the domain's souls and where their hands are posted. An older build
+ *     drops the key, and the absent-key branch of `hydratePopulation` then re-seeds a town
+ *     that has already spent souls on soldiers, so the save degrades to "everybody is at
+ *     home" rather than to anything negative. Both halves live in ONE key precisely so an
+ *     old build cannot keep the postings while losing the souls.
  */
-export const SAVE_SCHEMA = 6
+export const SAVE_SCHEMA = 7
 
 /**
  * The top-level keys this build writes. Anything in a loaded save that is NOT here is
@@ -58,7 +63,7 @@ export const KNOWN_SAVE_KEYS: readonly string[] = [
   'day', 'lastTickAt', 'log',
   'wallet', 'inv', 'buildings', 'resources',
   'barracks', 'barracksLevel', 'recruits', 'batches',
-  'units', 'campaign', 'research', 'legions',
+  'units', 'campaign', 'research', 'legions', 'population',
 ]
 
 export interface SaveInspection {
