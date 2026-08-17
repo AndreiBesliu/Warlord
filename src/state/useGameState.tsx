@@ -43,7 +43,7 @@ import { NO_CHANNELS, TRADITION_CREED_MAX, TRADITION_NAME_MAX, primById, type Co
 import { decodeDesign } from '../logic/traditionCode'
 import { isStandardLost, standardBlocker, standardFalls, standardRecovered } from '../logic/standard'
 import {
-  COMMANDER_NAME_MAX, appointBlocker, commanderChannels, commanderFalls, traitById, traitFor,
+  COMMANDER_NAME_MAX, appointBlocker, commanderChannels, commanderFalls, traitFor,
   transferBlocker, type Commander,
 } from '../logic/commander'
 import { inspectSave, stampSave } from '../logic/saveSchema'
