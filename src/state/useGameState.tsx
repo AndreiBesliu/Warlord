@@ -440,7 +440,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     const b = econ.buildings.find((x) => x.id === buildingId)
     if (!b) return
     if (craftAt(pop.population, b)) { addLog('That house has already sworn.'); return }
-    const ctx = contextFor(b, pop.population, hasNoItemToMake(b.type))
+    const ctx = contextFor(b, hasNoItemToMake(b.type))
     const check = validateCraftDesign(design, ctx)
     if (!check.ok) { addLog(check.reasons[0]); return }
     // `day` explicitly, never from a closure: an offline catch-up runs the day once per

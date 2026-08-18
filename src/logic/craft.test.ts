@@ -36,7 +36,7 @@ const pop = (over: Partial<PopulationState> = {}): PopulationState => ({
 const swornPop = (d: CraftDesign = design(), at = 12): PopulationState =>
   pop({ at: { S: at }, craft: { S: d } })
 
-const ctxOf = (b = smelter(), p = pop()) => contextFor(b, p, false)
+const ctxOf = (b = smelter()) => contextFor(b, false)
 
 const day = (over: Partial<Parameters<typeof simulateEconomyDay>[0]> = {}) =>
   simulateEconomyDay({ buildings: [], resources: res(), inv: makeEmptyInventories(), units: [], ...over })
@@ -116,7 +116,7 @@ describe('a demand that demands nothing buys points for free', () => {
   it('a house whose whole day is coin cannot promise to cap its coin', () => {
     const check = validateDesign(
       design({ demands: [{ kind: 'CAP_COIN', pct: 20 }, { kind: 'MIN_HANDS', hands: 9 }] }),
-      contextFor(smelter({ type: 'MINTER' }), pop(), true),
+      contextFor(smelter({ type: 'MINTER' }), true),
     )
     expect(check.reasons.join(' ')).toMatch(/whole day is coin/)
   })

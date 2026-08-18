@@ -42,8 +42,8 @@ export default function CraftPanel({ building, population, buildings, onSwear }:
   const [nodes, setNodes] = useState<{ prim: string; steps: number }[]>([])
 
   const ctx = useMemo(
-    () => contextFor(building, population, noItem),
-    [building, population, noItem],
+    () => contextFor(building, noItem),
+    [building, noItem],
   )
 
   if (crew <= 0) return null

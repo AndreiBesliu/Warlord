@@ -84,7 +84,7 @@ export function sharesOf(r: CrewRecord): { coinShare: number; fullShare: number;
 }
 
 /** What the books say about a house right now, for pricing a demand. */
-export function contextFor(b: Building, pop: PopulationState | null | undefined, hasNoItemToMake: boolean): CraftContext {
+export function contextFor(b: Building, hasNoItemToMake: boolean): CraftContext {
   const coinPct = b.focusCoinPct
   const studyPct = b.focusResearchPct ?? 0
   return {
@@ -171,7 +171,7 @@ export function outOfKeeping(
   buildings: Building[],
   hasNoItemToMake: boolean,
 ): string | null {
-  const ctx = contextFor(b, pop, hasNoItemToMake)
+  const ctx = contextFor(b, hasNoItemToMake)
   const hands = handsAt(pop, b)
   for (const d of design.demands) {
     const why = demandBroken(d, { ctx, hands, buildings, pop })
@@ -206,7 +206,7 @@ export function craftBlocker(
   hasNoItemToMake: boolean,
 ): string | null {
   if (!design || craftFaults(design)) return null
-  const ctx = contextFor(next.b, pop, hasNoItemToMake)
+  const ctx = contextFor(next.b, hasNoItemToMake)
   const after: CraftContext = {
     ...ctx,
     coinPct: next.coinPct ?? ctx.coinPct,
