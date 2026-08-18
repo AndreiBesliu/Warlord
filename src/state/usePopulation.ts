@@ -3,6 +3,7 @@ import {
   addRecord, assignBlocker, emptyRecord, handsAt, hydratePopulation, idleHands,
   type CrewRecord, type PopulationState,
 } from '../logic/population'
+import type { CraftDesign } from '../logic/craft'
 import type { Building } from '../logic/types'
 
 /**
@@ -72,16 +73,42 @@ export function usePopulation(saved?: unknown) {
     grown: number,
     workedBuildingIds: string[] = [],
     recordDeltas: Record<string, CrewRecord> = {},
+    craftKeptIds: string[] = [],
   ): void {
     const born = Math.max(0, Math.floor(grown || 0))
     const entries = Object.entries(recordDeltas)
-    if (born <= 0 && workedBuildingIds.length === 0 && entries.length === 0) return
+    if (born <= 0 && workedBuildingIds.length === 0 && entries.length === 0 && craftKeptIds.length === 0) return
     setPopulation((p) => {
       const work = { ...(p.work ?? {}) }
       for (const id of workedBuildingIds) work[id] = (work[id] ?? 0) + 1
       const record = { ...(p.record ?? {}) }
       for (const [id, delta] of entries) record[id] = addRecord(record[id] ?? emptyRecord(), delta)
-      return { ...p, souls: p.souls + born, work, record }
+      const kept = { ...(p.kept ?? {}) }
+      for (const id of craftKeptIds) kept[id] = (kept[id] ?? 0) + 1
+      return { ...p, souls: p.souls + born, work, record, kept }
+    })
+  }
+
+  /**
+   * Swear a house to a way of working. Permanent: there is no unswear.
+   *
+   * The caller has already validated — this is the door, not the judge. It refuses only the
+   * two things the door itself can know: an oath already sworn here, and one arriving with
+   * no design at all. `day` comes in as an argument and is never read from a closure: an
+   * offline catch-up runs the day once per caught-up day, so a captured `day` would stamp
+   * every oath with whatever the render happened to be showing.
+   */
+  function swearCraft(b: Building, design: CraftDesign, day: number, record: CrewRecord): void {
+    setPopulation((p) => {
+      if (p.craft?.[b.id]) return p
+      return {
+        ...p,
+        craft: { ...(p.craft ?? {}), [b.id]: { ...design, sworeDay: day } },
+        // The books as they stand TODAY, so every proof reads the delta since the oath and
+        // a day-300 domain does not qualify for everything the moment it swears.
+        sworn: { ...(p.sworn ?? {}), [b.id]: { ...record } },
+        kept: { ...(p.kept ?? {}), [b.id]: 0 },
+      }
     })
   }
 
@@ -91,5 +118,5 @@ export function usePopulation(saved?: unknown) {
     setPopulation(next)
   }
 
-  return { population, freeNow, conscript, assign, applyDay, replace }
+  return { population, freeNow, conscript, assign, applyDay, swearCraft, replace }
 }

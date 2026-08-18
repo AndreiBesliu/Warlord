@@ -1,5 +1,8 @@
-import { createPortal } from 'react-dom'
+import { createPortal, } from 'react-dom'
+import { useState } from 'react'
 import { type Building } from '../../logic/types'
+import { craftChannelsFor, type CraftDesign } from '../../logic/craft'
+import CraftPanel from './CraftPanel'
 import { buildingCostCopper, BuildingOutputChoices, hasNoItemToMake, passiveIncomeAndProduction } from '../../logic/economy'
 import { staffMultOf, type PopulationState } from '../../logic/population'
 import { branchOfBuilding, studyFromValue } from '../../logic/research/study'
@@ -28,6 +31,10 @@ type Props = {
     idleHands: number
     whyNotAssign: (delta: number) => string | null
     onAssign: (delta: number) => void
+    buildings: Building[]
+    onSwearCraft: (design: CraftDesign) => void
+    /** Why a sworn oath refuses this setting. Asked BEFORE the control fires. */
+    whyNotSetFocus: (next: { coinPct?: number; studyPct?: number }) => string | null
 }
 
 const InteriorMap: Record<string, string> = {
@@ -50,8 +57,17 @@ const InteriorMap: Record<string, string> = {
 
 export default function ProductionModal({
     building, onClose, onSetOutput, onSetFocus, onSetResearchFocus, prodMult = 1, craftEfficiency = 1,
-    population, idleHands, whyNotAssign, onAssign,
+    population, idleHands, whyNotAssign, onAssign, buildings, onSwearCraft, whyNotSetFocus,
 }: Props) {
+    // A slider cannot be `disabled` for only part of its range, so the refusal is caught
+    // here and SAID here. Without this the state refuses, the knob springs back, and the
+    // only explanation is in another tab — which reads as a broken control.
+    const [refused, setRefused] = useState<string | null>(null)
+    const guard = (why: string | null, run: () => void) => {
+        if (why) { setRefused(why); return }
+        setRefused(null)
+        run()
+    }
     const bg = InteriorMap[building.type] || bgBlacksmith
     const options = BuildingOutputChoices[building.type]?.options || []
     // Nothing to make means nothing for a coin/goods split to split: the whole output is
@@ -82,7 +98,12 @@ export default function ProductionModal({
             // same helper the day uses, or this slab advertises a number the tick won't pay.
             staffMult: staffMultOf(building, population),
         })
-        coinGain = out.coinGain
+        // This slab is the ONE reader of the day that does not go through
+        // `simulateEconomyDay`, so the craft has to be applied here by the same helper the
+        // day uses, or the preview advertises a number the tick will never pay.
+        coinGain = Math.round(out.coinGain * craftChannelsFor(
+            building, population, buildings, onlyCoin,
+        ).coinMult)
         studyPerDay = Math.round(studyFromValue(out.researchValue) * 10) / 10
         // Whole items only land once the buffer fills; show the daily rate, not the floor.
         const perDay = out.items + out.newBuffer
@@ -202,6 +223,17 @@ export default function ProductionModal({
                         contrast
                     />
 
+                    {refused && (
+                        <p className="text-[11px] text-red-300 leading-tight" role="status">{refused}</p>
+                    )}
+
+                    <CraftPanel
+                        building={building}
+                        population={population}
+                        buildings={buildings}
+                        onSwear={onSwearCraft}
+                    />
+
                     {/* Slider Control. Absent where there is nothing to make — and SAID, because
                         a control that silently disappears reads as a bug. */}
                     {onlyCoin ? (
@@ -217,7 +249,10 @@ export default function ProductionModal({
                                 max="100"
                                 step="20"
                                 value={building.focusCoinPct}
-                                onChange={(e) => onSetFocus(parseInt(e.target.value))}
+                                onChange={(e) => {
+                                    const v = parseInt(e.target.value)
+                                    guard(whyNotSetFocus({ coinPct: v }), () => onSetFocus(v))
+                                }}
                                 className="w-full h-2 bg-wl-contrast-ink/20 rounded-lg appearance-none cursor-pointer accent-amber-500"
                             />
                             <div className="flex justify-between text-[10px] text-wl-contrast-ink/60 uppercase mt-2 font-bold tracking-widest">
@@ -247,7 +282,10 @@ export default function ProductionModal({
                                     max="100"
                                     step="20"
                                     value={building.focusResearchPct ?? 0}
-                                    onChange={(e) => onSetResearchFocus(parseInt(e.target.value))}
+                                    onChange={(e) => {
+                                        const v = parseInt(e.target.value)
+                                        guard(whyNotSetFocus({ studyPct: v }), () => onSetResearchFocus(v))
+                                    }}
                                     className="mt-2 w-full h-2 bg-wl-contrast-ink/20 rounded-lg appearance-none cursor-pointer accent-amber-500"
                                 />
                                 <p className="mt-2 text-[11px] text-wl-contrast-ink/60">

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 //logic
 import { GOLD, fmtCopper, Ranks, type Rank, type SoldierType, type Building, type ResourceMap } from '../logic/types'
 import type { Unit } from '../logic/types'
-import { BuildingOutputChoices, FocusOptions } from '../logic/economy'
+import { BuildingOutputChoices, FocusOptions, hasNoItemToMake } from '../logic/economy'
 import { makeEmptyInventories, isHorseKey, type HorseKey } from '../logic/helpers'
 import { demandFor, ensureEquipOrBuy, equipFromDemand, addEquip, releaseEquip } from '../logic/equipment'
 import { itemValueCopper } from '../logic/items'  // if you use buy/sell here
@@ -32,8 +32,11 @@ import { useResearch, emptyResearch, hydrateResearch, type ResearchProject } fro
 import { useLegions, emptyLegions, hydrateLegions } from './useLegions'
 import { usePopulation } from './usePopulation'
 import {
-  assignBlocker, emptyPopulation, hydratePopulation, idleHands, levyBlocker,
+  assignBlocker, emptyPopulation, handsAt, hydratePopulation, idleHands, levyBlocker, recordAt,
 } from '../logic/population'
+import {
+  contextFor, craftAt, craftBlocker, validateDesign as validateCraftDesign, type CraftDesign,
+} from '../logic/craft'
 import {
   emptyLegion, pruneMembership, sanitizeLegionName, suggestLegionName, joinBlocker,
   unitsOfLegion, awardVictoryHonours,
@@ -397,14 +400,53 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     return steps.reduce((best, s) => (Math.abs(s - n) < Math.abs(best - n) ? s : best), 0 as Building['focusCoinPct'])
   }
 
+  /**
+   * Why a house's oath refuses this move. `null` = it does not.
+   *
+   * The screens ask this before they let a control fire, so the refusal lands on the control
+   * that made it. It is a CONVENIENCE, not the authority: `outOfKeeping` is asked again
+   * inside the day, because a save or a config change can arrive already over the line and
+   * there is no click there to refuse.
+   */
+  function whyNotSetFocus(id: string, next: { coinPct?: number; studyPct?: number; hands?: number }): string | null {
+    const b = econ.buildings.find((x) => x.id === id)
+    if (!b) return null
+    return craftBlocker(craftAt(pop.population, b), { b, ...next }, pop.population, hasNoItemToMake(b.type))
+  }
+
   function setBuildingFocus(id: string, pct: number) {
     const v = clampFocus(pct)
+    const why = whyNotSetFocus(id, { coinPct: v })
+    if (why) { addLog(why); return }
     econ.setBuildings(bs => bs.map(b => b.id === id ? { ...b, focusCoinPct: v } : b))
   }
 
   function setBuildingResearchFocus(id: string, pct: number) {
     const v = clampFocus(pct)
+    const why = whyNotSetFocus(id, { studyPct: v })
+    if (why) { addLog(why); return }
     econ.setBuildings(bs => bs.map(b => b.id === id ? { ...b, focusResearchPct: v } : b))
+  }
+
+  /**
+   * Swear a house to a craft. The one permanent act in the domain.
+   *
+   * Validated HERE rather than inside the updater: the oath lives in `pop` and the building
+   * in `econ`, so an updater on one cannot see the other. The synchronous claim ledger is
+   * what stops two oaths in one frame; `usePopulation.swearCraft` then refuses a second oath
+   * on the same house as a belt.
+   */
+  function swearCraft(buildingId: string, design: CraftDesign) {
+    const b = econ.buildings.find((x) => x.id === buildingId)
+    if (!b) return
+    if (craftAt(pop.population, b)) { addLog('That house has already sworn.'); return }
+    const ctx = contextFor(b, pop.population, hasNoItemToMake(b.type))
+    const check = validateCraftDesign(design, ctx)
+    if (!check.ok) { addLog(check.reasons[0]); return }
+    // `day` explicitly, never from a closure: an offline catch-up runs the day once per
+    // caught-up day, so a captured value would stamp the oath with a stale one.
+    pop.swearCraft(b, design, day, recordAt(pop.population, b))
+    addLog(`${b.type.replace(/_/g, ' ')} swore to ${design.name}. ${design.creed}`.trim())
   }
 
   // Generic building upgrade (BARRACKS has its own leveling; MARKET/STABLE have no
@@ -547,7 +589,9 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     const delta = income.walletDelta
     // The town grows from what the farms turned out today; the food is already out of
     // `income.resources`, so the army's meal below sees what is left after the newcomers.
-    pop.applyDay(income.peopleGrown, income.workedBuildingIds, income.workRecordDeltas)
+    pop.applyDay(
+      income.peopleGrown, income.workedBuildingIds, income.workRecordDeltas, income.craftKeptIds,
+    )
     // Post-income/production values for this tick's checks: the setState updates from
     // applyBuildingIncome are queued, so the render snapshot is one day behind.
     const postWallet = econ.wallet + delta
@@ -1503,7 +1547,13 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     assignWorkers: (b: Building, delta: number) => pop.assign(b, delta, econ.buildings),
     // The message, for the control that is about to refuse. The state repeats the check
     // itself; this is only what the player reads.
-    whyNotAssign: (b: Building, delta: number) => assignBlocker(b, delta, pop.population, econ.buildings),
+    whyNotAssign: (b: Building, delta: number) =>
+      // The oath first: a house sworn to a hand-count refuses the move before the pool does,
+      // and it is the more surprising of the two, so it is the one worth saying.
+      whyNotSetFocus(b.id, { hands: handsAt(pop.population, b) + Math.floor(delta || 0) })
+      ?? assignBlocker(b, delta, pop.population, econ.buildings),
+    swearCraft,
+    whyNotSetFocus,
 
     // barracks (state)
     recruits: barr.recruits,

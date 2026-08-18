@@ -6,9 +6,10 @@ import { GameConfig } from './config'
 import { studyPerDay, type StudyPools } from './research/study'
 // One-way: `population.ts` never imports this file back.
 import {
-  creditsADayOfWork, crewSizeOf, growthFromHarvest, handsAt, recordDeltaFrom, staffMultOf,
-  type CrewRecord, type PopulationState,
+  creditsADayOfWork, crewPresent, crewSizeOf, growthFromHarvest, handsAt, recordDeltaFrom,
+  staffMultOf, type CrewRecord, type PopulationState,
 } from './population'
+import { craftAt, craftChannelsFor, craftFaults, outOfKeeping } from './craft'
 
 // Daily upkeep cost per soldier (in copper), by type
 export const UPKEEP_BASE: Record<SoldierType, number> = {
@@ -406,6 +407,12 @@ export interface DayEconomyResult {
    * worth recording without being a day of work, and the reverse is never true.
    */
   workRecordDeltas: Record<string, CrewRecord>
+  /**
+   * Houses that were in KEEPING of their oath today AND turned out value on the channel the
+   * oath named. Returned, never committed — the tick credits them, which is what makes an
+   * offline catch-up credit each caught-up day exactly once.
+   */
+  craftKeptIds: string[]
 }
 
 export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
@@ -459,9 +466,18 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
     walletDelta += coinGain
     row.fractionalBuffer = newBuffer
 
+    // The craft is applied to the COIN half, after the split — never folded into
+    // `staffMult`. A level-4 crew at full strength is already at ×1.875 of a ×2.0 ceiling,
+    // so a factor added there would be shaved to nothing on exactly the houses that earned it.
+    const craft = input.population
+      ? craftChannelsFor(row, input.population, buildings, hasNoItemToMake(row.type))
+      : { coinMult: 1 }
+    const craftedCoin = Math.round(coinGain * craft.coinMult)
+    walletDelta += craftedCoin - coinGain
+
     const line: BuildingDayLine = {
       id: row.id, type: row.type, outputItem: outItem, skipped: false,
-      coinGain,
+      coinGain: craftedCoin,
       // The rate the buffer is filling at, independent of which day the integer lands.
       itemsFloat: items + newBuffer - bufferBefore,
       itemsWanted: items, itemsProduced: 0, blocked: false, inputsConsumed: {},
@@ -551,10 +567,23 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
   // What each house PUT OUT today, in the terms a later slice will price a promise against.
   // Returned, never committed — `ResourceBar` runs the whole day on every render, unmemoised.
   const workRecordDeltas: Record<string, CrewRecord> = {}
+  const craftKeptIds: string[] = []
   if (input.population) {
+    const rows = new Map(buildings.map((b) => [b.id, b]))
     for (const l of breakdown) {
-      const delta = recordDeltaFrom(l, crewSizeOf(l.type), l.workers)
+      const crew = crewSizeOf(l.type)
+      const delta = recordDeltaFrom(l, crew, l.workers)
       if (delta) workRecordDeltas[l.id] = delta
+
+      const row = rows.get(l.id)
+      const design = row ? craftAt(input.population, row) : null
+      if (!row || !design || craftFaults(design)) continue
+      if (!crewPresent(l, crew, l.workers)) continue
+      if (outOfKeeping(design, row, input.population, buildings, hasNoItemToMake(row.type))) continue
+      // A day of keeping has to be a day of WORK on the channel the oath named. Without
+      // this, a house sworn and then deliberately left idle climbs at exactly the same rate
+      // as one that works, and "it stops the moment you stop paying for it" is false.
+      if (l.coinGain > 0) craftKeptIds.push(l.id)
     }
   }
 
@@ -618,5 +647,6 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
     growthBlocked: growth.reason,
     workedBuildingIds,
     workRecordDeltas,
+    craftKeptIds,
   }
 }

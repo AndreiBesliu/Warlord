@@ -156,6 +156,9 @@ export default function BuildingsTab({ state, setTab }: Props) {
           idleHands={state.idleHands}
           whyNotAssign={(d) => state.whyNotAssign(selectedBuilding, d)}
           onAssign={(d) => state.assignWorkers(selectedBuilding, d)}
+          buildings={state.buildings}
+          onSwearCraft={(design) => state.swearCraft(selectedBuilding.id, design)}
+          whyNotSetFocus={(next) => state.whyNotSetFocus(selectedBuilding.id, next)}
         />
       )}
 

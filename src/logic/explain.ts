@@ -17,6 +17,9 @@ import {
 } from './economy'
 import { makeEmptyInventories } from './helpers'
 import { Registry } from './registry'
+import { crewSizeOf, type PopulationState } from './population'
+import { PREVIEW_DESIGN } from './craftPalette'
+import type { CraftDesign } from './craft'
 import { itemValueCopper } from './items'
 import { missionPresets, computeReward } from './combat/enemies'
 import { studyPerDay, studyCostOf, daysAtRate } from './research/study'
@@ -46,6 +49,29 @@ export function referenceDomain(level = 1, focusCoinPct: Building['focusCoinPct'
     fractionalBuffer: 0,
     level,
   }))
+}
+
+/**
+ * A population for the reference domain: every post filled, and every house sworn to the
+ * same reference craft.
+ *
+ * It exists so the admin's effect preview has something to MEASURE. Without it every craft
+ * and crew lever would report a silent zero — the worst possible failure mode for a system
+ * whose entire premise is "we calibrate the values later". The design is never playable and
+ * never stored; it is a ruler.
+ */
+export function referencePopulation(buildings: Building[]): PopulationState {
+  const at: Record<string, number> = {}
+  const craft: Record<string, CraftDesign> = {}
+  const kept: Record<string, number> = {}
+  for (const b of buildings) {
+    const crew = crewSizeOf(b.type)
+    if (crew <= 0) continue
+    at[b.id] = crew
+    craft[b.id] = { ...PREVIEW_DESIGN, demands: PREVIEW_DESIGN.demands.map((d) => ({ ...d })) }
+    kept[b.id] = 999
+  }
+  return { souls: 10_000, at, work: {}, record: {}, craft, kept, sworn: {} }
 }
 
 const fullStores = (): ResourceMap =>
@@ -116,6 +142,11 @@ function explainBuildingNow(
   const focusCoinPct = opts.focusCoinPct ?? 0
   const outputItem = opts.outputItem ?? BuildingOutputChoices[type]?.options?.[0] ?? ''
   const before = fullStores()
+  // Deliberately UNCREWED. This function answers "what does this building do", and the
+  // admin's existing numbers all come through it — crewing the reference would move every
+  // one of them by the staffing multiplier and make the panel disagree with an empty house.
+  // The crewed reference belongs to `compareConfigs`, which diffs two configs and therefore
+  // needs something sworn to measure.
   const day = simulateEconomyDay({
     buildings: [{ id: 'x', type, focusCoinPct, outputItem, fractionalBuffer: 0, level }],
     resources: before,
@@ -214,11 +245,13 @@ export function compareConfigs(current: GameConfigOverrides | null, proposed: Ga
   const runOne = (cfg: GameConfigOverrides | null) => {
     GameConfig.init(cfg)
     const start = fullStores()
+    const refBuildings = referenceDomain(level)
     const day = simulateEconomyDay({
-      buildings: referenceDomain(level),
+      buildings: refBuildings,
       resources: start,
       inv: makeEmptyInventories(),
       units: [],
+      population: referencePopulation(refBuildings),
     })
     const res: Record<string, number> = {}
     for (const r of ResourceTypes) res[r] = (day.resources[r] ?? 0) - (start[r] ?? 0)

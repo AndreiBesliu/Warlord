@@ -2,7 +2,22 @@
 
 ## Reguli DEVLOG
 - **Append-only** — nu se șterg intrări istorice
-- Fiecare task are **Task Started** și **Task Completed (Meșteșugul — felia 1: casa își ține catastiful)**
+- Fiecare task are **Task Started** și **Task Completed (Meșteșugul — felia 2: jurământul, și ceasul închis)**
+> Prompt: „continua"
+> Model: Claude Opus 5
+> - **O clădire poate acum să înceteze să fie de uz general.** Jură permanent să nu mai facă ceva cu ziua ei și devine mai bună la ce a păstrat. Decizia: care casă nu se va mai putea răzgândi.
+> - **Punctele vin EXCLUSIV din cereri.** `availableCraftPoints === rebateTotal`. Niciun buget liber, niciun portofel umplut de timp: fiecare punct de bonus e cumpărat cu o libertate scoasă, iar contorul se mișcă live pe ecran în timp ce alegi — regula se VEDE, nu se citește.
+> - **Două feluri de promisiune încălcată, în două locuri diferite.** Monotonele (cele pe care le poți rupe cu mâna) refuză LA control; proporționalele nu refuză nimic, doar ADORM meșteșugul. `outOfKeeping` e singura autoritate — controalele sunt o comoditate, fiindcă un save sau o reglare de config poate sosi deja peste linie și acolo nu mai e niciun clic de refuzat.
+> - **Designul nu conține niciun preț.** Id-uri de piese, pași, două șiruri, ziua jurământului și CE s-a promis. Tot restul se re-prețuiește la citire din `GameConfig` — deci un meșteșug umflat nu e reprezentabil, o reglare se aplică retroactiv fără migrare, iar „calibrăm valorile mai târziu" rămâne gratis în loc să devină o problemă de date.
+> - **O piesă necunoscută FAULTEAZĂ tot designul**, nu se sare. Un nod nerezolvabil prețuiește 0, deci sărirea l-ar face pe `spentPoints` să SCADĂ și portofelul s-ar reumple — o fântână de puncte deschisă de un downgrade de build. E și opusul a ce face tradiția (ea aruncă la hidratare, noi păstrăm), și asimetria e scrisă în antet.
+> - **`kept` cere muncă, nu calendar:** ziua se creditează doar dacă a scos valoare pe canalul pe care jurământul l-a numit. Fără asta, o casă jurată și lăsată în paragină urcă la fel de repede ca una care lucrează.
+> - **Podeaua de mâini se derivă din cod livrat:** `creditsADayOfWork` cere deja jumătate din echipă, deci un `MIN_HANDS` la jumătate sau sub ar fi un rabat pentru o promisiune pe care jocul o făcea oricum. Propoziția de refuz numește regula pe care ar dubla-o.
+> - **CEASUL ÎNCHIS** (decizia 2 din spec, aprobată): `planTicks` rebaza pe un ceas dat înapoi în loc să refuze — mută ceasul OS înainte, încasezi 24 de zile; înapoi, resetezi fereastra; la nesfârșit. Acum ancora se PĂSTREAZĂ și jucătorul așteaptă saltul, plafonat la o fereastră offline: dus-întorsul e la zero, iar o corecție NTP costă cel mult atât.
+> - **Prins pe viu, din nou:** primul refuz al sliderului ajungea DOAR în Log. Un slider nu poate fi `disabled` pe jumătate de cursă, deci refuzul se prinde și se SPUNE în modal. Plus `wl-bad` la 3,44:1 pe plăcuța întunecată — aceeași capcană ca la galbenul care e literal `yellow-400` acolo.
+> - Verificat pe viu tot lanțul: buget 0 → 9 puncte din două cereri · jurat „Vatra de Fier" (Coinwise ×4) · previzualizare 65 → **78** · sliderul de Research refuză cu motivul pe ecran · o mână scoasă sub cele 9 promise → **adoarme**, bonusul dispare în același render și `kept` nu mai urcă.
+> - `SAVE_SCHEMA` 9 → 10. 583 teste verzi (32 noi), contrast cel mai prost 4,47 pe plăcuță (preexistent), zero butoane sub 26px.
+
+**Task Completed (Meșteșugul — felia 1: casa își ține catastiful)**
 > Prompt: „vreau sa dezvoltam sistemul din spatele jocului, vom calibra valorile mai tarziu"
 > Model: Claude Opus 5
 > - Fundația feliei 3 a populației, produsă de un workflow de 11 agenți (2 citiri · 3 designuri, unul obligat să argumenteze că meșteșugul e sistemul GREȘIT · 2 jurii · 3 atacuri · spec). Meșteșugul a câștigat la ambele jurii; **24 de constatări, 9 fatale**, toate cu răspuns luat înainte de prima linie de cod.

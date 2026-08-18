@@ -53,8 +53,12 @@
  * 9 = `population.record` — each house's account of what it actually put out. An older build
  *     drops it, and the ledger silently restarts from zero, which is the input a later slice
  *     prices a permanent promise against.
+ * 10 = `population.craft`, `kept` and `sworn` — the oath a house has sworn, the days it has
+ *     kept it, and the books as they stood when it swore. An older build drops all three, so
+ *     the house silently stops being paid for a promise it is still keeping, and the standing
+ *     it spent days earning restarts at zero.
  */
-export const SAVE_SCHEMA = 9
+export const SAVE_SCHEMA = 10
 
 /**
  * The top-level keys this build writes. Anything in a loaded save that is NOT here is

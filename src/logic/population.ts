@@ -40,6 +40,10 @@
 // one way only. For the same reason `PopulationConfig` and the two ceilings are declared in
 // `config.ts`, next to the getter that enforces them, rather than here.
 import { GameConfig, POP_MAX_CREW, POP_MAX_STAFF_BONUS } from './config'
+// TYPE ONLY, and it has to be: `craft.ts` imports this file for real. A type import is
+// erased, so the runtime dependency still runs one way.
+import type { CraftDesign, CraftNode } from './craft'
+import type { CraftDemand } from './craftPalette'
 import type { Building, BuildingType } from './types'
 
 export interface PopulationState {
@@ -66,6 +70,12 @@ export interface PopulationState {
    * clock wearing a different name.
    */
   record?: Record<string, CrewRecord>
+  /** The oath each house has sworn, keyed by `Building.id`. Permanent within a save. */
+  craft?: Record<string, CraftDesign>
+  /** Days a house has been in KEEPING of its oath. The tree's currency. */
+  kept?: Record<string, number>
+  /** The ledger AS IT STOOD on the day of the oath, so a proof reads the delta since. */
+  sworn?: Record<string, CrewRecord>
 }
 
 /**
@@ -211,7 +221,7 @@ export function emptyPopulation(): PopulationState {
   // NOT zeroes, unlike `emptyCampaign`/`emptyLegions`/`emptyResearch`. A domain with no souls
   // refuses every action there is, so "empty" here means "a new town", and the absent-key
   // branch of `hydratePopulation` has to agree with it. There is a test that compares them.
-  return { souls: STARTING_SOULS, at: {}, work: {}, record: {} }
+  return { souls: STARTING_SOULS, at: {}, work: {}, record: {}, craft: {}, kept: {}, sworn: {} }
 }
 
 export function crewSizeOf(type: BuildingType): number {
@@ -422,6 +432,81 @@ const n0 = (v: unknown, max = Number.MAX_SAFE_INTEGER): number => {
   return Number.isFinite(x) && x > 0 ? Math.min(max, x) : 0
 }
 
+function hydrateCounts(src: unknown, max: number): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (!src || typeof src !== 'object') return out
+  for (const [id, v] of Object.entries(src as Record<string, unknown>)) {
+    const n = n0(v, max)
+    if (n > 0) out[id] = n
+  }
+  return out
+}
+
+function hydrateRecords(src: unknown): Record<string, CrewRecord> {
+  const out: Record<string, CrewRecord> = {}
+  if (!src || typeof src !== 'object') return out
+  for (const [id, v] of Object.entries(src as Record<string, unknown>)) {
+    if (!v || typeof v !== 'object') continue
+    const r = v as Record<string, unknown>
+    const entry = emptyRecord()
+    for (const k of Object.keys(entry) as (keyof CrewRecord)[]) entry[k] = n0(r[k], MAX_LEDGER_ENTRY)
+    if (entry.days > 0) out[id] = entry
+  }
+  return out
+}
+
+const text = (v: unknown, max: number): string =>
+  (typeof v === 'string' ? v : '').replace(/[ -]/g, '').trim().slice(0, max)
+
+/**
+ * Rebuilds the SHAPE strictly and keeps the IDS verbatim.
+ *
+ * That split is deliberate and it is the opposite of what `hydrateLegion` does with a
+ * tradition. A piece id this build does not know must SURVIVE the round trip — dropping it
+ * would silently make the oath cheaper and would lose the house's craft for good if the
+ * piece ever came back. `craftFaults` refuses to pay such a design at read instead.
+ */
+function hydrateCrafts(src: unknown): Record<string, CraftDesign> {
+  const out: Record<string, CraftDesign> = {}
+  if (!src || typeof src !== 'object') return out
+  for (const [id, v] of Object.entries(src as Record<string, unknown>)) {
+    if (!v || typeof v !== 'object') continue
+    const d = v as Record<string, unknown>
+    const name = text(d.name, 40)
+    if (!name) continue // a nameless oath is no oath
+    const demands: CraftDemand[] = []
+    for (const raw of Array.isArray(d.demands) ? d.demands : []) {
+      if (!raw || typeof raw !== 'object') continue
+      const o = raw as Record<string, unknown>
+      if (typeof o.kind !== 'string') continue
+      const pct = n0(o.pct, 100)
+      const hands = n0(o.hands, POP_MAX_CREW)
+      demands.push({ kind: o.kind, pct, hands } as unknown as CraftDemand)
+    }
+    const nodes: CraftNode[] = []
+    for (const raw of Array.isArray(d.nodes) ? d.nodes : []) {
+      if (!raw || typeof raw !== 'object') continue
+      const o = raw as Record<string, unknown>
+      if (typeof o.id !== 'string' || typeof o.prim !== 'string') continue
+      nodes.push({
+        id: o.id,
+        parent: typeof o.parent === 'string' ? o.parent : null,
+        prim: o.prim,
+        steps: Math.max(1, n0(o.steps, 99) || 1),
+      })
+    }
+    out[id] = {
+      v: d.v === 1 ? 1 : (d.v as 1),
+      name,
+      creed: text(d.creed, 120),
+      sworeDay: n0(d.sworeDay),
+      demands,
+      nodes,
+    }
+  }
+  return out
+}
+
 /**
  * Takes the WHOLE save, not just its `population` key — unlike every other slice's hydrate.
  * It has to: with no key at all, the seed depends on what the domain has already built.
@@ -440,28 +525,14 @@ export function hydratePopulation(save: unknown): PopulationState {
         if (hands > 0) at[id] = hands
       }
     }
-    const work: Record<string, number> = {}
-    const wsrc = raw.work
-    if (wsrc && typeof wsrc === 'object') {
-      for (const [id, v] of Object.entries(wsrc as Record<string, unknown>)) {
-        const days = n0(v, MAX_DAYS_WORKED)
-        if (days > 0) work[id] = days
-      }
+    const work = hydrateCounts(raw.work, MAX_DAYS_WORKED)
+    const record = hydrateRecords(raw.record)
+    return {
+      souls: n0(raw.souls), at, work, record,
+      craft: hydrateCrafts(raw.craft),
+      kept: hydrateCounts(raw.kept, MAX_DAYS_WORKED),
+      sworn: hydrateRecords(raw.sworn),
     }
-    const record: Record<string, CrewRecord> = {}
-    const rsrc = raw.record
-    if (rsrc && typeof rsrc === 'object') {
-      for (const [id, v] of Object.entries(rsrc as Record<string, unknown>)) {
-        if (!v || typeof v !== 'object') continue
-        const r = v as Record<string, unknown>
-        const entry = emptyRecord()
-        for (const k of Object.keys(entry) as (keyof CrewRecord)[]) {
-          entry[k] = n0(r[k], MAX_LEDGER_ENTRY)
-        }
-        if (entry.days > 0) record[id] = entry
-      }
-    }
-    return { souls: n0(raw.souls), at, work, record }
   }
 
   // No key: a save from before this build, or a brand new game. Seed enough souls to
@@ -474,7 +545,9 @@ export function hydratePopulation(save: unknown): PopulationState {
   for (const b of buildings) {
     if (b && typeof b.type === 'string') posts += crewSizeOf(b.type)
   }
-  return { souls: STARTING_SOULS + posts, at: {}, work: {}, record: {} }
+  return {
+    souls: STARTING_SOULS + posts, at: {}, work: {}, record: {}, craft: {}, kept: {}, sworn: {},
+  }
 }
 
 const pretty = (t: string) =>

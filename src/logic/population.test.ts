@@ -259,7 +259,10 @@ describe('what a save may carry', () => {
     const p = hydratePopulation(JSON.parse(JSON.stringify({ population: pop(84, { mill1: 3, mine1: 7 }) })))
     // Every branch of the hydrate spells every field, so a created town and a hydrated one
     // share a shape. `emptyLegion` had to learn this the same way.
-    expect(p).toEqual({ souls: 84, at: { mill1: 3, mine1: 7 }, work: {}, record: {} })
+    expect(p).toEqual({
+      souls: 84, at: { mill1: 3, mine1: 7 }, work: {}, record: {},
+      craft: {}, kept: {}, sworn: {},
+    })
   })
 
   it('nonsense in the blob reads as nobody, and cannot come back inflated', () => {

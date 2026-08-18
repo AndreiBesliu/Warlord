@@ -129,6 +129,42 @@ export interface PopulationConfig {
   maxCrewLevel: number
 }
 
+/** What ONE piece of a craft is worth, and what it costs. */
+export interface CraftPrimNumbers {
+  step: number
+  points: number
+  proofPct: number
+}
+
+export interface CraftRules {
+  /** Points a demand earns per ten percentage points of freedom given up. */
+  rebatePerTenPct: number
+  /** Points a demand earns per hand promised or forgone. */
+  rebatePerHand: number
+  /** Days in keeping the first depth of the tree asks for. */
+  standingBase: number
+  /** Days of the house's own books a share-shaped proof needs before it means anything. */
+  proofMinDays: number
+}
+
+export const DEFAULT_CRAFT_RULES: CraftRules = {
+  rebatePerTenPct: 1,
+  rebatePerHand: 1,
+  standingBase: 20,
+  // A share out of three days is noise. This is what stops a brand-new house from qualifying
+  // for anything on the strength of one lucky morning.
+  proofMinDays: 10,
+}
+
+/**
+ * The aggregate ceiling on what a craft can be worth, per channel.
+ *
+ * Sized against how much better working already is than fighting — a posted hand is worth
+ * 83-417c a day while a legion on patrol earns 2c a soldier — NOT against `POP_MAX_STAFF_BONUS`.
+ * Deliberately tight; the lever to loosen it is `GameConfig`, not this constant.
+ */
+export const CRAFT_CHANNEL_CAP = { coinMult: 1.35 } as const
+
 /** Most hands any building may ever hold, whatever an admin types. */
 export const POP_MAX_CREW = 50
 /** Most a full crew may ever be worth. `+1.0` means the day at most doubles. */
@@ -221,6 +257,10 @@ export interface GameConfigOverrides {
   population?: Partial<PopulationConfig>
   /** Per-building crew sizes, keyed by BuildingType. Can RESIZE a crew, never create one. */
   crew?: Partial<Record<BuildingType, number>>
+  /** What it takes to swear a craft and to deepen one. */
+  craftRules?: Partial<CraftRules>
+  /** Per-piece craft knobs, keyed by palette id ('COINWISE', 'THRIFT', …). */
+  craftPrims?: Record<string, Partial<CraftPrimNumbers>>
   /** Per-tradition knobs, keyed by tradition id ('SHIELDWALL', 'IRON_VOW', …). */
   traditions?: Record<string, Partial<TraditionNumbers>>
   missions?: Record<string, MissionOverride>
@@ -566,6 +606,37 @@ class GameConfigStore {
   crew(type: BuildingType, base: number): number {
     if (base <= 0) return 0
     return Math.min(POP_MAX_CREW, Math.max(1, Math.round(num(this.o.crew?.[type], base, 1))))
+  }
+
+  craftRules(): CraftRules {
+    const c = this.o.craftRules ?? {}
+    const base = DEFAULT_CRAFT_RULES
+    return {
+      // A rebate of 0 would make every demand free to promise and every point unbuyable;
+      // the point of the shape is that the two are the same number.
+      rebatePerTenPct: Math.max(0.1, num(c.rebatePerTenPct, base.rebatePerTenPct, 0.1)),
+      rebatePerHand: Math.max(0.1, num(c.rebatePerHand, base.rebatePerHand, 0.1)),
+      // A standing of 0 would hand out the whole tree on the day of the oath.
+      standingBase: Math.max(1, num(c.standingBase, base.standingBase, 1)),
+      // A share out of nothing is not a share.
+      proofMinDays: Math.max(1, num(c.proofMinDays, base.proofMinDays, 1)),
+    }
+  }
+
+  /**
+   * `base` is the palette entry's own numbers, passed in so this file never imports the
+   * palette — the same anti-cycle shape as `duty(id, base)` and `crew(type, base)`.
+   */
+  craftPrim(id: string, base: CraftPrimNumbers): CraftPrimNumbers {
+    const o = this.o.craftPrims?.[id] ?? {}
+    return {
+      // A step of 0 is a piece that costs points and does nothing — a trap, not a choice.
+      step: Math.max(0.001, num(o.step, base.step, 0.001)),
+      // A piece that costs nothing breaks the "points come only from demands" invariant.
+      points: Math.max(1, Math.round(num(o.points, base.points, 1))),
+      // A proof of 0% is no proof; above 100% is a piece nobody can ever take.
+      proofPct: Math.min(100, Math.max(1, num(o.proofPct, base.proofPct, 1))),
+    }
   }
 
   traditionRules(): TraditionRules {

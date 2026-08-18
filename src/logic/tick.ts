@@ -27,10 +27,25 @@ export function planTicks(now: number, lastTickAt: number, tickMs: number, maxDa
   const step = Number.isFinite(tickMs) && tickMs > 0 ? tickMs : 5 * 60 * 1000
   const cap = Number.isFinite(maxDays) && maxDays >= 0 ? Math.floor(maxDays) : 0
 
-  // A missing or corrupt anchor, or a clock that moved backwards (device time changes,
-  // sleep/resume), rebases to now instead of producing a nonsense countdown.
-  if (!Number.isFinite(lastTickAt) || lastTickAt > now) {
+  // A missing or corrupt anchor has nothing to preserve, so it rebases to now.
+  if (!Number.isFinite(lastTickAt)) {
     return { due: 0, grant: 0, forfeited: 0, anchor: now, remainingMs: step }
+  }
+
+  // A clock that moved BACKWARDS keeps its anchor. This used to rebase to `now`, which
+  // forgave the jump — and forgiving it is a free day machine: move the device clock
+  // forward to claim the whole offline cap, move it back to reset the window, repeat. That
+  // bought little while a day only paid copper, but it beats any monotone counter, and the
+  // craft's `kept` is a counter whose entire claim is "this cannot be waited for".
+  //
+  // So the player waits the jump out instead of being refunded it. The wait is bounded to
+  // one offline window, which is exactly what the forward jump could have granted: the
+  // round trip is break-even rather than profitable, and an honest clock correction (NTP,
+  // DST, a resumed laptop) costs at most that same window rather than a year.
+  if (lastTickAt > now) {
+    const ceiling = now + Math.max(1, cap) * step
+    const anchor = Math.min(lastTickAt, ceiling)
+    return { due: 0, grant: 0, forfeited: 0, anchor, remainingMs: anchor - now + step }
   }
 
   const elapsed = now - lastTickAt

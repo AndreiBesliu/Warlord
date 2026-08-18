@@ -80,12 +80,31 @@ describe('planTicks — returning after an absence', () => {
 })
 
 describe('planTicks — hostile inputs', () => {
-  it('rebases when the anchor is in the future (clock moved backwards)', () => {
+  it('a clock moved BACKWARDS is waited out, not forgiven', () => {
+    // Forgiving it was a free day machine: move the device clock forward to claim the whole
+    // offline cap, move it back to reset the window, repeat. It bought little while a day
+    // only paid copper — but it beats any monotone counter.
     const now = T0
     const p = planTicks(now, T0 + 10 * MIN, TICK, 24)
     expect(p.grant).toBe(0)
-    expect(p.anchor).toBe(now)
-    expect(p.remainingMs).toBe(TICK)
+    expect(p.anchor).toBe(T0 + 10 * MIN)          // the anchor is KEPT, not moved to now
+    expect(p.remainingMs).toBe(10 * MIN + TICK)   // and the countdown says so out loud
+  })
+
+  it('and the wait is bounded to one offline window, so the round trip is break-even', () => {
+    // An honest clock correction (NTP, DST, a resumed laptop) must not brick the game, and
+    // the bound is exactly what a forward jump could have granted.
+    const now = T0
+    const p = planTicks(now, T0 + 365 * 24 * 60 * MIN, TICK, 24)
+    expect(p.grant).toBe(0)
+    expect(p.anchor).toBe(now + 24 * TICK)
+    expect(p.remainingMs).toBe(24 * TICK + TICK)
+  })
+
+  it('the forward jump still grants no more than the cap, so neither leg of the trip pays', () => {
+    const p = planTicks(T0 + 500 * TICK, T0, TICK, 24)
+    expect(p.grant).toBe(24)
+    expect(p.forfeited).toBe(476)
   })
 
   it('rebases on a missing or corrupt anchor', () => {
