@@ -159,6 +159,8 @@ export default function BuildingsTab({ state, setTab }: Props) {
           buildings={state.buildings}
           onSwearCraft={(design) => state.swearCraft(selectedBuilding.id, design)}
           whyNotSetFocus={(next) => state.whyNotSetFocus(selectedBuilding.id, next)}
+          onGrowCraft={(prim, parent) => state.growCraft(selectedBuilding.id, prim, parent)}
+          whyNotGrowCraft={(prim, parent) => state.whyNotGrowCraft(selectedBuilding.id, prim, parent)}
         />
       )}
 

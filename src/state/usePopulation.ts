@@ -112,11 +112,31 @@ export function usePopulation(saved?: unknown) {
     })
   }
 
+  /**
+   * Add a piece to a house's craft, or deepen one it already has. The caller has already
+   * checked every gate; this is the door.
+   *
+   * The design is rebuilt rather than mutated, and the node id is derived from what is
+   * already there — an id chosen outside the updater could collide with one added by a
+   * dispatch in the same frame.
+   */
+  function growCraft(b: Building, prim: string, parent: string | null): void {
+    setPopulation((p) => {
+      const design = p.craft?.[b.id]
+      if (!design) return p
+      const existing = design.nodes.find((n) => n.prim === prim)
+      const nodes = existing
+        ? design.nodes.map((n) => (n.prim === prim ? { ...n, steps: n.steps + 1 } : n))
+        : [...design.nodes, { id: `n${design.nodes.length}`, parent, prim, steps: 1 }]
+      return { ...p, craft: { ...p.craft, [b.id]: { ...design, nodes } } }
+    })
+  }
+
   /** Load / reset. The only wholesale write, and it goes through hydration first. */
   function replace(next: PopulationState): void {
     claimed.current = 0
     setPopulation(next)
   }
 
-  return { population, freeNow, conscript, assign, applyDay, swearCraft, replace }
+  return { population, freeNow, conscript, assign, applyDay, swearCraft, growCraft, replace }
 }

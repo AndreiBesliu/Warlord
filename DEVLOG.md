@@ -2,7 +2,21 @@
 
 ## Reguli DEVLOG
 - **Append-only** — nu se șterg intrări istorice
-- Fiecare task are **Task Started** și **Task Completed (Meșteșugul — felia 2: jurământul, și ceasul închis)**
+- Fiecare task are **Task Started** și **Task Completed (Meșteșugul — felia 3: vocabularul întreg, arborele, și un defect din felia 2)**
+> Prompt: „continua"
+> Model: Claude Opus 5
+> - **DEFECT REPARAT, găsit la o verificare la rece a feliei 2:** rabatul era prețuit ca `curent − promis`. Sună rezonabil până îl pui lângă cealaltă regulă — un meșteșug se poate jura DOAR dacă e deja în ținere. Împreună, cele două forțează `curent === promis` exact în clipa în care prețul se citește, deci **fiecare cerere procentuală valora exact ZERO** și tot vocabularul se prăbușea la „cumperi puncte cu mâini". Trei din cinci feluri de cerere erau ornament.
+> - **Repreţuit pe LIBERTATEA CEDATĂ**, nu pe distanța față de azi: un plafon la 20% cedează banda 20→100 pentru totdeauna. E și nenul, și stabil — nu se mișcă atunci când se mișcă un slider, deci un buget deja cheltuit nu poate intra sub apă. Test dedicat care împiedică întoarcerea.
+> - **Vocabularul întreg:** 8 piese, 3 canale, **8 dovezi distincte**, și niciun canal n-are două piese pe aceeași dovadă. Primele trei dovezi (`coinShare`/`goodsShare`/`studyShare`) sunt **rivale prin construcție** — trei felii dintr-un scalar, deci nicio casă nu le poate dovedi pe toate. Verificat pe viu: o casă care a fost 100% monedă și mereu plină poate lua Full Hands și Many Hands, și e refuzată la celelalte cinci **cu motivul exact** („cere 40% zile din nimic — casa asta e la 0%").
+> - **Arborele stă pe STANDING (zile ȚINUTE), nu pe nivelul echipei.** Un cititor va întinde mâna după `crewLevelAt` fiindcă așa merge arborele unei legiuni; ar fi greșit — nivelul se cumpără cu zile LUCRATE, pe care calendarul le dă oricărei case cu mâini pe ea, iar standing-ul se are doar ținând o promisiune care costă în fiecare zi. Scris în fișier acolo unde se va greși.
+> - Piesele luate DUPĂ jurământ formează un lanț, deci fiecare costă o treaptă mai adâncă. Cele jurate la început sunt rădăcini și nu plătesc standing — în clipa jurământului nu există. (Prima variantă lega totul de ultima rădăcină și făcea treapta 0 **imposibil de atins** — o regulă pe care n-o vede nimeni.)
+> - `goodsMult` **REFUZAT la fermă**, ca regulă de validator, nu ca un canal care întoarce tăcut 1: marfa unei ferme e hrana, iar hrana e plafonul de populație — singura resursă pe care nimic n-o mărginește. O piesă pe care o poți lua și care e apoi inertă e un refuz care nu ajunge nicăieri.
+> - **`SHARE_OF_POSTS`**, a doua cerere proporțională, denominată în POSTURI, nu în mâini postate: se înăsprește când CONSTRUIEȘTI, nu când alegi cum folosești ce ai.
+> - **Reparată o minciună veche de patru felii:** tabul Research calcula `studyPerDay` FĂRĂ populație, deci sub-raporta studiul pentru fiecare casă încadrată în timp ce antetul avea dreptate. Un argument. Verificat pe viu: acum ambele spun 207 study/zi.
+> - Prins la audit: butoanele dezactivate din arbore la **2,54:1** pe plăcuța întunecată. Ridicate la aceeași valoare pe care rândul de echipă o folosea deja.
+> - 585 teste verzi. `SAVE_SCHEMA` neschimbat (10) — felia asta nu adaugă niciun câmp.
+
+**Task Completed (Meșteșugul — felia 2: jurământul, și ceasul închis)**
 > Prompt: „continua"
 > Model: Claude Opus 5
 > - **O clădire poate acum să înceteze să fie de uz general.** Jură permanent să nu mai facă ceva cu ziua ei și devine mai bună la ce a păstrat. Decizia: care casă nu se va mai putea răzgândi.

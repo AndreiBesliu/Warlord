@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react'
 import {
-  CRAFT_CREED_MAX, CRAFT_NAME_MAX, availableCraftPoints, channelsOf, contextFor, craftAt,
-  craftFaults, describeChannels, describeDemand, describeNode, outOfKeeping, sharesOf,
-  spentPoints, standingOf, swornAt, validateDesign, type CraftDesign,
+  CRAFT_CREED_MAX, CRAFT_NAME_MAX, availableCraftPoints, bookSince, channelsOf, contextFor,
+  craftAt, craftFaults, describeChannels, describeDemand, describeNode, outOfKeeping,
+  pointsLeft, sharesOf, spentPoints, standingOf, validateDesign, type CraftDesign,
 } from '../../logic/craft'
 import {
-  CRAFT_PCT_OPTIONS, CRAFT_PRIMS, primNumbers, rebateOf, type CraftDemand,
+  CRAFT_PCT_OPTIONS, CRAFT_PRIMS, CRAFT_SHARE_OPTIONS, primNumbers, rebateOf, type CraftDemand,
 } from '../../logic/craftPalette'
-import { crewSizeOf, emptyRecord, recordAt, type PopulationState } from '../../logic/population'
+import { crewSizeOf, type PopulationState } from '../../logic/population'
 import { hasNoItemToMake } from '../../logic/economy'
 import type { Building } from '../../logic/types'
 
@@ -21,17 +21,22 @@ interface Props {
   population: PopulationState
   buildings: Building[]
   onSwear: (design: CraftDesign) => void
+  onGrow: (prim: string, parent: string | null) => void
+  whyNotGrow: (prim: string, parent: string | null) => string | null
 }
 
-const DEMAND_KINDS: { kind: CraftDemand['kind']; label: string; unit: 'pct' | 'hands' }[] = [
+const DEMAND_KINDS: { kind: CraftDemand['kind']; label: string; unit: 'pct' | 'hands' | 'share' }[] = [
   { kind: 'CAP_COIN', label: 'Cap coin at', unit: 'pct' },
   { kind: 'CAP_STUDY', label: 'Cap study at', unit: 'pct' },
   { kind: 'MIN_GOODS', label: 'Always leave for goods', unit: 'pct' },
   { kind: 'MIN_HANDS', label: 'Always work with at least', unit: 'hands' },
   { kind: 'MAX_HANDS', label: 'Never work with more than', unit: 'hands' },
+  { kind: 'SHARE_OF_POSTS', label: 'Always hold this share of the domain', unit: 'share' },
 ]
 
-export default function CraftPanel({ building, population, buildings, onSwear }: Props) {
+export default function CraftPanel({
+  building, population, buildings, onSwear, onGrow, whyNotGrow,
+}: Props) {
   const crew = crewSizeOf(building.type)
   const noItem = hasNoItemToMake(building.type)
   const sworn = craftAt(population, building)
@@ -52,18 +57,7 @@ export default function CraftPanel({ building, population, buildings, onSwear }:
   if (sworn) {
     const fault = craftFaults(sworn)
     const asleep = fault ? null : outOfKeeping(sworn, building, population, buildings, noItem)
-    const since = recordAt(population, building)
-    const at = swornAt(population, building) ?? emptyRecord()
-    const delta = {
-      ...emptyRecord(),
-      days: since.days - at.days,
-      coinVal: since.coinVal - at.coinVal,
-      goodsVal: since.goodsVal - at.goodsVal,
-      studyVal: since.studyVal - at.studyVal,
-      daysFull: since.daysFull - at.daysFull,
-      daysLean: since.daysLean - at.daysLean,
-    }
-    const sh = sharesOf(delta)
+    const sh = sharesOf(bookSince(population, building))
     return (
       <div className="space-y-1">
         <div className="flex flex-wrap items-baseline gap-x-2">
@@ -87,6 +81,41 @@ export default function CraftPanel({ building, population, buildings, onSwear }:
                 {' '}· {sh.fullShare}% fully crewed · {sh.leanShare}% lean
               </div>
             )}
+
+        {/* The tree. Depth is bought a node at a time and gated on STANDING — days KEPT, not
+            days worked and not the crew's level — so what is on offer is a history rather
+            than a shopping list. */}
+        {!fault && (
+          <div className="pt-1 space-y-0.5">
+            <div className="text-[11px] text-wl-contrast-ink/60">
+              {pointsLeft(sworn, ctx)} of {availableCraftPoints(sworn, ctx)} points unspent
+              {' '}· {standingOf(population, building)} days kept
+            </div>
+            {CRAFT_PRIMS.map((p) => {
+              const taken = sworn.nodes.find((n) => n.prim === p.id)
+              // Pieces taken SINCE the oath form a chain, so each one costs a deeper tier of
+              // standing than the last. The nodes the craft was sworn with are all roots and
+              // pay no standing — at the moment of the oath there is none to pay. Chaining
+              // off the last root instead would put the very first growth at tier 1 and make
+              // tier 0 unreachable, which is a rule nobody could see.
+              const chain = sworn.nodes.filter((n) => n.parent !== null)
+              const parent = taken ? null : (chain[chain.length - 1]?.id ?? null)
+              const why = whyNotGrow(p.id, parent)
+              return (
+                <div key={p.id} className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button" disabled={!!why} title={why ?? p.blurb}
+                    onClick={() => onGrow(p.id, parent)}
+                    className="px-2 py-1 min-h-[26px] text-[11px] rounded border border-wl-contrast-ink/25 bg-black/30 text-wl-contrast-ink hover:bg-black/50 disabled:bg-black/10 disabled:text-wl-contrast-ink/60 disabled:cursor-not-allowed"
+                  >
+                    {taken ? `Deepen ${p.name} ×${taken.steps}→${taken.steps + 1}` : `Take ${p.name}`}
+                  </button>
+                  {why && <span className="text-[11px] text-red-300 leading-tight">{why}</span>}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     )
   }
@@ -151,7 +180,9 @@ export default function CraftPanel({ building, population, buildings, onSwear }:
         const cur = demands.find((d) => d.kind === kind)
         const options = unit === 'pct'
           ? CRAFT_PCT_OPTIONS as readonly number[]
-          : Array.from({ length: crew }, (_, i) => i + 1)
+          : unit === 'share'
+            ? CRAFT_SHARE_OPTIONS as readonly number[]
+            : Array.from({ length: crew }, (_, i) => i + 1)
         const value = cur ? ('pct' in cur ? cur.pct : cur.hands) : -1
         return (
           <div key={kind} className="flex flex-wrap items-center gap-1.5">
@@ -164,7 +195,7 @@ export default function CraftPanel({ building, population, buildings, onSwear }:
               <button
                 key={o} type="button" onClick={() => toggleDemand(kind, o)}
                 className={`px-2 min-h-[26px] text-[11px] rounded border font-mono ${value === o ? 'border-wl-contrast-ink/50 bg-black/40 text-wl-contrast-ink' : 'border-wl-contrast-ink/15 text-wl-contrast-ink/60'}`}
-              >{o}{unit === 'pct' ? '%' : ''}</button>
+              >{o}{unit === 'hands' ? '' : '%'}</button>
             ))}
             {cur && (
               <span className="text-[11px] text-wl-good font-mono">+{rebateOf(cur, ctx)}</span>
@@ -182,12 +213,12 @@ export default function CraftPanel({ building, population, buildings, onSwear }:
             <div key={p.id} className="flex flex-wrap items-center gap-1.5">
               <button
                 type="button" onClick={() => stepNode(p.id, -1)} disabled={!taken}
-                className="px-2 min-w-[26px] min-h-[26px] text-[11px] rounded border border-wl-contrast-ink/25 bg-black/30 text-wl-contrast-ink disabled:opacity-100 disabled:text-wl-contrast-ink/30 disabled:cursor-not-allowed font-mono"
+                className="px-2 min-w-[26px] min-h-[26px] text-[11px] rounded border border-wl-contrast-ink/25 bg-black/30 text-wl-contrast-ink disabled:opacity-100 disabled:text-wl-contrast-ink/60 disabled:cursor-not-allowed font-mono"
               >−</button>
               <span className="font-mono text-[11px] text-wl-contrast-ink min-w-[24px] text-center">{taken?.steps ?? 0}</span>
               <button
                 type="button" onClick={() => stepNode(p.id, 1)} disabled={(taken?.steps ?? 0) >= p.maxSteps}
-                className="px-2 min-w-[26px] min-h-[26px] text-[11px] rounded border border-wl-contrast-ink/25 bg-black/30 text-wl-contrast-ink disabled:opacity-100 disabled:text-wl-contrast-ink/30 disabled:cursor-not-allowed font-mono"
+                className="px-2 min-w-[26px] min-h-[26px] text-[11px] rounded border border-wl-contrast-ink/25 bg-black/30 text-wl-contrast-ink disabled:opacity-100 disabled:text-wl-contrast-ink/60 disabled:cursor-not-allowed font-mono"
               >+</button>
               <span className="text-[11px] text-wl-contrast-ink">{p.name}</span>
               <span className="text-[11px] text-wl-contrast-ink/60">
@@ -202,7 +233,7 @@ export default function CraftPanel({ building, population, buildings, onSwear }:
         <button
           type="button" disabled={!check.ok}
           onClick={() => { onSwear(design); setName(''); setCreed(''); setDemands([]); setNodes([]) }}
-          className="px-2 py-1.5 min-h-[30px] text-xs rounded border border-wl-contrast-ink/30 bg-black/35 text-wl-contrast-ink hover:bg-black/55 disabled:text-wl-contrast-ink/40 disabled:cursor-not-allowed"
+          className="px-2 py-1.5 min-h-[30px] text-xs rounded border border-wl-contrast-ink/30 bg-black/35 text-wl-contrast-ink hover:bg-black/55 disabled:text-wl-contrast-ink/60 disabled:cursor-not-allowed"
         >
           Swear it — for good
         </button>

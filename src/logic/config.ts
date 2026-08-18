@@ -145,6 +145,8 @@ export interface CraftRules {
   standingBase: number
   /** Days of the house's own books a share-shaped proof needs before it means anything. */
   proofMinDays: number
+  /** How much dearer each further step of a piece is to prove. */
+  proofStepMult: number
 }
 
 export const DEFAULT_CRAFT_RULES: CraftRules = {
@@ -154,6 +156,7 @@ export const DEFAULT_CRAFT_RULES: CraftRules = {
   // A share out of three days is noise. This is what stops a brand-new house from qualifying
   // for anything on the strength of one lucky morning.
   proofMinDays: 10,
+  proofStepMult: 1,
 }
 
 /**
@@ -163,7 +166,15 @@ export const DEFAULT_CRAFT_RULES: CraftRules = {
  * 83-417c a day while a legion on patrol earns 2c a soldier — NOT against `POP_MAX_STAFF_BONUS`.
  * Deliberately tight; the lever to loosen it is `GameConfig`, not this constant.
  */
-export const CRAFT_CHANNEL_CAP = { coinMult: 1.35 } as const
+export const CRAFT_CHANNEL_CAP = {
+  coinMult: 1.35,
+  // TIGHTER than coin, deliberately. The day's material half already becomes
+  // `remainderValue / 0.7` of market value, so goods beat coin by ~43% before any craft
+  // touches them; an equal ceiling would make goods the only sane choice, which is the
+  // opposite of a decision.
+  goodsMult: 1.25,
+  studyMult: 1.4,
+} as const
 
 /** Most hands any building may ever hold, whatever an admin types. */
 export const POP_MAX_CREW = 50
@@ -620,6 +631,8 @@ class GameConfigStore {
       standingBase: Math.max(1, num(c.standingBase, base.standingBase, 1)),
       // A share out of nothing is not a share.
       proofMinDays: Math.max(1, num(c.proofMinDays, base.proofMinDays, 1)),
+      // At 0 every step past the first would be free to prove.
+      proofStepMult: Math.max(0.1, num(c.proofStepMult, base.proofStepMult, 0.1)),
     }
   }
 

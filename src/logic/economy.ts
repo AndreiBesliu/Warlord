@@ -10,6 +10,7 @@ import {
   staffMultOf, type CrewRecord, type PopulationState,
 } from './population'
 import { craftAt, craftChannelsFor, craftFaults, outOfKeeping } from './craft'
+import { NO_CRAFT } from './craftPalette'
 
 // Daily upkeep cost per soldier (in copper), by type
 export const UPKEEP_BASE: Record<SoldierType, number> = {
@@ -461,8 +462,6 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
       focusResearchPct: row.focusResearchPct,
       staffMult,
     })
-    if (researchValue > 0) diverted[row.id] = researchValue
-
     walletDelta += coinGain
     row.fractionalBuffer = newBuffer
 
@@ -471,23 +470,35 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
     // so a factor added there would be shaved to nothing on exactly the houses that earned it.
     const craft = input.population
       ? craftChannelsFor(row, input.population, buildings, hasNoItemToMake(row.type))
-      : { coinMult: 1 }
+      : { ...NO_CRAFT }
     const craftedCoin = Math.round(coinGain * craft.coinMult)
     walletDelta += craftedCoin - coinGain
+    // Goods and study are multiplied on the SAME rule, after the split. `items` is already
+    // the integer the buffer released, so the goods channel scales the rate rather than the
+    // release — otherwise a craft would change WHEN a piece lands, not how many.
+    // Floored once, here, and used everywhere below. Scaling the rate and then flooring in
+    // two places would let the line advertise one count and the stores receive another.
+    const madeItems = Math.floor(craft.goodsMult > 1 ? items * craft.goodsMult : items)
+    const craftedStudy = Math.round(studyValue * craft.studyMult)
+    // `diverted` is what `studyPerDay` reads, so the craft's study channel lands HERE — one
+    // place, feeding the tick, the forecast, the topbar and the Research tab alike.
+    if (craftedStudy > 0) diverted[row.id] = craftedStudy
 
     const line: BuildingDayLine = {
       id: row.id, type: row.type, outputItem: outItem, skipped: false,
       coinGain: craftedCoin,
       // The rate the buffer is filling at, independent of which day the integer lands.
-      itemsFloat: items + newBuffer - bufferBefore,
-      itemsWanted: items, itemsProduced: 0, blocked: false, inputsConsumed: {},
-      researchValue, workers, staffMult, studyValue, remainderValue,
+      itemsFloat: (craft.goodsMult > 1 ? items * craft.goodsMult : items) + newBuffer - bufferBefore,
+      itemsWanted: madeItems, itemsProduced: 0, blocked: false, inputsConsumed: {},
+      researchValue, workers, staffMult,
+      studyValue: craftedStudy,
+      remainderValue: Math.round(remainderValue * craft.goodsMult),
     }
 
     if (row.type === 'SMELTER') {
       const recipe = SmelterRecipes[outItem]
-      if (recipe && items > 0) {
-        let maxAfford = items
+      if (recipe && madeItems > 0) {
+        let maxAfford = madeItems
         for (const [res, qty] of Object.entries(recipe.input)) {
           const avail = nres[res as keyof ResourceMap] || 0
           maxAfford = Math.min(maxAfford, Math.floor(avail / qty))
@@ -512,12 +523,12 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
       // never run: the Minter has no output item, so `items` is always 0 for it. Removed
       // rather than wired up — the Minter's product is coin, and silver already has two
       // sinks (research costs and the market).
-      if (items > 0 && outItem) {
+      if (madeItems > 0 && outItem) {
         const recipe = manufacturingRecipe(outItem)
-        let actualItems = items
+        let actualItems = madeItems
 
         if (recipe) {
-          let maxAfford = items
+          let maxAfford = madeItems
           for (const [res, qty] of Object.entries(recipe)) {
             const avail = nres[res as keyof ResourceMap] || 0
             maxAfford = Math.min(maxAfford, Math.floor(avail / qty))

@@ -35,6 +35,8 @@ type Props = {
     onSwearCraft: (design: CraftDesign) => void
     /** Why a sworn oath refuses this setting. Asked BEFORE the control fires. */
     whyNotSetFocus: (next: { coinPct?: number; studyPct?: number }) => string | null
+    onGrowCraft: (prim: string, parent: string | null) => void
+    whyNotGrowCraft: (prim: string, parent: string | null) => string | null
 }
 
 const InteriorMap: Record<string, string> = {
@@ -58,6 +60,7 @@ const InteriorMap: Record<string, string> = {
 export default function ProductionModal({
     building, onClose, onSetOutput, onSetFocus, onSetResearchFocus, prodMult = 1, craftEfficiency = 1,
     population, idleHands, whyNotAssign, onAssign, buildings, onSwearCraft, whyNotSetFocus,
+    onGrowCraft, whyNotGrowCraft,
 }: Props) {
     // A slider cannot be `disabled` for only part of its range, so the refusal is caught
     // here and SAID here. Without this the state refuses, the knob springs back, and the
@@ -232,6 +235,8 @@ export default function ProductionModal({
                         population={population}
                         buildings={buildings}
                         onSwear={onSwearCraft}
+                        onGrow={onGrowCraft}
+                        whyNotGrow={whyNotGrowCraft}
                     />
 
                     {/* Slider Control. Absent where there is nothing to make — and SAID, because

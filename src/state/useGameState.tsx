@@ -35,7 +35,9 @@ import {
   assignBlocker, emptyPopulation, handsAt, hydratePopulation, idleHands, levyBlocker, recordAt,
 } from '../logic/population'
 import {
-  contextFor, craftAt, craftBlocker, validateDesign as validateCraftDesign, type CraftDesign,
+  contextFor, craftAt, craftBlocker,
+  deepenBlocker as deepenCraftBlocker, growBlocker as growCraftBlocker,
+  validateDesign as validateCraftDesign, type CraftDesign,
 } from '../logic/craft'
 import {
   emptyLegion, pruneMembership, sanitizeLegionName, suggestLegionName, joinBlocker,
@@ -447,6 +449,39 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     // caught-up day, so a captured value would stamp the oath with a stale one.
     pop.swearCraft(b, design, day, recordAt(pop.population, b))
     addLog(`${b.type.replace(/_/g, ' ')} swore to ${design.name}. ${design.creed}`.trim())
+  }
+
+  /**
+   * Take a new piece, or deepen one already taken. Validated here, where both the oath (in
+   * `pop`) and the building (in `econ`) are visible; an updater on either slice cannot see
+   * the other.
+   */
+  function growCraft(buildingId: string, prim: string, parent: string | null) {
+    const b = econ.buildings.find((x) => x.id === buildingId)
+    if (!b) return
+    const design = craftAt(pop.population, b)
+    if (!design) return
+    const ctx = contextFor(b, hasNoItemToMake(b.type))
+    const existing = design.nodes.find((n) => n.prim === prim)
+    const why = existing
+      ? deepenCraftBlocker(design, b, pop.population, existing.id, ctx)
+      : growCraftBlocker(design, b, pop.population, { prim, parent }, ctx)
+    if (why) { addLog(why); return }
+    pop.growCraft(b, prim, parent)
+    addLog(`${b.type.replace(/_/g, ' ')} deepened ${design.name}.`)
+  }
+
+  /** The message a control shows before it refuses. The state asks the same question again. */
+  function whyNotGrowCraft(buildingId: string, prim: string, parent: string | null): string | null {
+    const b = econ.buildings.find((x) => x.id === buildingId)
+    if (!b) return null
+    const design = craftAt(pop.population, b)
+    if (!design) return null
+    const ctx = contextFor(b, hasNoItemToMake(b.type))
+    const existing = design.nodes.find((n) => n.prim === prim)
+    return existing
+      ? deepenCraftBlocker(design, b, pop.population, existing.id, ctx)
+      : growCraftBlocker(design, b, pop.population, { prim, parent }, ctx)
   }
 
   // Generic building upgrade (BARRACKS has its own leveling; MARKET/STABLE have no
@@ -1553,6 +1588,8 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       whyNotSetFocus(b.id, { hands: handsAt(pop.population, b) + Math.floor(delta || 0) })
       ?? assignBlocker(b, delta, pop.population, econ.buildings),
     swearCraft,
+    growCraft,
+    whyNotGrowCraft,
     whyNotSetFocus,
 
     // barracks (state)
@@ -1597,7 +1634,9 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     barracksCapacity: barracksCapacity(barr.barracksLevel),
     quartered: quarteredCount(barr.recruits.count, barr.barracks),
     // What tomorrow adds to each branch, from the same function the tick banks with.
-    studyPerDay: forecastDay({ buildings: econ.buildings, resources: econ.resources, inv: econ.inv, units: unit.units, mods }).studyByBranch,
+    // `population` was missing here, so the Research tab under-reported study for every
+    // crewed house while the topbar — which passes it — was right. One argument.
+    studyPerDay: forecastDay({ buildings: econ.buildings, resources: econ.resources, inv: econ.inv, units: unit.units, mods, population: pop.population }).studyByBranch,
     availableResearch: () => availableTechs(catalog, rsc.research.unlocked, rsc.research.queue.map(p => p.id)),
 
     // Nothing is being saved, because this build is older than the save it opened. The

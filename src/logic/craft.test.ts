@@ -3,7 +3,9 @@ import {
   availableCraftPoints, channelsOf, contextFor, craftBlocker, craftChannelsFor, craftFaults,
   outOfKeeping, sharesOf, spentPoints, standingOf, validateDesign, type CraftDesign,
 } from './craft'
-import { CRAFT_FLOOR, clampCraftChannels, isMonotone, isProportional, type CraftDemand } from './craftPalette'
+import {
+  CRAFT_FLOOR, clampCraftChannels, isMonotone, isProportional, rebateOf, type CraftDemand,
+} from './craftPalette'
 import { CRAFT_CHANNEL_CAP, GameConfig } from './config'
 import { emptyRecord, hydratePopulation, type PopulationState } from './population'
 import { simulateEconomyDay } from './economy'
@@ -43,8 +45,35 @@ const day = (over: Partial<Parameters<typeof simulateEconomyDay>[0]> = {}) =>
 
 describe('a craft is what a house gives up — points come only from demands', () => {
   it('the budget IS the rebate, so there is no free wallet anywhere', () => {
-    expect(availableCraftPoints(design(), ctxOf())).toBe(8)
+    // CAP_STUDY 0 surrenders the whole 0→100 band (10 points at one per ten), MIN_HANDS 8
+    // costs eight hands every day (8). Nothing else contributes.
+    expect(availableCraftPoints(design(), ctxOf())).toBe(18)
     expect(spentPoints(design())).toBe(2)
+  })
+
+  it('A DEMAND IS PRICED BY THE RANGE IT SURRENDERS, not by the distance from today', () => {
+    // The first version priced it `current − promised`, which reads sensibly until you put it
+    // beside the other rule: a craft may only be sworn while ALREADY in keeping. Together
+    // those force current === promised at the one moment the price is read, so every
+    // percentage demand was worth exactly zero and the vocabulary collapsed to "buy points
+    // with hands". This test exists to stop that coming back.
+    const ctx = ctxOf()
+    expect(rebateOf({ kind: 'CAP_COIN', pct: 20 }, ctx)).toBe(8) // 20→100 given up
+    expect(rebateOf({ kind: 'CAP_COIN', pct: 60 }, ctx)).toBe(4)
+    expect(rebateOf({ kind: 'MIN_GOODS', pct: 60 }, ctx)).toBe(6)
+    // …and it does not move when the house does, so a budget already spent cannot go under.
+    const elsewhere = contextFor(smelter({ focusCoinPct: 0, focusResearchPct: 80 }), false)
+    expect(rebateOf({ kind: 'CAP_COIN', pct: 20 }, elsewhere)).toBe(8)
+  })
+
+  it('the whole vocabulary can buy something — not just the hand demands', () => {
+    for (const d of [
+      { kind: 'CAP_COIN', pct: 20 }, { kind: 'CAP_STUDY', pct: 20 },
+      { kind: 'MIN_GOODS', pct: 60 }, { kind: 'MIN_HANDS', hands: 8 },
+      { kind: 'MAX_HANDS', hands: 8 }, { kind: 'SHARE_OF_POSTS', pct: 20 },
+    ] as CraftDemand[]) {
+      expect(rebateOf(d, ctxOf())).toBeGreaterThan(0)
+    }
   })
 
   it('a craft that buys more than it gives up is refused', () => {
@@ -158,7 +187,7 @@ describe('what it is worth, and what it can never be worth', () => {
   it('THE CEILING IS ON THE SUM, so no config value gets past it', () => {
     GameConfig.init({ craftPrims: { COINWISE: { step: 99 } } })
     expect(channelsOf(design()).coinMult).toBe(CRAFT_CHANNEL_CAP.coinMult)
-    expect(clampCraftChannels({ coinMult: 99 }).coinMult).toBe(CRAFT_CHANNEL_CAP.coinMult)
+    expect(clampCraftChannels({ coinMult: 99, goodsMult: 99, studyMult: 99 }).coinMult).toBe(CRAFT_CHANNEL_CAP.coinMult)
   })
 
   it('a step of zero is a piece that costs points and does nothing — the config refuses it', () => {
