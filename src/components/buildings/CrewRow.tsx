@@ -1,4 +1,4 @@
-import { crewLine, type PopulationState } from '../../logic/population'
+import { crewLine, describeRecord, type PopulationState } from '../../logic/population'
 import type { Building } from '../../logic/types'
 
 // The one control that posts hands, rendered in both places a building is looked at (the
@@ -17,7 +17,7 @@ interface Props {
 }
 
 export default function CrewRow({ building, population, whyNot, onAssign, contrast, idle }: Props) {
-  const { crew, hands, mult, has, level, days, nextAt } = crewLine(building, population)
+  const { crew, hands, mult, has, level, days, nextAt, record } = crewLine(building, population)
   // Rendered only where there IS a crew. Inside the `hasNoItemToMake` guard the Minter — a
   // crew of 16 and the second largest in the game — would have no control at all; without
   // any guard the barracks, market, stable and scriptorium each get a row that can only
@@ -74,6 +74,11 @@ export default function CrewRow({ building, population, whyNot, onAssign, contra
         {mult > 1 ? `×${mult.toFixed(2)} the day` : 'nobody working'}
         {full ? ' · fully crewed' : ` · ${idle} free`}
         {level === 1 && nextAt !== null && days > 0 ? ` · ${days}/${nextAt} days to L2` : ''}
+      </span>
+      {/* The house's account of itself. Shares, not totals: a total only says how long you
+          have been playing, and shares of one day are rival with each other. */}
+      <span className={`basis-full text-[11px] ${dim}`}>
+        {record.days > 0 ? describeRecord(record) : 'this house keeps no account yet — its books open the first day a crew works it'}
       </span>
     </div>
   )

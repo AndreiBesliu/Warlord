@@ -65,6 +65,7 @@ export function useEconomy(initialWallet = 5 * GOLD, defaultBuildings: () => Bui
       studyByBranch: day.studyByBranch,
       peopleGrown: day.peopleGrown,
       workedBuildingIds: day.workedBuildingIds,
+      workRecordDeltas: day.workRecordDeltas,
     }
   }
 

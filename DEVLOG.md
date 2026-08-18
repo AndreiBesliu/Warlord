@@ -2,7 +2,20 @@
 
 ## Reguli DEVLOG
 - **Append-only** — nu se șterg intrări istorice
-- Fiecare task are **Task Started** și **Task Completed (Populație — felia 2: echipa învață)**
+- Fiecare task are **Task Started** și **Task Completed (Meșteșugul — felia 1: casa își ține catastiful)**
+> Prompt: „vreau sa dezvoltam sistemul din spatele jocului, vom calibra valorile mai tarziu"
+> Model: Claude Opus 5
+> - Fundația feliei 3 a populației, produsă de un workflow de 11 agenți (2 citiri · 3 designuri, unul obligat să argumenteze că meșteșugul e sistemul GREȘIT · 2 jurii · 3 atacuri · spec). Meșteșugul a câștigat la ambele jurii; **24 de constatări, 9 fatale**, toate cu răspuns luat înainte de prima linie de cod.
+> - **Catastiful nu e un al doilea ceas.** `work` numără zile, iar o zi se obține lăsând timpul să treacă. `record` numără **ce a scos casa**, iar cele trei valori (`coinVal`/`goodsVal`/`studyVal`) sunt trei felii din ACELAȘI scalar — deci cotele sunt **rivale prin construcție** și nicio casă nu poate fi excelentă la toate trei. Aia e singura proprietate care face dovada o dovadă.
+> - `crewPresent` extras din `creditsADayOfWork`: catastiful și ceasul pun aceeași întrebare despre prezență și pot fi în dezacord doar despre ce a produs ziua.
+> - **`daysDry` NU e `blocked`.** O casă pe 100% monedă nu e niciodată „blocată", deci un contor pe `blocked` ar spune numele sliderului de focus, nu al zilei. Se numără zilele care n-au scos nimic pe niciun canal.
+> - `passiveIncomeAndProduction` scrie `studyValue` și `remainderValue` pe **ambele** căi de retur, inclusiv cea timpurie: altfel un apelant care prețuiește o zi primește `undefined` exact la clădirile care n-au produs nimic — cazul pe care cel mai mult vrea să-l vadă.
+> - **Garda de stocare, în repo-ul soră, înainte să existe ceva permanent:** `rev` e un contor PER-DISPOZITIV, deci un tab vechi poate sta la un rev mai mare decât cloud-ul doar fiindcă a bifat mai multe zile local. **Schema bate rev-ul, în ambele direcții.** Fără asta, al doilea tab dă gratuit respec-ul pe care un jurământ permanent îl interzice.
+> - Test nou care leagă `DayForecast` de `DayEconomyResult`: proiecția e copiată de mână, deci un câmp adăugat la rezultat și uitat acolo e invizibil în topbar cu typecheck verde — exact cum a driftat prognoza de două ori.
+> - Verificat pe viu pornind dintr-un save VETERAN (echipă L3, 61 de zile lucrate, fără catastif): „casa asta nu ține încă niciun catastif" → 3 zile / 100% monedă → tras Research% la 40 și focusul la 40 → **53% monedă · 23% marfă · 25% studiu · 45 făcute**. Exclusivitatea se vede pe un ecran. Mâinile scoase: două zile fără nicio mișcare în catastif. Reload: totul supraviețuiește.
+> - `SAVE_SCHEMA` 8 → 9. 549 teste verzi (31 noi), contrast 6,28, zero overflow la 375px.
+
+**Task Completed (Populație — felia 2: echipa învață)**
 > Prompt: „continua"
 > Model: Claude Opus 5
 > - **Nivelul e DERIVAT dintr-un contor monoton** (`population.work[buildingId]`), niciodată stocat: ce nu se scrie nu se poate scrie greșit și nu cere migrare. Creditat de TICK, nu de zi, deci o recuperare offline de 24 de zile creditează fiecare zi exact o dată (aceeași formă ca blocul de duty).

@@ -50,8 +50,11 @@
  * 8 = `population.work` — days each crew has worked, from which its LEVEL is derived. An
  *     older build would drop the counter and every crew would silently fall back to level 1
  *     while still being paid for at its old rate on this build.
+ * 9 = `population.record` — each house's account of what it actually put out. An older build
+ *     drops it, and the ledger silently restarts from zero, which is the input a later slice
+ *     prices a permanent promise against.
  */
-export const SAVE_SCHEMA = 8
+export const SAVE_SCHEMA = 9
 
 /**
  * The top-level keys this build writes. Anything in a loaded save that is NOT here is

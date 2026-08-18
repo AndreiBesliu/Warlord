@@ -6,7 +6,8 @@ import { GameConfig } from './config'
 import { studyPerDay, type StudyPools } from './research/study'
 // One-way: `population.ts` never imports this file back.
 import {
-  creditsADayOfWork, crewSizeOf, growthFromHarvest, handsAt, staffMultOf, type PopulationState,
+  creditsADayOfWork, crewSizeOf, growthFromHarvest, handsAt, recordDeltaFrom, staffMultOf,
+  type CrewRecord, type PopulationState,
 } from './population'
 
 // Daily upkeep cost per soldier (in copper), by type
@@ -272,13 +273,29 @@ export function passiveIncomeAndProduction(args: {
    * the `!basePerDay` guard below and silently zero the Research% slider).
    */
   staffMult?: number
-}): { coinGain: number; items: number; newBuffer: number; researchValue: number } {
+  /**
+   * Every field is written on EVERY return path, including the early one. A caller that
+   * reads `remainderValue` to price a day would otherwise get `undefined` exactly on the
+   * buildings that produced nothing, which is the case it most wants to see.
+   */
+}): {
+  coinGain: number; items: number; newBuffer: number; researchValue: number
+  /** Value diverted to study. Same as `researchValue` today; they part company later. */
+  studyValue: number
+  /** Value left for goods after study and coin. What a day's material half is WORTH. */
+  remainderValue: number
+} {
   const { costCopper, focusCoinPct, outputItem, fractionalBuffer } = args
 
   const basePerDay = buildingOutputValue(args.type, outputItem, costCopper)
     * buildingLevelMult(args.level ?? 1) * (args.outputMult ?? 1)
     * Math.max(1, args.staffMult ?? 1)
-  if (!basePerDay) return { coinGain: 0, items: 0, newBuffer: fractionalBuffer, researchValue: 0 }
+  if (!basePerDay) {
+    return {
+      coinGain: 0, items: 0, newBuffer: fractionalBuffer,
+      researchValue: 0, studyValue: 0, remainderValue: 0,
+    }
+  }
 
   const researchPct = Math.min(100, Math.max(0, args.focusResearchPct ?? 0))
   const researchValue = Math.round(basePerDay * (researchPct / 100))
@@ -292,7 +309,10 @@ export function passiveIncomeAndProduction(args: {
   const remainderValue = afterResearch - coinGain
 
   if (remainderValue <= 0 || mv <= 0) {
-    return { coinGain, items: 0, newBuffer: fractionalBuffer, researchValue }
+    return {
+      coinGain, items: 0, newBuffer: fractionalBuffer,
+      researchValue, studyValue: researchValue, remainderValue: Math.max(0, remainderValue),
+    }
   }
 
   // Produce at 70% of market value (manufacturing efficiency bonus); research can
@@ -302,7 +322,7 @@ export function passiveIncomeAndProduction(args: {
   const items = Math.floor(total)
   const newBuffer = total - items
 
-  return { coinGain, items, newBuffer, researchValue }
+  return { coinGain, items, newBuffer, researchValue, studyValue: researchValue, remainderValue }
 }
 
 // ── ONE DAY OF ECONOMY, AS A PURE FUNCTION ────────────────────────────────
@@ -343,6 +363,10 @@ export interface BuildingDayLine {
   researchValue: number // copper of output diverted to study instead of coin/goods
   workers: number // hands posted here today
   staffMult: number // what those hands multiplied the day by (1 = no crew, or nobody in it)
+  /** Copper of the day that became study. Split from `researchValue` for a later slice. */
+  studyValue: number
+  /** Copper of the day left for goods, whether or not the inputs allowed making any. */
+  remainderValue: number
 }
 
 export interface DayEconomyResult {
@@ -376,6 +400,12 @@ export interface DayEconomyResult {
    * them, which is what makes an offline catch-up credit each caught-up day exactly once.
    */
   workedBuildingIds: string[]
+  /**
+   * What each house put out today, keyed by `Building.id`. The raw material a later slice
+   * prices a promise against — kept separate from `workedBuildingIds` because a day can be
+   * worth recording without being a day of work, and the reverse is never true.
+   */
+  workRecordDeltas: Record<string, CrewRecord>
 }
 
 export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
@@ -401,7 +431,7 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
       breakdown.push({
         id: row.id, type: row.type, outputItem: '', skipped: true,
         coinGain: 0, itemsFloat: 0, itemsWanted: 0, itemsProduced: 0, blocked: false, inputsConsumed: {},
-        researchValue: 0, workers: 0, staffMult: 1,
+        researchValue: 0, workers: 0, staffMult: 1, studyValue: 0, remainderValue: 0,
       })
       return row
     }
@@ -412,7 +442,7 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
     const bufferBefore = row.fractionalBuffer ?? 0
     const workers = handsAt(input.population, row)
     const staffMult = input.population ? staffMultOf(row, input.population) : 1
-    const { coinGain, items, newBuffer, researchValue } = passiveIncomeAndProduction({
+    const { coinGain, items, newBuffer, researchValue, studyValue, remainderValue } = passiveIncomeAndProduction({
       type: row.type,
       costCopper: cost,
       focusCoinPct: row.focusCoinPct,
@@ -435,7 +465,7 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
       // The rate the buffer is filling at, independent of which day the integer lands.
       itemsFloat: items + newBuffer - bufferBefore,
       itemsWanted: items, itemsProduced: 0, blocked: false, inputsConsumed: {},
-      researchValue, workers, staffMult,
+      researchValue, workers, staffMult, studyValue, remainderValue,
     }
 
     if (row.type === 'SMELTER') {
@@ -518,6 +548,16 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
       .map((l) => l.id)
     : []
 
+  // What each house PUT OUT today, in the terms a later slice will price a promise against.
+  // Returned, never committed — `ResourceBar` runs the whole day on every render, unmemoised.
+  const workRecordDeltas: Record<string, CrewRecord> = {}
+  if (input.population) {
+    for (const l of breakdown) {
+      const delta = recordDeltaFrom(l, crewSizeOf(l.type), l.workers)
+      if (delta) workRecordDeltas[l.id] = delta
+    }
+  }
+
   if (hasStable) {
     const breedL = Math.floor(0.01 * (ninv.horses.LIGHT_HORSE.active || 0))
     const breedH = Math.floor(0.01 * (ninv.horses.HEAVY_HORSE.active || 0))
@@ -577,5 +617,6 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
     peopleFoodSpent: growth.foodSpent,
     growthBlocked: growth.reason,
     workedBuildingIds,
+    workRecordDeltas,
   }
 }

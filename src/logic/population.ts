@@ -53,6 +53,98 @@ export interface PopulationState {
    * and no migration is ever owed for one.
    */
   work?: Record<string, number>
+  /**
+   * What each house has actually PUT OUT, keyed by `Building.id`. Every field monotone and
+   * every field derivable from one day-line, so it can never disagree with the day that
+   * produced it.
+   *
+   * It exists because a promise has to be priced against something a player cannot simply
+   * WAIT for. `work` is a clock — it counts days, and a day is had by letting time pass.
+   * This is a ledger: it counts what the house turned out, and the shares within it are
+   * rival by construction (coin, goods and study are three slices of ONE scalar, so a house
+   * cannot be excellent at all three). That rivalry is the whole reason it is not a second
+   * clock wearing a different name.
+   */
+  record?: Record<string, CrewRecord>
+}
+
+/**
+ * One house's account of itself. Copper-denominated where it can be, so the three channel
+ * shares sum to the day and can be compared against each other rather than against nothing.
+ */
+export interface CrewRecord {
+  /** Days the crew was present and the day actually ran. */
+  days: number
+  /** Value of the day paid out as coin. */
+  coinVal: number
+  /** Value of the day left for goods — whether or not the inputs allowed making any. */
+  goodsVal: number
+  /** Value of the day diverted to study. The COST of the study, not its yield. */
+  studyVal: number
+  /** Pieces actually turned out. */
+  goods: number
+  /** Units of raw material eaten by recipes. */
+  fed: number
+  /** Hands posted, summed over the counted days. */
+  handDays: number
+  /** Days every post was filled. */
+  daysFull: number
+  /** Days the house turned out nothing at all, on any channel. */
+  daysDry: number
+  /** Days it made goods without consuming anything. */
+  daysLean: number
+}
+
+export function emptyRecord(): CrewRecord {
+  return {
+    days: 0, coinVal: 0, goodsVal: 0, studyVal: 0, goods: 0, fed: 0,
+    handDays: 0, daysFull: 0, daysDry: 0, daysLean: 0,
+  }
+}
+
+export function addRecord(a: CrewRecord, b: CrewRecord): CrewRecord {
+  return {
+    days: a.days + b.days,
+    coinVal: a.coinVal + b.coinVal,
+    goodsVal: a.goodsVal + b.goodsVal,
+    studyVal: a.studyVal + b.studyVal,
+    goods: a.goods + b.goods,
+    fed: a.fed + b.fed,
+    handDays: a.handDays + b.handDays,
+    daysFull: a.daysFull + b.daysFull,
+    daysDry: a.daysDry + b.daysDry,
+    daysLean: a.daysLean + b.daysLean,
+  }
+}
+
+/** One day's entry, or `null` when there was nothing to enter. */
+export function recordDeltaFrom(line: {
+  skipped: boolean; coinGain: number; itemsProduced: number; researchValue: number
+  studyValue: number; remainderValue: number; inputsConsumed: Partial<Record<string, number>>
+}, crew: number, hands: number): CrewRecord | null {
+  if (!crewPresent(line, crew, hands)) return null
+  const fed = Object.values(line.inputsConsumed).reduce<number>((sum, n) => sum + (n ?? 0), 0)
+  const turnedOut = line.coinGain > 0 || line.itemsProduced > 0 || line.studyValue > 0
+  return {
+    days: 1,
+    coinVal: Math.max(0, Math.round(line.coinGain)),
+    goodsVal: Math.max(0, Math.round(line.remainderValue)),
+    studyVal: Math.max(0, Math.round(line.studyValue)),
+    goods: Math.max(0, line.itemsProduced),
+    fed,
+    handDays: hands,
+    daysFull: hands >= crew ? 1 : 0,
+    // A day that turned out NOTHING on any channel. Deliberately not `blocked`: a house on
+    // full coin focus is never blocked, so a `blocked` counter would say the focus slider's
+    // name rather than the day's.
+    daysDry: turnedOut ? 0 : 1,
+    daysLean: line.itemsProduced > 0 && fed === 0 ? 1 : 0,
+  }
+}
+
+export function recordAt(pop: PopulationState | null | undefined, b: Building): CrewRecord {
+  const raw = pop?.record?.[b.id]
+  return raw ? { ...emptyRecord(), ...raw } : emptyRecord()
 }
 
 // Why the postings are in this key rather than a `workers` field on `Building`:
@@ -112,12 +204,14 @@ export const STARTING_SOULS = 60
 
 /** A day counter nobody can inflate past a plausible lifetime of play. */
 const MAX_DAYS_WORKED = 1_000_000
+/** Copper adds up faster than days do, so the ledger's ceiling is its own. */
+const MAX_LEDGER_ENTRY = 1_000_000_000
 
 export function emptyPopulation(): PopulationState {
   // NOT zeroes, unlike `emptyCampaign`/`emptyLegions`/`emptyResearch`. A domain with no souls
   // refuses every action there is, so "empty" here means "a new town", and the absent-key
   // branch of `hydratePopulation` has to agree with it. There is a test that compares them.
-  return { souls: STARTING_SOULS, at: {}, work: {} }
+  return { souls: STARTING_SOULS, at: {}, work: {}, record: {} }
 }
 
 export function crewSizeOf(type: BuildingType): number {
@@ -201,13 +295,22 @@ export function crewLevelMult(level: number): number {
  * working. Requiring goods specifically would have taught a coin-focused mill nothing while
  * it produced its whole value, which is not a rule anybody could explain.
  */
-export function creditsADayOfWork(line: {
-  skipped: boolean; coinGain: number; itemsProduced: number; researchValue: number
-}, crew: number, hands: number): boolean {
+/**
+ * Was there a crew here, on a day that ran at all? Split out of `creditsADayOfWork` so the
+ * ledger and the clock ask the SAME question about attendance and can only ever disagree
+ * about what the day produced.
+ */
+export function crewPresent(line: { skipped: boolean }, crew: number, hands: number): boolean {
   if (line.skipped || crew <= 0) return false
   // `hands > 0` explicitly: without it `0 >= Math.ceil(0.5 * 0)` is true, and every building
   // with no crew row would quietly accrue days it can never spend.
-  if (hands <= 0 || hands < Math.ceil(0.5 * crew)) return false
+  return hands > 0 && hands >= Math.ceil(0.5 * crew)
+}
+
+export function creditsADayOfWork(line: {
+  skipped: boolean; coinGain: number; itemsProduced: number; researchValue: number
+}, crew: number, hands: number): boolean {
+  if (!crewPresent(line, crew, hands)) return false
   return line.coinGain > 0 || line.itemsProduced > 0 || line.researchValue > 0
 }
 
@@ -345,7 +448,20 @@ export function hydratePopulation(save: unknown): PopulationState {
         if (days > 0) work[id] = days
       }
     }
-    return { souls: n0(raw.souls), at, work }
+    const record: Record<string, CrewRecord> = {}
+    const rsrc = raw.record
+    if (rsrc && typeof rsrc === 'object') {
+      for (const [id, v] of Object.entries(rsrc as Record<string, unknown>)) {
+        if (!v || typeof v !== 'object') continue
+        const r = v as Record<string, unknown>
+        const entry = emptyRecord()
+        for (const k of Object.keys(entry) as (keyof CrewRecord)[]) {
+          entry[k] = n0(r[k], MAX_LEDGER_ENTRY)
+        }
+        if (entry.days > 0) record[id] = entry
+      }
+    }
+    return { souls: n0(raw.souls), at, work, record }
   }
 
   // No key: a save from before this build, or a brand new game. Seed enough souls to
@@ -358,7 +474,7 @@ export function hydratePopulation(save: unknown): PopulationState {
   for (const b of buildings) {
     if (b && typeof b.type === 'string') posts += crewSizeOf(b.type)
   }
-  return { souls: STARTING_SOULS + posts, at: {}, work: {} }
+  return { souls: STARTING_SOULS + posts, at: {}, work: {}, record: {} }
 }
 
 const pretty = (t: string) =>
@@ -367,7 +483,7 @@ const pretty = (t: string) =>
 /** Everything a building's crew row needs to render. One call, so the screens agree. */
 export function crewLine(b: Building, pop: PopulationState | null | undefined): {
   crew: number; hands: number; mult: number; has: boolean
-  level: number; days: number; nextAt: number | null
+  level: number; days: number; nextAt: number | null; record: CrewRecord
 } {
   const crew = crewSizeOf(b.type)
   const level = crewLevelAt(pop, b)
@@ -376,7 +492,27 @@ export function crewLine(b: Building, pop: PopulationState | null | undefined): 
     crew, hands: handsAt(pop, b), mult: staffMultOf(b, pop), has: crew > 0,
     level, days: daysWorkedAt(pop, b),
     nextAt: level < maxCrewLevel ? daysForCrewLevel(level + 1) : null,
+    record: recordAt(pop, b),
   }
+}
+
+/**
+ * The house's account of itself, in one line. Shares rather than totals, because the shares
+ * are what a promise will one day be priced against — and because a total only ever says
+ * how long you have been playing.
+ */
+export function describeRecord(r: CrewRecord): string {
+  if (r.days <= 0) return 'this house has kept no account yet'
+  const value = r.coinVal + r.goodsVal + r.studyVal
+  const pct = (n: number) => `${Math.round((n / Math.max(1, value)) * 100)}%`
+  const parts = [
+    `${r.days} ${r.days === 1 ? 'day' : 'days'} on the books`,
+    value > 0 ? `${pct(r.coinVal)} coin · ${pct(r.goodsVal)} goods · ${pct(r.studyVal)} study` : 'nothing turned out yet',
+  ]
+  if (r.goods > 0) parts.push(`${r.goods} made`)
+  if (r.fed > 0) parts.push(`${r.fed} consumed`)
+  if (r.daysDry > 0) parts.push(`${r.daysDry} idle`)
+  return parts.join(' · ')
 }
 
 /** Every post the standing domain has to offer — for the chip's tooltip. */

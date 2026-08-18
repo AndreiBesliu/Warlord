@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   CREW_SIZE, STARTING_SOULS, assignBlocker, creditsADayOfWork, crewLevelAt, crewLevelFor,
-  crewLevelMult, crewSizeOf, emptyPopulation, growthFromHarvest, handsAt, hydratePopulation,
-  idleHands, levyBlocker, staffMultOf, totalCrewPosts, type PopulationState,
+  crewLevelMult, crewPresent, crewSizeOf, describeRecord, emptyPopulation, emptyRecord,
+  addRecord, growthFromHarvest, handsAt, hydratePopulation, idleHands, levyBlocker,
+  staffMultOf, totalCrewPosts, type PopulationState,
 } from './population'
 import { POP_MAX_CREW, POP_MAX_STAFF_BONUS, GameConfig } from './config'
 import { simulateEconomyDay } from './economy'
@@ -258,7 +259,7 @@ describe('what a save may carry', () => {
     const p = hydratePopulation(JSON.parse(JSON.stringify({ population: pop(84, { mill1: 3, mine1: 7 }) })))
     // Every branch of the hydrate spells every field, so a created town and a hydrated one
     // share a shape. `emptyLegion` had to learn this the same way.
-    expect(p).toEqual({ souls: 84, at: { mill1: 3, mine1: 7 }, work: {} })
+    expect(p).toEqual({ souls: 84, at: { mill1: 3, mine1: 7 }, work: {}, record: {} })
   })
 
   it('nonsense in the blob reads as nobody, and cannot come back inflated', () => {
@@ -393,5 +394,131 @@ describe('the days a crew has worked survive a save', () => {
 
   it('a save from before crews learned loads with none', () => {
     expect(hydratePopulation({ population: { souls: 40, at: { mill: 3 } } }).work).toEqual({})
+  })
+})
+
+describe('the house keeps its ledger', () => {
+  const mill = build('LUMBER_MILL')
+  const crewed = (at: Record<string, number>): PopulationState => ({ souls: 60, at, work: {}, record: {} })
+
+  it('a day is entered only when the crew was there — the same question the clock asks', () => {
+    // crewPresent is shared, so the ledger and the level can only ever disagree about what
+    // the day PRODUCED, never about whether anybody turned up.
+    expect(crewPresent({ skipped: false }, 3, 2)).toBe(true)
+    expect(crewPresent({ skipped: false }, 3, 1)).toBe(false)
+    expect(crewPresent({ skipped: true }, 3, 3)).toBe(false)
+    expect(crewPresent({ skipped: false }, 0, 0)).toBe(false)
+  })
+
+  it('and the clock still means exactly what it meant before the ledger existed', () => {
+    const line = { skipped: false, coinGain: 0, itemsProduced: 0, researchValue: 0 }
+    expect(creditsADayOfWork(line, 3, 3)).toBe(false)
+    expect(creditsADayOfWork({ ...line, coinGain: 1 }, 3, 3)).toBe(true)
+    expect(creditsADayOfWork({ ...line, coinGain: 1 }, 3, 1)).toBe(false)
+  })
+
+  it('the three channel values are three slices of ONE day, so the shares are rival', () => {
+    // This is the whole reason a ledger is not a second clock: a house cannot be excellent
+    // at coin AND goods AND study, because they come out of the same scalar.
+    const b = { ...build('LUMBER_MILL', 60), focusResearchPct: 20 as const }
+    const d = day({ buildings: [b], population: crewed({ LUMBER_MILL: 3 }) })
+    const l = d.breakdown[0]
+    expect(l.coinGain + l.remainderValue + l.studyValue).toBe(750) // 500 x 1.5, exactly
+    const rec = d.workRecordDeltas.LUMBER_MILL
+    expect(rec.coinVal + rec.goodsVal + rec.studyVal).toBe(750)
+  })
+
+  it('a full coin day and a full goods day are recorded differently, on the same total', () => {
+    const coin = day({ buildings: [build('LUMBER_MILL', 100)], population: crewed({ LUMBER_MILL: 3 }) })
+    const goods = day({ buildings: [build('LUMBER_MILL', 0)], population: crewed({ LUMBER_MILL: 3 }) })
+    expect(coin.workRecordDeltas.LUMBER_MILL.coinVal).toBe(750)
+    expect(coin.workRecordDeltas.LUMBER_MILL.goodsVal).toBe(0)
+    expect(goods.workRecordDeltas.LUMBER_MILL.coinVal).toBe(0)
+    expect(goods.workRecordDeltas.LUMBER_MILL.goodsVal).toBe(750)
+  })
+
+  it('a dry day is a day that turned out NOTHING, not a day the focus slider made blocked', () => {
+    // A house on 100% coin is never `blocked`, so a blocked counter would say the slider's
+    // name rather than the day's.
+    const smith = { ...build('BLACKSMITH', 0), outputItem: 'SWORD' }
+    const dry = day({ buildings: [smith], population: crewed({ BLACKSMITH: 10 }) })
+    expect(dry.breakdown[0].blocked).toBe(true)
+    expect(dry.workRecordDeltas.BLACKSMITH.daysDry).toBe(1)
+
+    const paid = day({ buildings: [{ ...smith, focusCoinPct: 100 }], population: crewed({ BLACKSMITH: 10 }) })
+    expect(paid.breakdown[0].blocked).toBe(false)
+    expect(paid.workRecordDeltas.BLACKSMITH.daysDry).toBe(0)
+  })
+
+  it('what a house ate is counted, and a day that made something from nothing is marked lean', () => {
+    const mine = day({ buildings: [build('LUMBER_MILL', 0)], population: crewed({ LUMBER_MILL: 3 }) })
+    expect(mine.workRecordDeltas.LUMBER_MILL.fed).toBe(0)
+    expect(mine.workRecordDeltas.LUMBER_MILL.daysLean).toBe(1)
+
+    const smith = { ...build('BLACKSMITH', 0), outputItem: 'SPEAR' }
+    const fedDay = day({
+      buildings: [smith], resources: res({ WOOD: 500 }), population: crewed({ BLACKSMITH: 10 }),
+    })
+    expect(fedDay.workRecordDeltas.BLACKSMITH.fed).toBeGreaterThan(0)
+    expect(fedDay.workRecordDeltas.BLACKSMITH.daysLean).toBe(0)
+  })
+
+  it('no population means no ledger at all — today, exactly', () => {
+    expect(day({ buildings: [build('LUMBER_MILL', 100)] }).workRecordDeltas).toEqual({})
+  })
+
+  it('a house nobody worked writes no entry, so an empty house cannot accrue a history', () => {
+    expect(day({ buildings: [mill], population: crewed({}) }).workRecordDeltas).toEqual({})
+  })
+
+  it('entries add up, and every field of a partial entry survives the addition', () => {
+    const a = { ...emptyRecord(), days: 3, coinVal: 100, goods: 2 }
+    const b = { ...emptyRecord(), days: 2, coinVal: 50, daysDry: 1 }
+    expect(addRecord(a, b)).toEqual({ ...emptyRecord(), days: 5, coinVal: 150, goods: 2, daysDry: 1 })
+  })
+
+  it('the ledger survives a save, and a truncated entry reads as a whole one', () => {
+    const p = hydratePopulation(JSON.parse(JSON.stringify({
+      population: { souls: 40, at: {}, work: {}, record: { mill: { days: 4, coinVal: 900 } } },
+    })))
+    expect(p.record!.mill).toEqual({ ...emptyRecord(), days: 4, coinVal: 900 })
+  })
+
+  it('an entry with no days is not an entry, and garbage cannot come back inflated', () => {
+    const p = hydratePopulation({
+      population: { souls: 40, at: {}, record: { a: { days: 0, coinVal: 5 }, b: 'x', c: { days: 1e15 } } },
+    })
+    expect(p.record).toEqual({ c: { ...emptyRecord(), days: 1_000_000_000 } })
+  })
+
+  it('a save from before the ledger loads with an empty one, not a missing one', () => {
+    expect(hydratePopulation({ population: { souls: 40, at: {}, work: { m: 3 } } }).record).toEqual({})
+    expect(hydratePopulation(null).record).toEqual({})
+  })
+
+  it('reads as shares on screen, because a total only says how long you have played', () => {
+    expect(describeRecord(emptyRecord())).toMatch(/no account yet/)
+    const r = { ...emptyRecord(), days: 10, coinVal: 750, goodsVal: 250, goods: 5 }
+    expect(describeRecord(r)).toMatch(/10 days on the books/)
+    expect(describeRecord(r)).toMatch(/75% coin/)
+  })
+})
+
+describe('the forecast is a hand-copied projection, so it has to be pinned to its source', () => {
+  it('every field the day computes for a building line reaches the forecast unchanged', () => {
+    // `DayForecast` re-lists fields by hand. A field added to the day's result and forgotten
+    // there is invisible in the topbar with a green typecheck — which is how the forecast
+    // drifted from the tick twice before.
+    const input = {
+      buildings: [build('LUMBER_MILL', 60)], resources: res({ WOOD: 10 }),
+      inv: makeEmptyInventories(), units: [],
+      population: { souls: 60, at: { LUMBER_MILL: 3 }, work: {}, record: {} },
+    }
+    const after = simulateEconomyDay(input)
+    const f = forecastDay(input)
+    expect(f.breakdown).toEqual(after.breakdown)
+    expect(f.peopleGrown).toBe(after.peopleGrown)
+    expect(f.peopleFoodSpent).toBe(after.peopleFoodSpent)
+    expect(f.growthBlocked).toBe(after.growthBlocked)
   })
 })

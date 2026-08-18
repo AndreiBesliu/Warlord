@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  assignBlocker, handsAt, hydratePopulation, idleHands, type PopulationState,
+  addRecord, assignBlocker, emptyRecord, handsAt, hydratePopulation, idleHands,
+  type CrewRecord, type PopulationState,
 } from '../logic/population'
 import type { Building } from '../logic/types'
 
@@ -67,13 +68,20 @@ export function usePopulation(saved?: unknown) {
    * so an offline catch-up — which runs the day once per caught-up day — credits each of
    * those days exactly once, the same shape as the duty block.
    */
-  function applyDay(grown: number, workedBuildingIds: string[] = []): void {
+  function applyDay(
+    grown: number,
+    workedBuildingIds: string[] = [],
+    recordDeltas: Record<string, CrewRecord> = {},
+  ): void {
     const born = Math.max(0, Math.floor(grown || 0))
-    if (born <= 0 && workedBuildingIds.length === 0) return
+    const entries = Object.entries(recordDeltas)
+    if (born <= 0 && workedBuildingIds.length === 0 && entries.length === 0) return
     setPopulation((p) => {
       const work = { ...(p.work ?? {}) }
       for (const id of workedBuildingIds) work[id] = (work[id] ?? 0) + 1
-      return { ...p, souls: p.souls + born, work }
+      const record = { ...(p.record ?? {}) }
+      for (const [id, delta] of entries) record[id] = addRecord(record[id] ?? emptyRecord(), delta)
+      return { ...p, souls: p.souls + born, work, record }
     })
   }
 
