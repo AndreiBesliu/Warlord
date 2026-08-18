@@ -119,6 +119,14 @@ export interface PopulationConfig {
   foodPerPerson: number
   /** Percent of the day's harvest the town may spend on growth; the rest fills the granary. */
   growthFoodSharePct: number
+  /** What each level ABOVE the first adds to what a crew is worth. 0.25 = +25% a level. */
+  perLevelBonus: number
+  /** Days of work a crew needs for its second level. */
+  levelBase: number
+  /** How much dearer each level after that is. */
+  levelCurve: number
+  /** How far a crew can go. */
+  maxCrewLevel: number
 }
 
 /** Most hands any building may ever hold, whatever an admin types. */
@@ -127,6 +135,16 @@ export const POP_MAX_CREW = 50
 export const POP_MAX_STAFF_BONUS = 1.0
 /** A town cannot be tuned into doubling overnight. */
 export const POP_MAX_GROWTH_PCT = 0.25
+
+/**
+ * The largest per-level bonus that still leaves a top-level full crew under the ceiling.
+ * Declared beside the ceiling it defends rather than inside the getter, so the rule is
+ * readable next to the number it protects.
+ */
+function maxPerLevelBonus(staffBonus: number, maxLevel: number): number {
+  if (staffBonus <= 0 || maxLevel <= 1) return 0
+  return Math.max(0, (POP_MAX_STAFF_BONUS / staffBonus - 1) / (maxLevel - 1))
+}
 
 export const DEFAULT_POPULATION: PopulationConfig = {
   // A hand at full crew is worth 0.5 × output / crew: 83c/day at the lumber mill, 100 at the
@@ -141,6 +159,13 @@ export const DEFAULT_POPULATION: PopulationConfig = {
   // A farm at full material focus turns out 800 / (0.7 × 50) = 22.86 food/day. Half of that
   // is 11, which buys exactly one birth and leaves 12 food — the ration of 12 light infantry.
   growthFoodSharePct: 50,
+  // A full crew at the top level is worth 0.5 × 1.75 = +87.5%, under the +100% ceiling.
+  perLevelBonus: 0.25,
+  // L2 at 20 days worked, L3 at 52, L4 at 135. At five real minutes a day that is roughly
+  // 1.7h, 4.3h and 11h of play — a crew's skill is a season, not a session.
+  levelBase: 20,
+  levelCurve: 2.6,
+  maxCrewLevel: 4,
 }
 
 export interface CommanderConfig {
@@ -509,13 +534,27 @@ class GameConfigStore {
   population(): PopulationConfig {
     const p = this.o.population ?? {}
     const base = DEFAULT_POPULATION
+    const staffBonus = Math.min(POP_MAX_STAFF_BONUS, num(p.staffBonus, base.staffBonus))
+    const maxLevel = Math.min(10, Math.max(1, Math.round(num(p.maxCrewLevel, base.maxCrewLevel, 1))))
     return {
-      staffBonus: Math.min(POP_MAX_STAFF_BONUS, num(p.staffBonus, base.staffBonus)),
+      staffBonus,
       growthPctPerDay: Math.min(POP_MAX_GROWTH_PCT, num(p.growthPctPerDay, base.growthPctPerDay)),
       // At 0 food a head, a single farm would print the whole growth allowance every day.
       foodPerPerson: Math.max(1, num(p.foodPerPerson, base.foodPerPerson, 1)),
       // At 100 the town eats the entire harvest and the army starves behind it.
       growthFoodSharePct: Math.min(90, num(p.growthFoodSharePct, base.growthFoodSharePct)),
+      // A base or curve of 0 would hand out the top level for one day's work.
+      levelBase: Math.max(1, num(p.levelBase, base.levelBase, 1)),
+      levelCurve: Math.max(1, num(p.levelCurve, base.levelCurve, 1)),
+      maxCrewLevel: maxLevel,
+      // Bounded ACROSS the other two knobs, not on its own: what has to stay under the
+      // ceiling is `staffBonus × levelMult(maxCrewLevel)`, and either of those can be
+      // raised independently. `staffMultOf` clamps the aggregate as well — belt and braces,
+      // because a clamp that only shows up at the far end reads as a broken formula.
+      perLevelBonus: Math.min(
+        maxPerLevelBonus(staffBonus, maxLevel),
+        num(p.perLevelBonus, base.perLevelBonus),
+      ),
     }
   }
 

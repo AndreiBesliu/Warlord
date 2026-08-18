@@ -61,11 +61,20 @@ export function usePopulation(saved?: unknown) {
     })
   }
 
-  /** Newcomers from the day just simulated. */
-  function applyDay(grown: number): void {
+  /**
+   * What the day just simulated did to the town: newcomers, and a day of work on the record
+   * of every crew that earned one. Committed here rather than inside `simulateEconomyDay`
+   * so an offline catch-up — which runs the day once per caught-up day — credits each of
+   * those days exactly once, the same shape as the duty block.
+   */
+  function applyDay(grown: number, workedBuildingIds: string[] = []): void {
     const born = Math.max(0, Math.floor(grown || 0))
-    if (born <= 0) return
-    setPopulation((p) => ({ ...p, souls: p.souls + born }))
+    if (born <= 0 && workedBuildingIds.length === 0) return
+    setPopulation((p) => {
+      const work = { ...(p.work ?? {}) }
+      for (const id of workedBuildingIds) work[id] = (work[id] ?? 0) + 1
+      return { ...p, souls: p.souls + born, work }
+    })
   }
 
   /** Load / reset. The only wholesale write, and it goes through hydration first. */

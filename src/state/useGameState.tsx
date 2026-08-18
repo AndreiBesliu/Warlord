@@ -547,7 +547,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     const delta = income.walletDelta
     // The town grows from what the farms turned out today; the food is already out of
     // `income.resources`, so the army's meal below sees what is left after the newcomers.
-    pop.applyDay(income.peopleGrown)
+    pop.applyDay(income.peopleGrown, income.workedBuildingIds)
     // Post-income/production values for this tick's checks: the setState updates from
     // applyBuildingIncome are queued, so the render snapshot is one day behind.
     const postWallet = econ.wallet + delta

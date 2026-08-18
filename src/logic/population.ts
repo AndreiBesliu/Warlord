@@ -47,6 +47,12 @@ export interface PopulationState {
   souls: number
   /** Hands posted, keyed by `Building.id`. Lives HERE and not on the building — see below. */
   at: Record<string, number>
+  /**
+   * Days this building's crew has actually worked, keyed by `Building.id`. Monotone; the
+   * LEVEL is derived from it at read and never stored, so nothing can write a level wrong
+   * and no migration is ever owed for one.
+   */
+  work?: Record<string, number>
 }
 
 // Why the postings are in this key rather than a `workers` field on `Building`:
@@ -104,11 +110,14 @@ export const CREW_SIZE: Partial<Record<BuildingType, number>> = {
  */
 export const STARTING_SOULS = 60
 
+/** A day counter nobody can inflate past a plausible lifetime of play. */
+const MAX_DAYS_WORKED = 1_000_000
+
 export function emptyPopulation(): PopulationState {
   // NOT zeroes, unlike `emptyCampaign`/`emptyLegions`/`emptyResearch`. A domain with no souls
   // refuses every action there is, so "empty" here means "a new town", and the absent-key
   // branch of `hydratePopulation` has to agree with it. There is a test that compares them.
-  return { souls: STARTING_SOULS, at: {} }
+  return { souls: STARTING_SOULS, at: {}, work: {} }
 }
 
 export function crewSizeOf(type: BuildingType): number {
@@ -138,6 +147,70 @@ export function idleHands(pop: PopulationState | null | undefined, buildings: Bu
   return Math.max(0, Math.floor(pop?.souls ?? 0) - postedHands(pop, buildings))
 }
 
+// ── The crew learns ───────────────────────────────────────────────────────────────────
+//
+// What a level buys is the VALUE of the work, never freed hands. Freeing hands would be a
+// second payment for the same posting, denominated in exactly the resource this feature
+// exists to make scarce — and it would be paid by the calendar rather than by a choice.
+// Copper is bounded by the aggregate clamp; souls are bounded nowhere.
+//
+// Nor does a level reset when the hands come off. A mine knows its seams. Resetting would
+// punish exactly the micro-management the feature wants to leave free, and it would break
+// the monotonicity that makes a derived level safe.
+
+export function daysWorkedAt(pop: PopulationState | null | undefined, b: Building): number {
+  const raw = Math.floor(Number(pop?.work?.[b.id]) || 0)
+  return raw > 0 ? raw : 0
+}
+
+/** Days of work the Nth level asks for. Level 1 is free; the rest compound. */
+export function daysForCrewLevel(level: number): number {
+  const { levelBase, levelCurve } = GameConfig.population()
+  if (level <= 1) return 0
+  return Math.round(levelBase * Math.pow(levelCurve, level - 2))
+}
+
+/** Derived at READ, from a counter that only ever goes up. */
+export function crewLevelFor(daysWorked: number): number {
+  const { maxCrewLevel } = GameConfig.population()
+  const days = Math.max(0, Math.floor(daysWorked || 0))
+  let level = 1
+  while (level < maxCrewLevel && days >= daysForCrewLevel(level + 1)) level++
+  return level
+}
+
+export function crewLevelAt(pop: PopulationState | null | undefined, b: Building): number {
+  return crewSizeOf(b.type) > 0 ? crewLevelFor(daysWorkedAt(pop, b)) : 1
+}
+
+/** What experience multiplies a crew's worth by. Level 1 is ×1, so slice 1 is unchanged. */
+export function crewLevelMult(level: number): number {
+  const { perLevelBonus } = GameConfig.population()
+  return 1 + perLevelBonus * (Math.max(1, level) - 1)
+}
+
+/**
+ * Does the day just simulated count as a day of work for this crew?
+ *
+ * The test is PROOF OF WORK, not the absence of failure. `blocked` cannot be the gate: it is
+ * only ever set inside `if (recipe && items > 0)`, and at full coin focus `items` is 0 — so a
+ * building on 100% coin is NEVER blocked, and a "not blocked" gate would be something you buy
+ * with the focus slider and a wait.
+ *
+ * Turning out value on ANY of the three channels counts, because all three are the building
+ * working. Requiring goods specifically would have taught a coin-focused mill nothing while
+ * it produced its whole value, which is not a rule anybody could explain.
+ */
+export function creditsADayOfWork(line: {
+  skipped: boolean; coinGain: number; itemsProduced: number; researchValue: number
+}, crew: number, hands: number): boolean {
+  if (line.skipped || crew <= 0) return false
+  // `hands > 0` explicitly: without it `0 >= Math.ceil(0.5 * 0)` is true, and every building
+  // with no crew row would quietly accrue days it can never spend.
+  if (hands <= 0 || hands < Math.ceil(0.5 * crew)) return false
+  return line.coinGain > 0 || line.itemsProduced > 0 || line.researchValue > 0
+}
+
 export function staffRatioOf(b: Building, pop: PopulationState | null | undefined): number {
   const crew = crewSizeOf(b.type)
   if (crew <= 0) return 0
@@ -154,7 +227,8 @@ export function staffRatioOf(b: Building, pop: PopulationState | null | undefine
  */
 export function staffMultOf(b: Building, pop: PopulationState | null | undefined): number {
   const { staffBonus } = GameConfig.population()
-  return Math.min(1 + POP_MAX_STAFF_BONUS, 1 + staffBonus * staffRatioOf(b, pop))
+  const worth = staffBonus * crewLevelMult(crewLevelAt(pop, b)) * staffRatioOf(b, pop)
+  return Math.min(1 + POP_MAX_STAFF_BONUS, 1 + worth)
 }
 
 // ── Growth ────────────────────────────────────────────────────────────────────────────
@@ -263,7 +337,15 @@ export function hydratePopulation(save: unknown): PopulationState {
         if (hands > 0) at[id] = hands
       }
     }
-    return { souls: n0(raw.souls), at }
+    const work: Record<string, number> = {}
+    const wsrc = raw.work
+    if (wsrc && typeof wsrc === 'object') {
+      for (const [id, v] of Object.entries(wsrc as Record<string, unknown>)) {
+        const days = n0(v, MAX_DAYS_WORKED)
+        if (days > 0) work[id] = days
+      }
+    }
+    return { souls: n0(raw.souls), at, work }
   }
 
   // No key: a save from before this build, or a brand new game. Seed enough souls to
@@ -276,7 +358,7 @@ export function hydratePopulation(save: unknown): PopulationState {
   for (const b of buildings) {
     if (b && typeof b.type === 'string') posts += crewSizeOf(b.type)
   }
-  return { souls: STARTING_SOULS + posts, at: {} }
+  return { souls: STARTING_SOULS + posts, at: {}, work: {} }
 }
 
 const pretty = (t: string) =>
@@ -285,9 +367,16 @@ const pretty = (t: string) =>
 /** Everything a building's crew row needs to render. One call, so the screens agree. */
 export function crewLine(b: Building, pop: PopulationState | null | undefined): {
   crew: number; hands: number; mult: number; has: boolean
+  level: number; days: number; nextAt: number | null
 } {
   const crew = crewSizeOf(b.type)
-  return { crew, hands: handsAt(pop, b), mult: staffMultOf(b, pop), has: crew > 0 }
+  const level = crewLevelAt(pop, b)
+  const { maxCrewLevel } = GameConfig.population()
+  return {
+    crew, hands: handsAt(pop, b), mult: staffMultOf(b, pop), has: crew > 0,
+    level, days: daysWorkedAt(pop, b),
+    nextAt: level < maxCrewLevel ? daysForCrewLevel(level + 1) : null,
+  }
 }
 
 /** Every post the standing domain has to offer — for the chip's tooltip. */

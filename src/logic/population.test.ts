@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
-  CREW_SIZE, STARTING_SOULS, assignBlocker, crewSizeOf, emptyPopulation, growthFromHarvest,
-  handsAt, hydratePopulation, idleHands, levyBlocker, staffMultOf, totalCrewPosts,
-  type PopulationState,
+  CREW_SIZE, STARTING_SOULS, assignBlocker, creditsADayOfWork, crewLevelAt, crewLevelFor,
+  crewLevelMult, crewSizeOf, emptyPopulation, growthFromHarvest, handsAt, hydratePopulation,
+  idleHands, levyBlocker, staffMultOf, totalCrewPosts, type PopulationState,
 } from './population'
 import { POP_MAX_CREW, POP_MAX_STAFF_BONUS, GameConfig } from './config'
 import { simulateEconomyDay } from './economy'
@@ -246,6 +246,7 @@ describe('what a save may carry', () => {
     const p = hydratePopulation({ day: 500, buildings })
     expect(p.souls).toBe(STARTING_SOULS + 138)
     expect(p.at).toEqual({}) // everyone at home; posting them is the player's first decision
+    expect(p.work).toEqual({})
   })
 
   it('a day-1 save gets exactly the starting grant — barracks and market have no crews', () => {
@@ -255,7 +256,9 @@ describe('what a save may carry', () => {
 
   it('a real population survives the round trip', () => {
     const p = hydratePopulation(JSON.parse(JSON.stringify({ population: pop(84, { mill1: 3, mine1: 7 }) })))
-    expect(p).toEqual({ souls: 84, at: { mill1: 3, mine1: 7 } })
+    // Every branch of the hydrate spells every field, so a created town and a hydrated one
+    // share a shape. `emptyLegion` had to learn this the same way.
+    expect(p).toEqual({ souls: 84, at: { mill1: 3, mine1: 7 }, work: {} })
   })
 
   it('nonsense in the blob reads as nobody, and cannot come back inflated', () => {
@@ -276,5 +279,119 @@ describe('what a save may carry', () => {
     // their save for ever while everyone else got the tuned one.
     GameConfig.init({ population: { staffBonus: 0.9 } })
     expect(hydratePopulation(null).souls).toBe(STARTING_SOULS)
+  })
+})
+
+describe('a crew learns its trade, and the level is derived from a counter that only goes up', () => {
+  const mill = build('LUMBER_MILL')
+  const worked = (days: number): PopulationState => ({ souls: 60, at: { LUMBER_MILL: 3 }, work: { LUMBER_MILL: days } })
+
+  it('starts at one and climbs on days actually worked', () => {
+    expect(crewLevelFor(0)).toBe(1)
+    expect(crewLevelFor(19)).toBe(1)
+    expect(crewLevelFor(20)).toBe(2)
+    expect(crewLevelFor(52)).toBe(3)
+    expect(crewLevelFor(135)).toBe(4)
+  })
+
+  it('is bounded, so a long career is not an unbounded one', () => {
+    expect(crewLevelFor(1e9)).toBe(GameConfig.population().maxCrewLevel)
+  })
+
+  it('level one is exactly slice one — nothing already shipped moved', () => {
+    expect(crewLevelMult(1)).toBe(1)
+    expect(staffMultOf(mill, worked(0))).toBeCloseTo(1.5)
+  })
+
+  it('and a seasoned crew is worth more without freeing a single hand', () => {
+    // Freeing hands would be a second payment for the same posting, in the one resource this
+    // whole feature exists to make scarce — and paid by the calendar rather than a choice.
+    expect(staffMultOf(mill, worked(135))).toBeCloseTo(1 + 0.5 * 1.75)
+    expect(handsAt(worked(135), mill)).toBe(3)
+    expect(idleHands(worked(135), [mill])).toBe(57)
+  })
+
+  it('the top level still sits under the ceiling, and the ceiling still holds if it did not', () => {
+    expect(staffMultOf(mill, worked(1e9))).toBeLessThanOrEqual(1 + POP_MAX_STAFF_BONUS)
+    GameConfig.init({ population: { staffBonus: 1, perLevelBonus: 5, maxCrewLevel: 10 } })
+    expect(staffMultOf(mill, worked(1e9))).toBe(1 + POP_MAX_STAFF_BONUS)
+  })
+
+  it('the per-level bonus is bounded ACROSS the other two knobs, not on its own', () => {
+    // Either of maxCrewLevel or staffBonus can be raised independently, so bounding the
+    // bonus by itself would let the pair walk past the ceiling.
+    GameConfig.init({ population: { staffBonus: 0.5, maxCrewLevel: 10, perLevelBonus: 99 } })
+    const cfg = GameConfig.population()
+    expect(0.5 * crewLevelMult(cfg.maxCrewLevel)).toBeLessThanOrEqual(POP_MAX_STAFF_BONUS + 1e-9)
+  })
+
+  it('a building with no crew has no level to speak of', () => {
+    expect(crewLevelAt(worked(500), build('BARRACKS'))).toBe(1)
+  })
+
+  it('an admin cannot hand out the top level for one day of work', () => {
+    GameConfig.init({ population: { levelBase: 0, levelCurve: 0 } })
+    expect(crewLevelFor(1)).toBe(1)
+  })
+})
+
+describe('what counts as a day of work', () => {
+  const line = (over: Partial<{ skipped: boolean; coinGain: number; itemsProduced: number; researchValue: number }> = {}) =>
+    ({ skipped: false, coinGain: 0, itemsProduced: 0, researchValue: 0, ...over })
+
+  it('turning out value on ANY of the three channels counts — all three are the building working', () => {
+    expect(creditsADayOfWork(line({ coinGain: 500 }), 3, 3)).toBe(true)
+    expect(creditsADayOfWork(line({ itemsProduced: 2 }), 3, 3)).toBe(true)
+    expect(creditsADayOfWork(line({ researchValue: 200 }), 3, 3)).toBe(true)
+  })
+
+  it('A DAY THAT TURNED OUT NOTHING TEACHES NOTHING', () => {
+    // And note what is NOT the test: `blocked`. It is only ever set inside `items > 0`, so a
+    // building on 100% coin is never blocked — a "not blocked" gate is bought with the focus
+    // slider and a wait.
+    expect(creditsADayOfWork(line(), 3, 3)).toBe(false)
+    expect(creditsADayOfWork(line({ coinGain: 500, skipped: true }), 3, 3)).toBe(false)
+  })
+
+  it('half the crew has to turn up', () => {
+    expect(creditsADayOfWork(line({ coinGain: 500 }), 4, 2)).toBe(true)
+    expect(creditsADayOfWork(line({ coinGain: 500 }), 4, 1)).toBe(false)
+  })
+
+  it('AND at least one hand — without that, every crewless building would accrue days', () => {
+    // `0 >= Math.ceil(0.5 * 0)` is true, so the threshold alone is not a test.
+    expect(creditsADayOfWork(line({ coinGain: 500 }), 0, 0)).toBe(false)
+  })
+
+  it('the day names the crews that earned one, and only when a town exists to earn it', () => {
+    const b = build('LUMBER_MILL', 100)
+    expect(day({ buildings: [b], population: pop(60, { LUMBER_MILL: 3 }) }).workedBuildingIds).toEqual(['LUMBER_MILL'])
+    expect(day({ buildings: [b], population: pop(60, { LUMBER_MILL: 1 }) }).workedBuildingIds).toEqual([])
+    expect(day({ buildings: [b] }).workedBuildingIds).toEqual([])
+  })
+
+  it('a blacksmith with no iron on full material focus learns nothing that day', () => {
+    const smith = { ...build('BLACKSMITH', 0), outputItem: 'SWORD' }
+    const d = day({ buildings: [smith], population: pop(60, { BLACKSMITH: 10 }) })
+    expect(d.breakdown[0].blocked).toBe(true)
+    expect(d.workedBuildingIds).toEqual([])
+  })
+})
+
+describe('the days a crew has worked survive a save', () => {
+  it('round trip', () => {
+    const p = hydratePopulation(JSON.parse(JSON.stringify({
+      population: { souls: 40, at: { mill: 3 }, work: { mill: 61, gone: 4 } },
+    })))
+    expect(p.work).toEqual({ mill: 61, gone: 4 })
+  })
+
+  it('garbage reads as no days rather than NaN, and cannot come back inflated', () => {
+    const p = hydratePopulation({ population: { souls: 40, at: {}, work: { a: 'x', b: -3, c: 1e12, d: 7 } } })
+    expect(p.work).toEqual({ c: 1_000_000, d: 7 })
+  })
+
+  it('a save from before crews learned loads with none', () => {
+    expect(hydratePopulation({ population: { souls: 40, at: { mill: 3 } } }).work).toEqual({})
   })
 })

@@ -2,7 +2,20 @@
 
 ## Reguli DEVLOG
 - **Append-only** — nu se șterg intrări istorice
-- Fiecare task are **Task Started** și **Task Completed (Populație — felia 1: un singur rezervor, ori la muncă, ori sub arme)**
+- Fiecare task are **Task Started** și **Task Completed (Populație — felia 2: echipa învață)**
+> Prompt: „continua"
+> Model: Claude Opus 5
+> - **Nivelul e DERIVAT dintr-un contor monoton** (`population.work[buildingId]`), niciodată stocat: ce nu se scrie nu se poate scrie greșit și nu cere migrare. Creditat de TICK, nu de zi, deci o recuperare offline de 24 de zile creditează fiecare zi exact o dată (aceeași formă ca blocul de duty).
+> - **Ce cumpără nivelul e VALOAREA muncii, niciodată mâini eliberate.** Eliberarea de mâini ar fi a doua plată pentru aceeași postare, denominată exact în resursa pe care feature-ul o face rară — și plătită de calendar, nu de o alegere. Cuprul e mărginit de clampul agregat; sufletele nu sunt mărginite nicăieri.
+> - **Nivelul NU se resetează** când scoți mâinile. O mină își știe filoanele; resetarea ar pedepsi exact micromanagementul pe care feature-ul îl lasă liber și ar rupe monotonia care face nivelul derivat sigur.
+> - **Abaterea de la plan, deliberată:** planul cerea ca ziua să conteze doar dacă s-a produs MARFĂ. Am scos regula aia — o moară pe 100% monedă își produce toată valoarea și n-ar fi învățat nimic, ceea ce nu poate explica nimeni. Regula livrată e **dovadă de muncă pe oricare din cele trei canale** (monedă, marfă, studiu). Grija reală a planului rămâne acoperită: o zi care n-a produs NIMIC nu creditează nimic. Iar `!blocked` NU e testul — `blocked` se pune doar înăuntrul lui `items > 0`, deci o clădire pe 100% monedă nu e niciodată „blocată" și gardul ăla s-ar cumpăra cu sliderul de focus.
+> - `hands > 0` explicit lângă pragul de jumătate: fără el, `0 >= ceil(0.5 × 0)` e adevărat și fiecare clădire fără echipă ar aduna tăcut zile.
+> - **Plafonul lui `perLevelBonus` e ÎNCRUCIȘAT**, nu pe el însuși: ce trebuie să rămână sub tavan e `staffBonus × levelMult(maxCrewLevel)`, iar oricare din celelalte două manete poate fi urcată separat.
+> - Toate ramurile hidratării scriu toate câmpurile — un oraș creat și unul hidratat trebuie să aibă aceeași formă (`emptyLegion` a învățat-o pe pielea lui).
+> - Verificat pe viu: ziua 20 a promovat moara la **Crew L2**, `×1.50 → ×1.63`, delta **750 → 813c/zi**; scoase mâinile, badge-ul rămâne și delta cade la 500; un fierar plin fără fier n-a primit nicio zi. La L4 cu echipă plină: `×1.88`, sub tavanul de ×2,00.
+> - `SAVE_SCHEMA` 7 → 8. 535 teste verzi (17 noi), contrast cel mai prost 5,54 / 6,28, zero overflow la 375px.
+
+**Task Completed (Populație — felia 1: un singur rezervor, ori la muncă, ori sub arme)**
 > Prompt: „continua cu felia 1" (după decizia „recrutarea sa consume populatie si economia primeste un boost")
 > Model: Claude Opus 5
 > - **O sută de suflete îți încadrează domeniul SAU îți umple barăcile, niciodată amândouă.** Recrutarea nu mai e „am destui bani?" (un levy costă 100c dintr-o vistierie de 100.000c — banii n-au fost niciodată decizia), ci „pe care motor îl înfometez".

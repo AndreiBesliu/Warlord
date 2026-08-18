@@ -5,7 +5,9 @@ import { itemValueCopper } from './items'
 import { GameConfig } from './config'
 import { studyPerDay, type StudyPools } from './research/study'
 // One-way: `population.ts` never imports this file back.
-import { growthFromHarvest, handsAt, staffMultOf, type PopulationState } from './population'
+import {
+  creditsADayOfWork, crewSizeOf, growthFromHarvest, handsAt, staffMultOf, type PopulationState,
+} from './population'
 
 // Daily upkeep cost per soldier (in copper), by type
 export const UPKEEP_BASE: Record<SoldierType, number> = {
@@ -369,6 +371,11 @@ export interface DayEconomyResult {
   peopleFoodSpent: number
   /** Why nobody was born, in three words, or `null` when somebody was. */
   growthBlocked: string | null
+  /**
+   * Buildings whose crew put in a real day. RETURNED, never committed — the tick credits
+   * them, which is what makes an offline catch-up credit each caught-up day exactly once.
+   */
+  workedBuildingIds: string[]
 }
 
 export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
@@ -503,6 +510,14 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
     return row
   })
 
+  // Decided here, on the finished lines, rather than inside the loop: the last branches
+  // above are still writing `itemsProduced` and `blocked` while the loop runs.
+  const workedBuildingIds = input.population
+    ? breakdown
+      .filter((l) => creditsADayOfWork(l, crewSizeOf(l.type), l.workers))
+      .map((l) => l.id)
+    : []
+
   if (hasStable) {
     const breedL = Math.floor(0.01 * (ninv.horses.LIGHT_HORSE.active || 0))
     const breedH = Math.floor(0.01 * (ninv.horses.HEAVY_HORSE.active || 0))
@@ -561,5 +576,6 @@ export function simulateEconomyDay(input: DayEconomyInput): DayEconomyResult {
     peopleGrown: growth.grown,
     peopleFoodSpent: growth.foodSpent,
     growthBlocked: growth.reason,
+    workedBuildingIds,
   }
 }

@@ -17,7 +17,7 @@ interface Props {
 }
 
 export default function CrewRow({ building, population, whyNot, onAssign, contrast, idle }: Props) {
-  const { crew, hands, mult, has } = crewLine(building, population)
+  const { crew, hands, mult, has, level, days, nextAt } = crewLine(building, population)
   // Rendered only where there IS a crew. Inside the `hasNoItemToMake` guard the Minter — a
   // crew of 16 and the second largest in the game — would have no control at all; without
   // any guard the barracks, market, stable and scriptorium each get a row that can only
@@ -49,15 +49,31 @@ export default function CrewRow({ building, population, whyNot, onAssign, contra
   }
 
   const full = hands >= crew
+  // A crew's level is its own, not the building's — a mine knows its seams even after the
+  // hands come off, which is why the badge stays when `hands` is 0.
+  const skill = level > 1
+    ? `Crew L${level}`
+    : null
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <span className={`text-[11px] uppercase tracking-wide ${dim}`}>Crew</span>
       {step(-1)}
       <span className={`font-mono text-xs ${ink}`}>{hands}/{crew}</span>
       {step(1)}
+      {skill && (
+        <span
+          className={`px-1.5 py-0.5 rounded font-mono text-[11px] ${
+            contrast ? 'bg-black/30 text-wl-contrast-ink' : 'bg-wl-panel-muted text-wl-ink'
+          }`}
+          title={`${days} days worked here${nextAt !== null ? ` · next level at ${nextAt}` : ' · nothing left to learn'}`}
+        >
+          {skill}
+        </span>
+      )}
       <span className={`text-[11px] ${dim}`}>
         {mult > 1 ? `×${mult.toFixed(2)} the day` : 'nobody working'}
         {full ? ' · fully crewed' : ` · ${idle} free`}
+        {level === 1 && nextAt !== null && days > 0 ? ` · ${days}/${nextAt} days to L2` : ''}
       </span>
     </div>
   )
