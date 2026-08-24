@@ -13,6 +13,7 @@
 // reproducible from its seed, so the same (difficulty, seed, army) yields the same battle and the
 // same reasoning a player's device would produce.
 
+import { GameConfig, type GameConfigOverrides } from '../config'
 import { applyCommand, checkVictory } from './engine'
 import { createBattle } from './enemies'
 import { planEnemyTurn, type AiTurnTrace } from './ai'
@@ -26,6 +27,8 @@ export interface AiReplay {
   winner: string | null
   playerCohorts: number
   enemyCohorts: number
+  /** Which balance configuration the replay actually ran against. */
+  ranAgainst: 'defaults' | 'overrides'
 }
 
 /**
@@ -62,8 +65,37 @@ export function replayEnemyTurns(
   difficulty: Difficulty,
   seed: number,
   maxEnemyTurns = 12,
+  overrides?: GameConfigOverrides | null,
 ): AiReplay {
   const cap = Math.max(1, Math.floor(maxEnemyTurns))
+
+  // `createBattle` resolves mission presets through the process-global GameConfig, so without
+  // this the SAME (difficulty, seed, army) produced different battles in the same build depending
+  // on whether the config had been loaded yet — in the admin it is empty until the game mounts.
+  // Passing it in makes the result a function of the arguments again, and the restore leaves the
+  // global exactly as it was found: a balance tool must not change the thing it is measuring.
+  const previous = GameConfig.raw()
+  const explicit = overrides !== undefined
+  if (explicit) GameConfig.init(overrides)
+  // Reported from what is ACTUALLY in force, never from what was passed: when no config is
+  // supplied the replay runs against whatever the process happens to hold, and a label that said
+  // "defaults" then would be exactly the kind of confident wrong answer this tool exists to avoid.
+  const inForce = explicit ? overrides : previous
+  const ranAgainst = inForce && Object.keys(inForce).length > 0 ? 'overrides' : 'defaults'
+  try {
+    return runReplay(units, difficulty, seed, cap, ranAgainst)
+  } finally {
+    if (explicit) GameConfig.init(previous)
+  }
+}
+
+function runReplay(
+  units: Unit[],
+  difficulty: Difficulty,
+  seed: number,
+  cap: number,
+  ranAgainst: 'defaults' | 'overrides',
+): AiReplay {
   const created = createBattle(units, difficulty, seed >>> 0)
   const playerCohorts = created.state.combatants.filter((c) => c.side === 'PLAYER').length
   const enemyCohorts = created.state.combatants.filter((c) => c.side === 'ENEMY').length
@@ -98,5 +130,6 @@ export function replayEnemyTurns(
       : `still fighting after ${turns.length} enemy turn(s)`,
     playerCohorts,
     enemyCohorts,
+    ranAgainst,
   }
 }

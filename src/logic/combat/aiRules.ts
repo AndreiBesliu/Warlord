@@ -27,6 +27,8 @@ export type AiRuleId =
   | 'UNIT_STATS_WITH_OVERRIDE'
   | 'UNIT_POSITIONS_STAND_OR_MOVE'
   | 'UNIT_TERRAIN_RANGE_BONUS'
+  | 'UNIT_TERRAIN_SHAPES_THE_BLOW'
+  | 'UNIT_CHARGE_WEIGHS_THE_TILE'
   | 'UNIT_NEEDS_LINE_OF_SIGHT'
   | 'UNIT_SCORE_DAMAGE_SHARE'
   | 'UNIT_THREAT_WEIGHT'
@@ -37,6 +39,7 @@ export type AiRuleId =
   | 'UNIT_ADVANCE_WHEN_NO_SHOT'
   | 'UNIT_ADVANCE_TOWARD_ANY_FOE'
   | 'UNIT_ADVANCE_MUST_CLOSE'
+  | 'UNIT_ADVANCE_TIES_KEEP_THE_EARLIER'
   | 'UNIT_HOLDS_WHEN_BOXED_IN'
 
 export interface AiRule {
@@ -104,7 +107,7 @@ export const AI_RULES: AiRule[] = [
     id: 'UNIT_STATS_WITH_OVERRIDE',
     scope: 'unit',
     name: 'Plans from the stats the engine will enforce',
-    effect: 'resolveStats is called with statsOverride, exactly as the engine does.',
+    effect: 'resolveStats is called with statsOverride, exactly as the engine does. Cited only when the cohort actually HAS an override — nothing in the shipped game gives an enemy one.',
     why: 'The planner used to omit the override while the engine applied it, so the AI could queue an attack from a range the engine then refused — the cohort moved and then did nothing, and the reason appeared nowhere. Latent while nothing sets an override on an enemy; real the moment a mod does.',
   },
   {
@@ -119,7 +122,21 @@ export const AI_RULES: AiRule[] = [
     scope: 'unit',
     name: 'Height and open ground extend a ranged cohort',
     effect: "range = base range + the candidate tile's rangeBonus, for ranged cohorts only (base range >= 2).",
-    why: 'It is what makes a hill worth taking. Melee gets no bonus because reach is not a property of the ground.',
+    why: 'It is what makes a hill worth taking. Reach specifically: the ground changes what a melee cohort HITS FOR, but not how far it can reach — that is UNIT_TERRAIN_SHAPES_THE_BLOW, and reading this rule as "terrain does not matter to melee" was wrong.',
+  },
+  {
+    id: 'UNIT_TERRAIN_SHAPES_THE_BLOW',
+    scope: 'unit',
+    name: 'The ground under the attacker changes what the blow is worth',
+    effect: "Expected kills are multiplied by the CANDIDATE tile's atkMult in melee (HILL 1.10, RIVER 0.70, PLAINS 1.00) or rangedAtkMult at range (HILL 1.15, FOREST 0.80).",
+    why: 'The planner evaluates every candidate tile through the same estimateKills the engine uses, so this is already in the score — it just had no rule saying so. It is why a cohort will step onto a hill to strike and will not strike out of a river if it has any other option.',
+  },
+  {
+    id: 'UNIT_CHARGE_WEIGHS_THE_TILE',
+    scope: 'unit',
+    name: 'A mounted cohort counts its charge, and the ground can cancel it',
+    effect: "When the cohort is mounted AND moved this turn AND strikes in melee, expected kills are multiplied by chargeBonus × the candidate tile's chargeMult — 1.6 for LIGHT_CAV, 1.8 for HEAVY_CAV; chargeMult is 0.0 on RIVER and 0.5 in FOREST, which zeroes or halves it. A braced defender negates most of what is left.",
+    why: 'The single largest multiplier in the scoring, and it had no rule at all. It is why cavalry will cross the board for a melee it could have taken later, and why it will not charge out of a river: on RIVER the charge term becomes zero, not merely small.',
   },
   {
     id: 'UNIT_NEEDS_LINE_OF_SIGHT',
@@ -133,7 +150,7 @@ export const AI_RULES: AiRule[] = [
     scope: 'unit',
     name: 'Scores by the share of the target it removes',
     effect: 'score = expectedKills / max(1, shadow hp of the target) × threat.',
-    why: 'A share, not a count: twenty kills against a cohort of six hundred is worth less than six against a cohort of six. Planning uses MEAN damage, so the AI never sees the dice.',
+    why: 'A share, not a count: twenty kills against a cohort of six hundred is worth less than six against a cohort of six. Planning uses MEAN damage, so the AI never sees the dice. IMPORTANT for reading this whole table: expectedKills is the ENGINE’S OWN estimate, so every term of the damage model is already inside the score — weapon-vs-armour counters, veterancy, the defender’s terrain, bracing. The rules below name only the terms the AI can CHOOSE: which tile it stands on, whether it closes to melee, and which target it takes. The rest is the damage model, documented where the damage model lives.',
   },
   {
     id: 'UNIT_THREAT_WEIGHT',
@@ -181,8 +198,8 @@ export const AI_RULES: AiRule[] = [
     id: 'UNIT_ADVANCE_TOWARD_ANY_FOE',
     scope: 'unit',
     name: 'Closes on whichever cohort it can actually approach',
-    effect: 'The advance considers every LIVING player cohort and takes the largest distance reduction toward any of them.',
-    why: 'It used to fix on the nearest cohort and give up if no tile closed on THAT one — a cohort walled off from the nearest stood still while another was open. It also used the within-turn kill ledger here, so once every foe was booked as dead the whole remaining army froze in place for the turn; if the dice then under-rolled, the player survived against an army that had not moved.',
+    effect: 'The advance walks every (living cohort × legal tile) pair, keeps only tiles that strictly reduce the Chebyshev distance to THAT cohort, and takes the pair with the SMALLEST RESULTING distance.',
+    why: 'It used to fix on the nearest cohort and give up if no tile closed on THAT one — a cohort walled off from the nearest stood still while another was open. It also used the within-turn kill ledger here, so once every foe was booked as dead the whole remaining army froze in place for the turn; if the dice then under-rolled, the player survived against an army that had not moved. Note the effect minimises the RESULTING distance, not the reduction: those two differ whenever the cohorts stand at different distances, and this text said "largest reduction" until it was checked against the code.',
   },
   {
     id: 'UNIT_ADVANCE_MUST_CLOSE',
@@ -190,6 +207,13 @@ export const AI_RULES: AiRule[] = [
     name: 'Only a step that closes the distance is taken',
     effect: 'A candidate tile is accepted only if it strictly reduces the Chebyshev distance to its target.',
     why: 'Deliberate. Accepting equal-distance steps lets a blocked cohort shuffle sideways between two tiles turn after turn, which reads as a broken AI rather than a cautious one. The cost is that a boxed-in cohort holds — see UNIT_HOLDS_WHEN_BOXED_IN.',
+  },
+  {
+    id: 'UNIT_ADVANCE_TIES_KEEP_THE_EARLIER',
+    scope: 'unit',
+    name: 'The advance breaks its own ties, differently from the shooting loop',
+    effect: 'A pair wins only on `d < bestResult` — integer distances, no epsilon. Cohorts are enumerated in combatant-array order and tiles in legalMoves order, so an equal-distance pair keeps whichever was reached first.',
+    why: 'A second determinism-critical tie-break, on a different quantity and a different enumeration, from the one in the shooting loop. Documented separately because UNIT_TIES_KEEP_THE_EARLIER describes only the shooting loop and reading it as covering both would be wrong.',
   },
   {
     id: 'UNIT_HOLDS_WHEN_BOXED_IN',

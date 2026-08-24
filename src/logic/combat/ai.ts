@@ -112,7 +112,11 @@ function planUnit(s: BattleState, self: Combatant, shadowHp: Record<string, numb
   // while evaluating options that LOST — kept, because the user asked for everything the AI does,
   // but kept SEPARATE, because a rule cited on the chosen action when it shaped a rejected one is
   // exactly the kind of plausible-looking lie this whole trace exists to prevent.
-  const base: AiRuleId[] = ['UNIT_STATS_WITH_OVERRIDE', 'UNIT_POSITIONS_STAND_OR_MOVE']
+  // Cited only when there IS an override. Claiming it on every cohort made a rule that is latent
+  // in the shipped game look decisive on every single row — noise dressed as reasoning.
+  const base: AiRuleId[] = self.statsOverride
+    ? ['UNIT_STATS_WITH_OVERRIDE', 'UNIT_POSITIONS_STAND_OR_MOVE']
+    : ['UNIT_POSITIONS_STAND_OR_MOVE']
   const weighed = new Set<AiRuleId>()
   let shots = 0
   let best: Candidate | null = null
@@ -128,6 +132,12 @@ function planUnit(s: BattleState, self: Combatant, shadowHp: Record<string, numb
       const mine: AiRuleId[] = ['UNIT_SCORE_DAMAGE_SHARE', 'UNIT_THREAT_WEIGHT']
       if (bonus) mine.push('UNIT_TERRAIN_RANGE_BONUS')
       const isMelee = d <= 1
+      // These two reach the score through estimateKills and had no rule citing them at all.
+      // The charge term is the largest multiplier the AI applies, and terrain can zero it.
+      const tile = TERRAIN[terrainAt(s, pos.x, pos.y)]
+      if ((isMelee ? tile.atkMult : tile.rangedAtkMult) !== 1) mine.push('UNIT_TERRAIN_SHAPES_THE_BLOW')
+      // The engine's exact condition: allowCharge (always true here) && mounted && aMoved && isMelee.
+      if (isMelee && st.mounted && pos.moved) mine.push('UNIT_CHARGE_WEIGHS_THE_TILE')
       const expected = estimateKills(s, self, t, { isMelee, allowCharge: true, aX: pos.x, aY: pos.y, aMoved: pos.moved })
       const effHp = Math.max(1, shadowHp[t.id] ?? t.hp)
       const threat = 1 + resolveStats(t.type as SoldierType, t.loadoutWeapon, t.statsOverride).atk / 20
@@ -172,7 +182,10 @@ function planUnit(s: BattleState, self: Combatant, shadowHp: Record<string, numb
 
   // No shot from anywhere: close. Toward WHICHEVER living cohort it can actually approach —
   // not only the nearest, and not only the ones still unbooked.
-  const advanceRules: AiRuleId[] = [...base, 'UNIT_ADVANCE_WHEN_NO_SHOT', 'UNIT_ADVANCE_TOWARD_ANY_FOE', 'UNIT_ADVANCE_MUST_CLOSE']
+  const advanceRules: AiRuleId[] = [
+    ...base, 'UNIT_ADVANCE_WHEN_NO_SHOT', 'UNIT_ADVANCE_TOWARD_ANY_FOE',
+    'UNIT_ADVANCE_MUST_CLOSE', 'UNIT_ADVANCE_TIES_KEEP_THE_EARLIER',
+  ]
   const moves = legalMoves(s, self.id)
   let bestTile: { x: number; y: number } | null = null
   let bestResult = Infinity

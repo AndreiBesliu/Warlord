@@ -898,3 +898,51 @@ să treacă exact în ziua în care arcașul ar începe să aleagă ținta de me
 trebuie să pice.
 
 `npx tsc --noEmit` verde · 640 teste verzi (31 fișiere).
+
+## 2026-08-24 — Ce a găsit revizia adversarială în propriul meu rulebook
+
+**Model:** Claude Opus 5. Revizia a fost tăiată de limita de sesiune (10 din 12 agenți morți), dar
+cele două lentile care au apucat să termine au scos șase lucruri reale. Verificate de mine la
+sursă, toate confirmate.
+
+**Regula care mințea.** `UNIT_TERRAIN_RANGE_BONUS` avea în `why`: „melee nu primește bonus, fiindcă
+reach-ul nu e o proprietate a solului". Un cititor conchide că terenul nu contează la melee. Contează:
+`engine.ts:199` face `terrainAtk = isRanged ? aTile.rangedAtkMult : aTile.atkMult` — HILL 1,10,
+RIVER 0,70 — și e evaluat pe tila CANDIDAT. Regulă nouă `UNIT_TERRAIN_SHAPES_THE_BLOW`.
+
+**Cel mai mare multiplicator din tot scorul nu avea nicio regulă.** `engine.ts:195`:
+`charge = sa.chargeBonus * aTile.chargeMult`, sub condiția `allowCharge && mounted && aMoved &&
+isMelee`. 1,6× la cavalerie ușoară, 1,8× la grea, și **0,0 din RIVER** — nu „mai mic", zero.
+Regulă nouă `UNIT_CHARGE_WEIGHS_THE_TILE`, citată exact pe condiția motorului.
+
+**`effect` devenise parafrază, în chiar fișierul al cărui contract e „aritmetica, niciodată o
+parafrază".** Scrisesem „ia cea mai mare reducere de distanță"; codul minimizează distanța
+REZULTATĂ. Cele două diferă ori de câte ori cohortele stau la distanțe diferite. Rescris ca
+aritmetică.
+
+**Al doilea tie-break, nedocumentat.** Înaintarea compară întregi cu `d < bestResult`, fără epsilon,
+pe altă enumerare decât bucla de tragere — iar `UNIT_TIES_KEEP_THE_EARLIER` descrie doar bucla de
+tragere. Regulă nouă `UNIT_ADVANCE_TIES_KEEP_THE_EARLIER`.
+
+**`UNIT_STATS_WITH_OVERRIDE` era creditată ca decisivă pe fiecare rând** deși în jocul livrat niciun
+inamic n-are override — zgomot îmbrăcat în raționament. Acum e citată doar când există chiar un
+override. (Aceeași clasă de necinste pe care o reparasem cu o oră înainte la regulile cântărite.)
+
+**Mărginirea onestă a rulebook-ului:** scorul E estimarea motorului, deci fiecare termen al
+modelului de daune e deja în el (contre armă-armură, veteranie, terenul apărătorului, bracing).
+Regulile numesc doar termenii pe care AI-ul îi POATE ALEGE: pe ce tilă stă, dacă închide la melee,
+ce țintă ia. Restul e modelul de daune, documentat unde trăiește el.
+
+**Replay-ul nu era funcție de argumentele lui.** `createBattle` rezolvă preset-urile prin
+singleton-ul global `GameConfig`, gol în admin până montează jocul — deci același (misiune, seed,
+oaste) dădea bătălii diferite în același build, după cum operatorul deschisese sau nu tabul Domain.
+Acum primește configurarea explicit și **o pune la loc** după (o unealtă de balans n-are voie să
+schimbe lucrul pe care-l măsoară), iar rezultatul spune pe ce a rulat. Bonus: poți vedea cum o
+editare de balans schimbă deciziile AI-ului.
+
+**Și o regulă falsă din CLAUDE.md:** „fără `Map`/`Set` în `combat/*`" era deja falsă despre cod
+livrat (`engine.ts:122` are un `Set` și pleacă byte-identic pe server). Interdicția reală e pe ce
+ajunge în `BattleState`. Rescrisă — exact defectul pe care fișierul îl documentează singur la
+„types.ts byte-identic".
+
+`npx tsc --noEmit` verde · 643 teste verzi · `npm run build` verde.

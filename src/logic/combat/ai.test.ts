@@ -9,6 +9,7 @@ import { planEnemyTurn, chooseEnemyCommands } from './ai'
 import { AI_RULES, AI_RULE_BY_ID } from './aiRules'
 import { replayEnemyTurns, syntheticCohorts } from './aiReplay'
 import { Registry } from '../registry'
+import { GameConfig } from '../config'
 import type { BattleState, Combatant, Side, TerrainType } from './types'
 import { RankNumber, type Rank, type SoldierType } from '../types'
 
@@ -279,5 +280,38 @@ describe('the trace does not credit rules that shaped a REJECTED option', () => 
 
   it('every rule in either list is a real rule', () => {
     for (const id of [...t.rules, ...t.weighed]) expect(AI_RULE_BY_ID[id], id).toBeTruthy()
+  })
+})
+
+describe('the replay runs against a configuration it can name', () => {
+  it('leaves the global config exactly as it found it', () => {
+    GameConfig.init({ missions: { INVASION: { maxTokens: 3 } } } as never)
+    const before = JSON.stringify(GameConfig.raw())
+    replayEnemyTurns(syntheticCohorts(2, 20), 'INVASION', 5, 3, { missions: { BANDIT_RAID: { ratio: 9 } } } as never)
+    expect(JSON.stringify(GameConfig.raw())).toBe(before)
+    GameConfig.init(null)
+  })
+
+  it('is a function of its ARGUMENTS, not of whatever the process happens to hold', () => {
+    // This is the bug: createBattle resolves mission presets through the global, so the same
+    // (difficulty, seed, army) gave different battles depending on whether the config had loaded.
+    const args = [syntheticCohorts(3, 30), 'INVASION' as const, 4242, 4] as const
+    GameConfig.init(null)
+    const a = replayEnemyTurns(...args, {})
+    GameConfig.init({ missions: { INVASION: { minTokens: 2, maxTokens: 2 } } } as never)
+    const b = replayEnemyTurns(...args, {})
+    GameConfig.init(null)
+    expect(a).toEqual(b)
+  })
+
+  it('and a different configuration really does give a different battle', () => {
+    const args = [syntheticCohorts(3, 30), 'INVASION' as const, 4242, 4] as const
+    const plain = replayEnemyTurns(...args, {})
+    // BOTH bounds: `maxTokens` alone is raised back to `minTokens` by the getter's own clamp —
+    // which is today's ceiling fix working, not a test problem.
+    const tuned = replayEnemyTurns(...args, { missions: { INVASION: { minTokens: 2, maxTokens: 2 } } } as never)
+    expect(plain.ranAgainst).toBe('defaults')
+    expect(tuned.ranAgainst).toBe('overrides')
+    expect(tuned.enemyCohorts).not.toBe(plain.enemyCohorts)
   })
 })
