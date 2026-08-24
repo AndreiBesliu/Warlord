@@ -31,6 +31,7 @@ import { useCampaign, emptyCampaign, hydrateCampaign, type CampaignReward } from
 import { useResearch, emptyResearch, hydrateResearch, type ResearchProject } from './useResearch'
 import { useLegions, emptyLegions, hydrateLegions } from './useLegions'
 import { usePopulation } from './usePopulation'
+import { addBucket, slotAvg, takeMen } from '../logic/barracksPool'
 import {
   assignBlocker, emptyPopulation, handsAt, hydratePopulation, idleHands, levyBlocker, recordAt,
 } from '../logic/population'
@@ -842,13 +843,10 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
         const pool = structuredClone(prev)
         for (const f of finished) {
           for (const a of f.arrivals) {
-            const slot = pool[f.pool][a.r]
-            const merged = slot.count + a.count
-            // Blend the arrivals' XP into the slot, count-weighted — the recruit pool and
-            // disband already do this; batch completion used to add the count alone, so a
-            // fresh intake silently inherited the average of whoever was already there.
-            slot.avgXP = merged ? Math.floor((slot.count * slot.avgXP + a.count * a.avgXP) / merged) : 0
-            slot.count = merged
+            // Exact, because the slot keeps a total: the arrivals add precisely what they
+            // carry. This used to re-derive and floor the mean on every graduation, so the
+            // loss compounded instead of cancelling.
+            pool[f.pool][a.r] = addBucket(pool[f.pool][a.r], a)
           }
         }
         return pool
@@ -872,9 +870,11 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       const want = take[r] || 0
       if (!want) continue
       if (pool[type][r].count < want) { addLog(`Not enough ${r} in ${type}.`); return }
-      const avg = pool[type][r].avgXP
-      pool[type][r].count -= want
-      buckets.push({ r, count: want, avgXP: avg })
+      // They carry the slot's average out, and the remainder stays with the men behind — so
+      // the average of those left is unchanged rather than merely close.
+      const { slot, taken, xpEach } = takeMen(pool[type][r], want)
+      pool[type][r] = slot
+      buckets.push({ r, count: taken, avgXP: xpEach })
       total += want
     }
     if (total === 0) { addLog('Select at least one soldier.'); return }
@@ -926,11 +926,9 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     let total = 0
     for (const b of u.buckets) {
       if (b.count <= 0) continue
-      const slot = pool[type][b.r]
-      const merged = slot.count + b.count
-      // Blend the XP the returning soldiers bring into the pool they rejoin.
-      slot.avgXP = merged ? Math.floor((slot.count * slot.avgXP + b.count * b.avgXP) / merged) : 0
-      slot.count = merged
+      // The pool gains exactly what walked back in. Under the old average-shaped slot this
+      // round trip destroyed experience: 600 in, 550 out, measured.
+      pool[type][b.r] = addBucket(pool[type][b.r], b)
       total += b.count
     }
 
@@ -980,7 +978,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     // ranks. `reinforceBuckets` keeps the teaching and makes it a transfer.
     const arrivals: Unit['buckets'] = Ranks
       .filter(r => (plan[r] || 0) > 0)
-      .map(r => ({ r, count: plan[r] as number, avgXP: barr.barracks[type][r].avgXP || 0 }))
+      .map(r => ({ r, count: plan[r] as number, avgXP: slotAvg(barr.barracks[type][r]) }))
     const newBuckets = reinforceBuckets(u.buckets, arrivals)
 
     const unitLabel = `${unitName(type)} ${u.id}`

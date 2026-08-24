@@ -1,3 +1,4 @@
+import type { PoolSlot } from '../../logic/barracksPool'
 import { useState } from 'react'
 import RecruitForm from '../barracks/RecruitForm'
 import MoneyDisplay from '../common/MoneyDisplay'
@@ -66,10 +67,10 @@ export default function BarracksTab({ state, view }: { state: GameStateShape; vi
     // Trained soldiers land in this pool and used to be invisible from here — the middle
     // step of the whole loop existed only inside a form on another tab, so a finished batch
     // looked like it had gone nowhere.
-    const trained = (Object.entries(barracks) as [SoldierType, Record<Rank, { count: number; avgXP: number }>][])
+    const trained = (Object.entries(barracks) as [SoldierType, Record<Rank, PoolSlot>][])
       .map(([type, ranks]) => ({
         type,
-        ranks: (Object.entries(ranks) as [Rank, { count: number; avgXP: number }][]).filter(([, v]) => v.count > 0),
+        ranks: (Object.entries(ranks) as [Rank, PoolSlot][]).filter(([, v]) => v.count > 0),
       }))
       .filter((r) => r.ranks.length > 0)
     const hasCostFn = typeof barracksUpgradeCost === 'function'

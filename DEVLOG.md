@@ -683,3 +683,40 @@
 > - `src/state/useBarracks.ts`: `recruit()` blendează corect `avgXP` în loc să reseteze la 0
 > - `CLAUDE.md` + `DEVLOG.md` create (metodologie din Apps aplicată)
 > Build: `npx tsc --noEmit` ✅ fără erori
+
+## 2026-08-24 — Rezervorul de cazarmă păstrează un TOTAL, nu o medie
+
+**Task Started:** 2026-08-24 · model: Claude Opus 5
+**Prompt:** „eu sunt remote cateva zile si nu pot verifica nimic, vreau sa continui tu cu ce poti singur"
+
+**Ce era stricat.** Un slot din `barracks[type][rank]` stoca `{ count, avgXP }` — o MEDIE. Trei
+locuri separate re-derivau media și o podeau la fiecare scriere (o serie care termină, o unitate
+desființată, o unitate formată), deci pierderea se compunea în loc să se anuleze. Un om putea
+face drumul rezervor → unitate → rezervor și să se întoarcă valorând mai puțin, fără nicio
+eroare și fără niciun loc unde să se vadă.
+
+`RecruitPool` fusese DEJA reparat exact așa, stocând un total, iar comentariul lui explică de ce.
+Unul din cele două rezervoare a fost reparat și celălalt lăsat pe forma veche. Ăsta e celălalt.
+
+**Ce am măsurat.** Ferma raportată demult (completezi → desființezi la nesfârșit) **nu se
+reproduce** — drumul PIERDE experiență, nu fabrică: 600 intrate, 550 ieșite. Defectul real era
+invers decât fusese raportat.
+
+**Livrat.** `logic/barracksPool.ts` (pur, 11 teste) + cele trei locuri schimbate + hidratare
+adevărată în `useBarracks` (avea `saved?.barracks ?? emptyBarracks()` — ușă necoercitată, exact
+forma care face din `econ.buildings` singura felie pe care o valoare stricată o poate otrăvi).
+
+**`SAVE_SCHEMA` 10 → 11.** Prima intrare care SCHIMBĂ o formă, nu adaugă un câmp, și cea mai
+urâtă de întâlnit pentru un build vechi: citește `avgXP` de pe un slot care nu-l mai are, deci
+prima fuziune scrie `NaN` în rezervor și în fiecare unitate completată de-acolo. Înainte e sigur:
+`hydratePool` migrează `count * avgXP`, exact numărul pe care forma veche încerca să-l reprezinte.
+
+**Verificat pe viu, nu doar în teste** (localhost, save real, restaurat după):
+- plantat un save de forma VECHE (schema 10, `avgXP`) → după reload: 10×121=1210, 40×30=1200,
+  3×333=999, niciun `avgXP` rămas nicăieri, niciun NaN, schema rescrisă la 11
+- format o unitate din rezervor prin UI → a ieșit cu 10@121 + 40@30 = **2410 XP întregi**
+- desființat-o → rezervorul a primit înapoi **2410, pierdere 0**
+
+`npx tsc --noEmit` verde · 596 teste verzi (27 fișiere) · `npm run build` verde.
+
+**Task Completed:** 2026-08-24

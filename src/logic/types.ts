@@ -99,7 +99,9 @@ export const ResourceTypes: ResourceType[] = [
 export type ResourceMap = Record<ResourceType, number>;
 
 export type BuildingType = Building['type'];
-export type BarracksPool = Record<SoldierType, Record<Rank, { r: Rank; count: number; avgXP: number }>>;
+// A slot stores a TOTAL, not an average — see `logic/barracksPool.ts` for the leak that
+// forced the change, and `recruitSources.ts` for the same lesson paid for once already.
+export type BarracksPool = Record<SoldierType, Record<Rank, { r: Rank; count: number; totalXp: number }>>;
 // The TOTAL, not the average — see `logic/recruitSources.ts` for why. Read the average
 // with `avgXpOf`; never store one, or the flooring compounds across recruitings.
 export type RecruitPool = { count: number; totalXp: number };

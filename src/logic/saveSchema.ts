@@ -57,8 +57,14 @@
  *     kept it, and the books as they stood when it swore. An older build drops all three, so
  *     the house silently stops being paid for a promise it is still keeping, and the standing
  *     it spent days earning restarts at zero.
+ * 11 = the barracks pool stores `totalXp` instead of `avgXP`. The first entry here that
+ *     CHANGES a shape rather than adding a field, and the worst one for an older build to
+ *     meet: it reads `avgXP` off a slot that no longer has one, so the very first merge
+ *     writes `NaN` into the pool and every unit filled from it afterwards. Forward is safe —
+ *     `hydratePool` migrates `count * avgXP`, which is exactly the number the old shape was
+ *     trying to represent.
  */
-export const SAVE_SCHEMA = 10
+export const SAVE_SCHEMA = 11
 
 /**
  * The top-level keys this build writes. Anything in a loaded save that is NOT here is

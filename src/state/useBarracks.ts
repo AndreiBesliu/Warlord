@@ -1,20 +1,12 @@
+import { emptyPool, hydratePool } from '../logic/barracksPool'
 import { useState, useCallback } from 'react'
 import { Ranks, type SoldierType, type BarracksPool, type RecruitPool } from '../logic/types'
 import { batchDurationDays, batchSlots, newBatchId, type TrainingBatch } from '../logic/batches'
 import { blendIn, startingXpOf, type RecruitSourceId } from '../logic/recruitSources'
 
+/** Delegates, so the shape lives in one place with the maths that depends on it. */
 export function emptyBarracks(): BarracksPool {
-  const pool: any = {}
-  const types: SoldierType[] = [
-    'LIGHT_INF_SWORD','LIGHT_INF_SPEAR','LIGHT_INF_HALBERD',
-    'HEAVY_INF_SWORD','HEAVY_INF_SPEAR','HEAVY_INF_HALBERD',
-    'LIGHT_ARCHER','HEAVY_ARCHER','LIGHT_CAV','HEAVY_CAV','HORSE_ARCHER',
-  ]
-  types.forEach(t => {
-    pool[t] = {}
-    Ranks.forEach(r => { pool[t][r] = { r, count: 0, avgXP: 0 } })
-  })
-  return pool as BarracksPool
+  return emptyPool()
 }
 
   export type BarracksDeps = {
@@ -46,7 +38,10 @@ export function hydrateRecruits(saved: unknown): RecruitPool {
 }
 
 export default function useBarracks(saved?: BarracksSaved) {
-  const [barracks, setBarracks] = useState<BarracksPool>(() => saved?.barracks ?? emptyBarracks())
+  // Hydrated, not taken raw. This was `saved?.barracks ?? emptyBarracks()` — the same
+  // uncoerced door that makes `econ.buildings` the one slice a bad value can poison, and it
+  // is also where a save written before the total-shaped slot is migrated.
+  const [barracks, setBarracks] = useState<BarracksPool>(() => hydratePool(saved?.barracks))
   const [barracksLevel, setBarracksLevel] = useState(() => saved?.barracksLevel ?? 1)
   const [recruits, setRecruits] = useState<RecruitPool>(() => hydrateRecruits(saved?.recruits))
   const [batches, setBatches] = useState<TrainingBatch[]>(() => saved?.batches ?? [])
