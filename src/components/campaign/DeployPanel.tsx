@@ -3,7 +3,7 @@ import type { Unit } from '../../logic/types'
 import type { Difficulty, MissionPreset } from '../../logic/combat/types'
 import { fieldedStrength } from '../../logic/combat/army'
 import { unitName } from '../../logic/names'
-import { escalationMult } from '../../logic/combat/enemies'
+import { escalationMult, SIDE_CAPACITY } from '../../logic/combat/enemies'
 import GameIcon from '../common/GameIcon'
 import { getIconForGameItem } from '../../logic/iconHelpers'
 import { cohortLabel, legionOfUnit, unitsOfLegion, type Legion } from '../../logic/legion'
@@ -22,6 +22,12 @@ interface Props {
 export default function DeployPanel({ units, legions, preset, clears, onConfirm, onBack }: Props) {
   const [picked, setPicked] = useState<string[]>([])
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
+
+  // The field gives every man his own tile or he is not on it. Above SIDE_CAPACITY the old
+  // code silently buried the extras: they never rendered, could never be commanded, and died
+  // anyway. So the line is drawn HERE, where you can see it, before anyone marches.
+  const full = picked.length >= SIDE_CAPACITY
+  const roomLeft = Math.max(0, SIDE_CAPACITY - picked.length)
 
   const deployStrength = units.filter((u) => picked.includes(u.id)).reduce((a, u) => a + fieldedStrength(u), 0)
   // Same escalation the actual army generator applies — the estimate must not undersell.
@@ -47,11 +53,18 @@ export default function DeployPanel({ units, legions, preset, clears, onConfirm,
             {marchable.map(({ legion, ids }) => {
               const all = ids.every((id) => picked.includes(id))
               const busy = marchBlocker(legion.duty, legion.name)
+              const joining = ids.filter((id) => !picked.includes(id)).length
+              const wontFit = !all && joining > roomLeft
+              const why = busy
+                ? `${busy} — stand it down in the Legions section first`
+                : wontFit
+                  ? `${legion.name} needs ${joining} places and the field has ${roomLeft} left`
+                  : undefined
               return (
                 <button
                   key={legion.id}
-                  disabled={!!busy}
-                  title={busy ? `${busy} — stand it down in the Legions section first` : undefined}
+                  disabled={!!busy || wontFit}
+                  title={why}
                   onClick={() => setPicked((p) => all
                     ? p.filter((id) => !ids.includes(id))
                     : [...p, ...ids.filter((id) => !p.includes(id))])}
@@ -70,7 +83,17 @@ export default function DeployPanel({ units, legions, preset, clears, onConfirm,
               .map(({ legion }) => marchBlocker(legion.duty, legion.name))
               .filter((x): x is string => !!x)
               .map((why) => (
-                <div key={why} className="text-[11px] text-wl-bad leading-tight">{why} — stand it down to march.</div>
+                <div key={why} className="text-[11px] text-wl-bad-ink leading-tight">{why} — stand it down to march.</div>
+              ))}
+            {marchable
+              .filter(({ ids }) => {
+                const joining = ids.filter((id) => !picked.includes(id)).length
+                return joining > 0 && joining > roomLeft && !ids.every((id) => picked.includes(id))
+              })
+              .map(({ legion, ids }) => (
+                <div key={`fit-${legion.id}`} className="text-[11px] text-wl-bad-ink leading-tight">
+                  {legion.name} needs {ids.filter((id) => !picked.includes(id)).length} places · {roomLeft} left on the field.
+                </div>
               ))}
           </div>
         </div>
@@ -91,8 +114,8 @@ export default function DeployPanel({ units, legions, preset, clears, onConfirm,
             return (
               <button
                 key={u.id}
-                disabled={!!busy}
-                title={busy ?? undefined}
+                disabled={!!busy || (full && !on)}
+                title={busy ?? (full && !on ? `The field holds ${SIDE_CAPACITY}` : undefined)}
                 onClick={() => toggle(u.id)}
                 // NOT `disabled:opacity-60`: opacity composites the text down with the
                 // card, and it took "· on duty" — the one word that explains the refusal —
@@ -118,9 +141,17 @@ export default function DeployPanel({ units, legions, preset, clears, onConfirm,
         </div>
       )}
 
+      {full && (
+        <div className="text-xs text-wl-bad">
+          The field is full — {SIDE_CAPACITY} cohorts is every tile in the two lines your army forms on.
+          Stand one down to bring another.
+        </div>
+      )}
+
       <div className="flex items-center justify-between border-t border-wl-line pt-3">
         <div className="text-sm text-wl-muted">
-          Deploying <span className="font-mono font-bold">{picked.length}</span> units ·
+          Deploying <span className={`font-mono font-bold ${full ? 'text-wl-bad' : ''}`}>{picked.length}</span>
+          <span className="font-mono">/{SIDE_CAPACITY}</span> units ·
           strength <span className="font-mono font-bold">{deployStrength}</span> ·
           est. enemy <span className="font-mono font-bold text-wl-bad">≈{estEnemy}</span>
         </div>

@@ -32,6 +32,7 @@ export const warlordColors = {
   'wl-good-surface': v('good-surface'),
   'wl-bad': v('bad'),
   'wl-bad-surface': v('bad-surface'),
+  'wl-bad-ink': v('bad-ink'),
   'wl-warn': v('warn'),
   'wl-warn-surface': v('warn-surface'),
   'wl-info': v('info'),

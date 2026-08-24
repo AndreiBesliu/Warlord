@@ -64,7 +64,7 @@ import { aggregate, availableTechs, onBattleWon, onBattleLost, onResearchComplet
 import { BRANCHES, addStudy, spendStudy, studyCostOf } from '../logic/research/study'
 import { applyCommand } from '../logic/combat/engine'
 import { chooseEnemyCommands } from '../logic/combat/ai'
-import { createBattle, missionPresets, DIFFICULTIES, escalationMult, streakLootMult } from '../logic/combat/enemies'
+import { createBattle, missionPresets, DIFFICULTIES, escalationMult, streakLootMult, SIDE_CAPACITY } from '../logic/combat/enemies'
 import { DEFEAT_XP_KEEP, applyBattleResult, prettyName } from '../logic/combat/army'
 import type { Command, Difficulty } from '../logic/combat/types'
 
@@ -1315,6 +1315,14 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     if (camp.campaign.lastBattleDay === day) { addLog('⚔ Your host has already taken the field today. March again tomorrow.'); return }
     const chosen = unit.units.filter(u => deployedUnitIds.includes(u.id))
     if (chosen.length === 0) { addLog('Select at least one unit to deploy.'); return }
+    // The field gives every man his own tile. Refused HERE as well as in the picker, for the
+    // same reason the duty check is: a rule that lives in one screen has as many holes as there
+    // are call sites. Refuse rather than truncate — dropping a cohort the player chose to march
+    // is worse than the burying this replaces.
+    if (chosen.length > SIDE_CAPACITY) {
+      addLog(`⚔ The field holds ${SIDE_CAPACITY} cohorts; you chose ${chosen.length}. Stand some down.`)
+      return
+    }
     // The occupation is the price of a duty. Enforced HERE and not only in the picker:
     // a rule that lives in one screen is a rule with as many holes as there are call sites.
     for (const l of leg.legions) {

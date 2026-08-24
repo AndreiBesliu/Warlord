@@ -744,3 +744,69 @@ punctul de plecare. Testul există ca reparația de azi (scoaterea pierderii) s�
 tăcut o fântână.
 
 `npx tsc --noEmit` verde · 598 teste verzi.
+
+## 2026-08-24 — Stivuirea combatanților peste 24, și un bug de cloud găsit pe drum
+
+**Model:** Claude Opus 5 · audit multi-agent (39 de agenți, 6 lentile + refutare adversarială) plus
+verificare proprie la sursă și pe viu.
+
+### Ce era stricat (măsurat, nu dedus)
+`placeArmy` înfășura indicele de rând modulo numărul de rânduri de start, deci combatantul #24
+ateriza fix pe tila lui #0. Reprodus numeric: la 25 de unități → 24 de tile-uri distincte, 1
+îngropat la (0,7); la 40 → 16 îngropați.
+
+Simulat o bătălie întreagă cu 25: **P0 se randează, P24 nu se randează NICIODATĂ** (`combatantAt`
+întoarce prima potrivire) și nu poate fi selectat prin clic pe tilă — dar `legalTargets` parcurge
+direct tabloul de combatanți, deci inamicul îl țintește și îl omoară. O unitate pe care ai
+deployat-o, n-o vezi, n-o poți comanda, și o pierzi. Fără deadlock (`END_TURN` e necondiționat).
+
+**Cât de ușor se atinge:** niciun plafon nicăieri — nici în `startBattle`, nici în picker. Iar
+`DeployPanel` are un buton „cheamă legiunea" per legiune, legiunea ține 12 și numărul de legiuni
+e nelimitat: **trei clicuri = 36 de combatanți pe o tablă de 24.**
+
+**Era deja cunoscut:** `legion.ts:60-66` îl descrie textual ca justificare pentru
+`LEGION_MAX_UNITS = 12`. S-a plafonat legiunea și nu s-a plafonat niciodată totalul.
+
+### Reparat
+- `placeArmy` **umple spre interior în loc să înfășoare**, rămânând în jumătatea proprie, deci
+  cele două oști nu se pot ciocni. E o plasă, nu plafonul.
+- Plafonul e `SIDE_CAPACITY` (24 = `BATTLE_WIDTH × SPAWN_ROWS`), refuzat **acolo unde apeși**:
+  butoanele care nu încap se dezactivează cu motivul în `title`, o linie roșie spune „X needs 12
+  places · 0 left", contorul arată `24/24` și apare fraza explicativă. Plus verificare-plasă în
+  `startBattle` — o regulă care trăiește într-un singur ecran are atâtea găuri câte apeluri are.
+- **Refuz, niciodată trunchiere.** Să pierzi o cohortă pe care ai ales s-o trimiți e mai rău decât
+  bug-ul pe care-l înlocuiește.
+- `missionPresets()` plafonează `maxTokens` la `SIDE_CAPACITY` — **plafonul în GETTER**, aceeași
+  regulă ca la sursele de recruți: adminul putea pune 60 și îngropa 36 de dușmani.
+- Garda de pădure citea `y < 1 || y > h - 2` — cruța UN rând per margine deși comentariul promitea
+  două. Derivată din `SPAWN_ROWS` acum, ca regula și rândurile să nu mai poată diverge.
+
+### Bug separat, mai grav, găsit de audit și verificat de mine
+`army.ts:51` scria `loadoutWeapon: u.loadout?.weapon as Weapon | undefined` — cheie
+NECONDIȚIONATĂ. Unitățile reale au `loadout: { kind: type }` fără armă, deci era `undefined`
+pentru **toți** combatanții jucătorului. localStorage n-a observat (`JSON.stringify` aruncă
+cheile undefined), dar scrierea în cloud primește obiectul VIU, iar Firestore refuză. Reprodus
+de mine cu SDK-ul real (firebase 11.10.0):
+
+```
+Function setDoc() called with invalid data. Unsupported field value: undefined
+```
+
+Adică **pe toată durata unei bătălii PvE, domeniul nu se mai sincroniza deloc în cloud** — tăcut.
+Aflai doar deschizând jocul pe alt dispozitiv și găsindu-l vechi. Reparat cu spread. Elocvent: la
+două rânduri distanță, `statsOverride` folosea deja tiparul corect, iar `pvp.ts:128` omite câmpul
+explicit și scrie de ce. Din trei locuri cu aceeași decizie, doar ăsta greșea.
+
+### Verificat
+- `placement.test.ts` (13) + `cloudShape.test.ts` (6). Ambele **dovedite roșii fără reparație**:
+  placement pica la 25/30, cloudShape la 5 din 6.
+- Pe viu: 27 de cohorte → 3 butoane dezactivate, „The field holds 24", contor `24/24`, fraza
+  explicativă. Trei legioane × 12 → a treia refuzată cu motivul lângă buton.
+- Audit de contrast conștient de opacitate, ambele teme: `/24` avea `opacity-70` și cădea la
+  3,15:1 — scos. Linia de refuz era la 4,46:1 pe dark (sub 4,5 la 11px) — token nou `--wl-bad-ink`
+  (roșul citibil ca text mic pe panou estompat; `--wl-bad` nu se putea ridica fiindcă în dark e și
+  fundal sub `--wl-inverse`). Cel mai slab raport acum: **5,09**.
+- PvP-ul NU era afectat: `sanitizeDeploy` refuză server-side peste `PVP_MAX_COMBATANTS`, pe ambele
+  părți, iar 12 < 24. Nimic din reparație nu atinge copia server ⇒ **fără deploy de functions.**
+
+`npx tsc --noEmit` verde · 617 teste verzi (30 fișiere) · `npm run build` verde.

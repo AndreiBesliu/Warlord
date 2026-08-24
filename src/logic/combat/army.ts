@@ -48,7 +48,15 @@ export function unitToCombatant(u: Unit, side: Side, index: number): Combatant {
     side,
     unitId: u.id,
     type: u.type,
-    loadoutWeapon: u.loadout?.weapon as Weapon | undefined,
+    // SPREAD, not an unconditional key. Written plainly, this sets the KEY to `undefined` for
+    // every player combatant — real units carry `loadout: { kind: type }` with no weapon — and
+    // Firestore refuses `undefined` outright: "Unsupported field value: undefined". localStorage
+    // never noticed, because JSON.stringify drops undefined keys, but the cloud write is handed
+    // the LIVE object, so every domain save failed for the whole duration of a PvE battle.
+    // Silent: the player only found out by opening the game on another device and finding it old.
+    // Two lines below, `statsOverride` already does it this way; `pvp.ts` omits the field
+    // outright and says so. This was the only one of the three that got it wrong.
+    ...(u.loadout?.weapon ? { loadoutWeapon: u.loadout.weapon as Weapon } : {}),
     name: prettyName(u.type),
     x: -1,
     y: -1,

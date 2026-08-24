@@ -43,6 +43,10 @@
   --wl-good-surface: 145 45% 92%;
   --wl-bad: 0 70% 42%;
   --wl-bad-surface: 0 75% 95%;
+  /* Refusal text small enough to need 4.5:1, sitting on a MUTED panel rather than the page.
+     `--wl-bad` clears it in light but lands at 4.46 in dark, and it cannot simply be lifted
+     there: in dark it is also a SOLID behind `--wl-inverse`, where lighter means worse. */
+  --wl-bad-ink: 0 70% 42%;
   --wl-warn: 35 85% 38%;
   --wl-warn-surface: 42 85% 92%;
   --wl-info: 210 80% 42%;
@@ -95,6 +99,7 @@
   --wl-good-surface: 150 25% 16%;
   --wl-bad: 0 72% 66%;
   --wl-bad-surface: 0 35% 18%;
+  --wl-bad-ink: 0 78% 75%;
   --wl-warn: 42 85% 62%;
   --wl-warn-surface: 40 38% 18%;
   --wl-info: 205 80% 66%;
