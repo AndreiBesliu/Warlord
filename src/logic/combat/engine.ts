@@ -7,8 +7,8 @@
 // simply resolve a battle differently from the client that submitted the move.
 // Enforced by OurDaysApp/src/warlordServerCopy.test.ts, which normalises line endings so that a
 // failure there is always a real difference and never a checkout artefact.
-// The pure, deterministic combat reducer. Same code runs client-side (PvE) now and
-// inside a Cloud Function (PvP) later. No React, no Firestore, no wall-clock.
+// The pure, deterministic combat reducer. The same code runs client-side for PvE and inside
+// a Cloud Function for PvP, which has been live for months. No React, no Firestore, no clock.
 //
 // applyCommand(state, cmd) -> state is the single entry point for advancing a battle.
 // An illegal/stale command returns state unchanged with a `skipped` log entry — it

@@ -7,9 +7,7 @@
 // simply resolve a battle differently from the client that submitted the move.
 // Enforced by OurDaysApp/src/warlordServerCopy.test.ts, which normalises line endings so that a
 // failure there is always a real difference and never a checkout artefact.
-// PvP battle setup + deploy-payload sanitization. PURE: no React, no firebase, no
-// Registry — this file has a THIRD copy in OurDaysApp/functions/src/warlordCombat/
-// (the server authority) and must stay byte-identical across all three locations.
+// PvP battle setup + deploy-payload sanitization. PURE: no React, no firebase, no Registry.
 //
 // Trust model: each player's army lives only in their own localStorage, so a deploy
 // payload is inherently client-claimed. The server cannot verify provenance — it
