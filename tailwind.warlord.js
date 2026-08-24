@@ -19,6 +19,7 @@ export const warlordColors = {
   'wl-subtle': v('subtle'),
   'wl-inverse': v('inverse'),
   'wl-contrast-ink': v('contrast-ink'),
+  'wl-art-ink': v('art-ink'),
 
   'wl-line': v('line'),
   'wl-line-strong': v('line-strong'),

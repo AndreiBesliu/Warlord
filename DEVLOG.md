@@ -985,3 +985,48 @@ venea din ramura „nicio mutare legală" — niciodată din `UNIT_ADVANCE_MUST_
 distincte, fiecare verificată că pică la reparația ei.
 
 `npx tsc --noEmit` verde · 646 teste verzi · `npm run build` verde.
+
+## 2026-08-24 — Trecere de contrast: 7 perechi de tokeni erau sub AA, iar auditul anterior folosise pragul greșit
+
+**Model:** Claude Opus 5
+
+Auditul de pe 02.08 raportase „0 perechi sub 3:1". **3:1 e pragul pentru text MARE.** Corpul de text
+cere 4,5:1, iar la pragul corect au ieșit șapte perechi:
+
+| pereche | temă | înainte | după |
+|---|---|---|---|
+| `accent-ink` pe `accent` — butonul principal din tot jocul | light | **3,72** | 5,40 |
+| `accent` pe insigna de nivel (`accent-surface/50`) | light | 3,73 | 5,40 |
+| `accent` pe panou | light | 3,92 | 5,68 |
+| `warn` pe panou | light | 4,05 | 5,67 |
+| `subtle` pe panou estompat | light | 4,06 | 4,72 |
+| `subtle` pe panou estompat | dark | **3,93** | 4,91 |
+| `bad` pe panou estompat | dark | 4,44 | 4,92 |
+
+Valorile n-au fost ghicite: am scanat luminozitatea fiecărui token cerând ca **toate**
+constrângerile lui să treacă simultan (un token e și text pe trei suprafețe, și solid sub
+`inverse`), și am luat prima valoare care trece cu marjă. `--wl-accent` mai jos rezolvă trei
+perechi deodată, fiindcă e și suprafață de buton, și culoare de text.
+
+**Token nou `--wl-art-ink`.** Placa `.wl-art` rămâne deschisă în AMBELE teme (arta e pe
+`mix-blend-multiply`, nu se poate tokeniza), dar litera de rezervă folosea `--wl-subtle`, care se
+inversează cu tema — deci pe dark era gri deschis pe alb. Oglinda lui `--wl-contrast-ink`
+(„deschis în ambele"): ăsta e „închis în ambele". Trei locuri din `BuildingsTab`.
+
+### Două defecte în propria mea unealtă de audit, care contează pentru ce credem despre trecutul ei
+1. **Fundalul se căuta pornind de la PĂRINTE.** Pentru un buton al cărui text e direct înăuntru,
+   asta sare peste propriul lui fundal — deci fiecare buton solid raporta ~1:1. Zgomot care ascunde
+   semnalul.
+2. **`opacity: 0` nu era exclus.** Etichetele vizibile doar la hover compun textul la zero și ies
+   exact 1:1. Sări peste `visibility:hidden` și `display:none`, dar nu peste asta.
+
+**Verificat:** ambele teme × desktop și 375px × toate taburile (Overview, Buildings, Market,
+Resources, Army + Legions/Campaign, Log) — **zero eșecuri**. Cel mai slab raport de token acum:
+4,72 light / 4,91 dark, din 23 de perechi măsurate.
+
+**Neatins deliberat:** 18 culori brute din paleta Tailwind (`text-amber-*`, `text-red-300`) în
+componentele care stau peste scene fotografice. Acolo „suprafața" e o imagine, deci un token de
+suprafață n-ar însemna nimic; garanția e cipul opac de sub ele (`bg-black/80`). Nu se pot măsura cu
+unealta asta și nu se repară mutându-le pe tokeni.
+
+`npx tsc --noEmit` verde · 646 teste verzi · `npm run build` verde.

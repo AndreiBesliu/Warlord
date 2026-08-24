@@ -27,14 +27,15 @@
 
   --wl-ink: 30 10% 12%;
   --wl-muted: 30 6% 38%;
-  --wl-subtle: 30 6% 45%;
+  --wl-subtle: 30 6% 41%;
   --wl-inverse: 40 30% 96%; /* text on a solid that INVERTS: accent/good/bad/info/warn */
-  --wl-contrast-ink: 40 30% 96%; /* text on panel-contrast — light in both themes */
+  --wl-contrast-ink: 40 30% 96%;
+  --wl-art-ink: 30 10% 30%; /* text on .wl-art - DARK in BOTH themes: that plate keeps its light backing in dark too, so ink that flips with the theme goes pale on white. */
 
   --wl-line: 34 18% 84%;
   --wl-line-strong: 32 25% 42%;
 
-  --wl-accent: 35 75% 40%; /* gold — primary actions, brand */
+  --wl-accent: 35 75% 32%; /* gold — primary actions, brand */
   --wl-accent-ink: 40 60% 97%;
   --wl-accent-surface: 42 80% 93%;
   --wl-accent-line: 38 55% 70%;
@@ -44,10 +45,12 @@
   --wl-bad: 0 70% 42%;
   --wl-bad-surface: 0 75% 95%;
   /* Refusal text small enough to need 4.5:1, sitting on a MUTED panel rather than the page.
-     `--wl-bad` clears it in light but lands at 4.46 in dark, and it cannot simply be lifted
-     there: in dark it is also a SOLID behind `--wl-inverse`, where lighter means worse. */
+     `--wl-bad` used to land at 4.44 in dark; the 2026-08-24 pass lifted it to 69% and it now
+     clears on its own. This token stays because it is the one that CAN be tuned freely: in dark
+     `--wl-bad` is also a SOLID behind `--wl-inverse`, so lifting it further costs contrast there,
+     while this one answers only to small text on a muted panel. */
   --wl-bad-ink: 0 70% 42%;
-  --wl-warn: 35 85% 38%;
+  --wl-warn: 35 85% 31%;
   --wl-warn-surface: 42 85% 92%;
   --wl-info: 210 80% 42%;
 
@@ -83,9 +86,10 @@
 
   --wl-ink: 40 25% 92%;
   --wl-muted: 38 12% 68%;
-  --wl-subtle: 36 8% 52%;
+  --wl-subtle: 36 8% 59%;
   --wl-inverse: 30 10% 10%;
   --wl-contrast-ink: 40 25% 92%; /* panel-contrast is still dark here — stay light */
+  --wl-art-ink: 30 10% 30%; /* NOT flipped: `.wl-art` keeps its light backing in dark too. */
 
   --wl-line: 32 10% 24%;
   --wl-line-strong: 34 14% 38%;
@@ -97,7 +101,7 @@
 
   --wl-good: 145 50% 58%;
   --wl-good-surface: 150 25% 16%;
-  --wl-bad: 0 72% 66%;
+  --wl-bad: 0 72% 69%;
   --wl-bad-surface: 0 35% 18%;
   --wl-bad-ink: 0 78% 75%;
   --wl-warn: 42 85% 62%;

@@ -73,7 +73,7 @@ function BuildingImg({ type }: { type: string }) {
           alt={type}
         />
       ) : (
-        <span className="text-wl-subtle font-bold text-lg">{type[0]}</span>
+        <span className="text-wl-art-ink font-bold text-lg">{type[0]}</span>
       )}
     </div>
   )
@@ -270,7 +270,7 @@ export default function BuildingsTab({ state, setTab }: Props) {
                         <div className="wl-art w-24 h-24 mb-3 rounded flex items-center justify-center">
                           {BuildingImages[t]
                             ? <img src={BuildingImages[t]} className="w-full h-full object-contain mix-blend-multiply" alt={t} />
-                            : <span className="text-3xl text-wl-subtle font-bold">{t[0]}</span>}
+                            : <span className="text-3xl text-wl-art-ink font-bold">{t[0]}</span>}
                         </div>
                         <span className="font-bold text-sm text-wl-ink mb-2">{t.replace(/_/g, ' ')}</span>
                         <PriceTag lines={price.lines} />
@@ -300,7 +300,7 @@ export default function BuildingsTab({ state, setTab }: Props) {
                         <div className="wl-art w-24 h-24 mb-3 rounded flex items-center justify-center">
                           {BuildingImages[t] ?
                             <img src={BuildingImages[t]} className="w-full h-full object-contain mix-blend-multiply" alt={t} />
-                            : <span className="text-4xl text-wl-subtle font-bold">{t[0]}</span>
+                            : <span className="text-4xl text-wl-art-ink font-bold">{t[0]}</span>
                           }
                         </div>
                         <span className="font-bold text-sm text-wl-ink mb-2">{t.replace(/_/g, ' ')}</span>
