@@ -946,3 +946,42 @@ ajunge în `BattleState`. Rescrisă — exact defectul pe care fișierul îl doc
 „types.ts byte-identic".
 
 `npx tsc --noEmit` verde · 643 teste verzi · `npm run build` verde.
+
+## 2026-08-24 — Revizia a rulat MUTANȚI și a găsit că testele mele nu mușcau
+
+**Model:** Claude Opus 5. Cele trei lentile tăiate anterior de limită, rulate pe codul curent.
+Refutatorul n-a raționat despre teste — a copiat sursa într-un sandbox și a aplicat mutanți.
+
+### O regresie pe care am introdus-o EU, cu o oră înainte
+Reparând îngheţul, am supra-corectat: înaintarea mergea pe `live` necondiționat, deci putea închide
+pe cohorta pe care AI-ul însuși tocmai o marcase moartă. Măsurat de recenzent: **18,4% dintre
+înaintări**, iar 95% dintre acele ținte mureau în aceeași tură — armata mărșăluia spre un cadavru
+în timp ce un dușman viu stătea în altă parte.
+
+Corect e: mergi pe `unbooked`, și cazi pe `live` **doar când toate sunt rezervate**. Cazul ăla gol
+E chiar îngheţul pentru care s-a scris regula. Deci reparația de dimineață devine **fallback, nu
+implicit** — și blocul „THE FREEZE" rămâne verde fără nicio modificare, cum trebuia.
+
+### Un test care nu putea eșua
+„the trace never changes the commands" compara `planEnemyTurn(s).commands` cu
+`chooseEnemyCommands(s)` — iar al doilea E literalmente primul. `f(s) === f(s)`. Putea prinde doar
+nedeterminism, pe care alt test îl acoperea oricum.
+
+Consecința, dovedită cu mutanți care treceau toți 26/26: urma putea numi altă țintă decât cea pe
+care o lovea, putea raporta alt `moveTo` decât MOVE-ul emis, putea eticheta MOVE_AND_ATTACK drept
+ATTACK, și putea calcula distanța din tila pe care o părăsise. Inclusiv **bugul pe care scrisesem
+în comentariu că-l reparasem** (căutarea stătută) trecea neobservat, fiindcă singura fixtură cu
+MOVE_AND_ATTACK nu se uita niciodată la distanță.
+
+Testul nou merge pe **corpus**, nu pe o tablă: 3 misiuni × 5 seed-uri, și pentru fiecare rând de
+cohortă verifică decizia contra comenzilor emise, `moveTo` contra MOVE-ului, ținta contra
+ATTACK-ului, și distanța recalculată din tila de DUPĂ mutare. Cei patru mutanți pică acum toți.
+
+### O fixtură care nu crea condiția pe care o numea
+Testul „boxed in" punea opt aliați pe toate cele opt vecine, deci `legalMoves` era GOL și HOLD-ul
+venea din ramura „nicio mutare legală" — niciodată din `UNIT_ADVANCE_MUST_CLOSE`. Ambele mesaje
+încep cu „Holds", deci `/Holds/` nu le distingea. **Regula avea zero acoperire în tot repo-ul:**
+ștergând `if (d >= now) continue` treceau toate cele 643 de teste. Împărțit în două fixturi
+distincte, fiecare verificată că pică la reparația ei.
+
+`npx tsc --noEmit` verde · 646 teste verzi · `npm run build` verde.

@@ -4,7 +4,8 @@
 // because "issued no command" and "was never considered" look identical from outside.
 
 import { describe, it, expect } from 'vitest'
-import { buildBattle, applyCommand } from './engine'
+import { buildBattle, applyCommand, checkVictory, chebyshev } from './engine'
+import { createBattle } from './enemies'
 import { planEnemyTurn, chooseEnemyCommands } from './ai'
 import { AI_RULES, AI_RULE_BY_ID } from './aiRules'
 import { replayEnemyTurns, syntheticCohorts } from './aiReplay'
@@ -156,19 +157,52 @@ describe('THE ADVANCE: it closes on whoever it can actually reach', () => {
     expect(e0.decision).not.toBe('HOLD')
   })
 
-  it('holds when nothing closes, and the trace says exactly why', () => {
-    // Boxed in on every side by its own cohorts, with the enemy beyond them.
-    const box = [
-      [4, 3], [5, 3], [6, 3], [4, 4], [6, 4], [4, 5], [5, 5], [6, 5],
-    ].map(([x, y], i) => mk(`E${i + 1}`, 'ENEMY', 'HEAVY_INF_SPEAR', 30, x, y))
+  it('prefers a cohort nobody has claimed over one already booked dead', () => {
+    // The freeze fix over-corrected at first: the advance walked every LIVING cohort, so it would
+    // close on the one the AI itself had just booked dead while an unclaimed foe stood elsewhere.
+    // Measured at the time: 18.4% of advances, 95% of those targets dying the same turn.
+    // PDY is the NEARER of the two, so the old behaviour would pick it. It is also the one E0
+    // books, which is the whole point: nearer is not a reason to march on a corpse.
+    const s = enemyTurn(
+      [mk('PDY', 'PLAYER', 'LIGHT_INF_SPEAR', 1, 2, 6), mk('PLV', 'PLAYER', 'LIGHT_INF_SPEAR', 40, 10, 6)],
+      [
+        mk('E0', 'ENEMY', 'HEAVY_CAV', 60, 2, 7),   // adjacent to PDY: books the kill
+        mk('E1', 'ENEMY', 'HEAVY_INF_SWORD', 40, 2, 0), // too far for any shot: must choose
+      ],
+    )
+    const e1 = planEnemyTurn(s).trace.units.find(u => u.id === 'E1')!
+    expect(e1.decision).toBe('ADVANCE')
+    expect(e1.target?.id).toBe('PLV')
+  })
+
+  it('holds when it has moves but none of them closes, and says which', () => {
+    // A full rank of allies across y=5 walls E0 off from the only foe. Its legal moves are the
+    // tiles at y<=4, every one of them equal-or-worse in distance — so this is UNIT_ADVANCE_MUST_CLOSE
+    // refusing, not the no-moves-at-all branch.
+    const rank = Array.from({ length: 12 }, (_, x) => mk(`E${x + 1}`, 'ENEMY', 'HEAVY_INF_SPEAR', 30, x, 5))
+    const s = enemyTurn(
+      [mk('P0', 'PLAYER', 'LIGHT_INF_SPEAR', 30, 5, 7)],
+      [mk('E0', 'ENEMY', 'HEAVY_INF_SWORD', 40, 5, 4), ...rank],
+    )
+    const e0 = planEnemyTurn(s).trace.units.find(u => u.id === 'E0')!
+    expect(e0.decision).toBe('HOLD')
+    expect(e0.rules).toContain('UNIT_HOLDS_WHEN_BOXED_IN')
+    expect(e0.detail).toMatch(/none of \d+ legal move/)
+  })
+
+  it('and reports the OTHER kind of hold differently: no legal move at all', () => {
+    // Eight allies on all eight neighbours. This is the branch the previous version of the
+    // "boxed in" test was actually hitting while claiming to cover the must-close rule — both
+    // strings start with "Holds", so a /Holds/ assertion could not tell them apart.
+    const box = [[4, 3], [5, 3], [6, 3], [4, 4], [6, 4], [4, 5], [5, 5], [6, 5]]
+      .map(([x, y], i) => mk(`E${i + 1}`, 'ENEMY', 'HEAVY_INF_SPEAR', 30, x, y))
     const s = enemyTurn(
       [mk('P0', 'PLAYER', 'LIGHT_INF_SPEAR', 30, 11, 7)],
       [mk('E0', 'ENEMY', 'HEAVY_INF_SWORD', 40, 5, 4), ...box],
     )
     const e0 = planEnemyTurn(s).trace.units.find(u => u.id === 'E0')!
     expect(e0.decision).toBe('HOLD')
-    expect(e0.rules).toContain('UNIT_HOLDS_WHEN_BOXED_IN')
-    expect(e0.detail).toMatch(/Holds/)
+    expect(e0.detail).toMatch(/no legal move at all/)
   })
 })
 
@@ -313,5 +347,87 @@ describe('the replay runs against a configuration it can name', () => {
     expect(plain.ranAgainst).toBe('defaults')
     expect(tuned.ranAgainst).toBe('overrides')
     expect(tuned.enemyCohorts).not.toBe(plain.enemyCohorts)
+  })
+})
+
+describe('THE TRACE AND THE COMMANDS ARE THE SAME PLAN', () => {
+  // The single thing the whole rework rests on, and it had no test at all. `chooseEnemyCommands`
+  // is literally `planEnemyTurn(state).commands`, so the old assertion compared f(s) with f(s) and
+  // could only ever catch non-determinism. Five separate lies passed the suite: a trace naming a
+  // different target than the ATTACK it emitted, a moveTo that did not match the MOVE, a
+  // MOVE_AND_ATTACK relabelled ATTACK, and a distance computed from the tile the cohort left
+  // rather than the one it moved to.
+  //
+  // A corpus rather than one board: a single fixture only ever exercises the branches it happens
+  // to hit, and it was exactly an unexercised branch that let the stale-lookup bug live.
+  it('holds over three missions and five seeds', () => {
+    let rows = 0
+    for (const d of ['BANDIT_RAID', 'RIVAL_BARON', 'INVASION'] as const) {
+      for (const seed of [1, 4242, 31337, 777, 90210]) {
+        let s = createBattle(syntheticCohorts(4, 40), d, seed).state
+        let guard = 0
+        while (!s.winner && guard < 24) {
+          guard++
+          if (s.side !== 'ENEMY') { s = checkVictory(applyCommand(s, { kind: 'END_TURN' })); continue }
+
+          const { commands, trace } = planEnemyTurn(s)
+          expect(commands.filter(c => c.kind === 'END_TURN')).toHaveLength(1)
+          expect(commands[commands.length - 1].kind).toBe('END_TURN')
+
+          const byId = new Map<string, typeof commands>()
+          for (const c of commands) {
+            if (c.kind === 'END_TURN') continue
+            const id = (c as { id: string }).id
+            byId.set(id, [...(byId.get(id) ?? []), c])
+          }
+
+          // A private copy walked forward row by row, so each row is checked against the board the
+          // planner actually saw when it planned that row.
+          let sim = structuredClone(s)
+          for (const row of trace.units) {
+            rows++
+            const mine = byId.get(row.id) ?? []
+            const moves = mine.filter(c => c.kind === 'MOVE')
+            const attacks = mine.filter(c => c.kind === 'ATTACK')
+
+            if (row.decision === 'HOLD' || row.decision === 'SKIPPED') {
+              expect(mine, `${row.id} says ${row.decision} but issued commands`).toHaveLength(0)
+            } else if (row.decision === 'ADVANCE') {
+              expect(moves).toHaveLength(1)
+              expect(attacks).toHaveLength(0)
+            } else if (row.decision === 'ATTACK') {
+              expect(moves).toHaveLength(0)
+              expect(attacks).toHaveLength(1)
+            } else {
+              expect(moves).toHaveLength(1)
+              expect(attacks).toHaveLength(1)
+              expect(mine.indexOf(moves[0])).toBeLessThan(mine.indexOf(attacks[0]))
+            }
+
+            if (moves.length) {
+              expect(row.moveTo).toEqual((moves[0] as { to: { x: number; y: number } }).to)
+            } else {
+              expect(row.moveTo).toBeUndefined()
+            }
+
+            if (attacks.length) {
+              const targetId = (attacks[0] as { targetId: string }).targetId
+              expect(row.target?.id, `${row.id} names a different foe than it strikes`).toBe(targetId)
+              const tgt = sim.combatants.find(c => c.id === targetId)!
+              const at = row.moveTo ?? row.from
+              expect(row.target?.distance).toBe(chebyshev(at.x, at.y, tgt.x, tgt.y))
+              expect(row.target?.name).toBe(tgt.name)
+            }
+
+            if (moves.length) sim = applyCommand(sim, moves[0])
+          }
+
+          for (const c of commands) s = applyCommand(s, c)
+          s = checkVictory(s)
+        }
+      }
+    }
+    // If the corpus stopped producing rows the assertions above would be vacuous.
+    expect(rows).toBeGreaterThan(100)
   })
 })

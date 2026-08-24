@@ -187,10 +187,16 @@ function planUnit(s: BattleState, self: Combatant, shadowHp: Record<string, numb
     'UNIT_ADVANCE_MUST_CLOSE', 'UNIT_ADVANCE_TIES_KEEP_THE_EARLIER',
   ]
   const moves = legalMoves(s, self.id)
+  // Prefer cohorts nobody has claimed yet; fall back to the living only when EVERY one is booked.
+  // That empty case is exactly the freeze this rule was written for. Walking `live` unconditionally
+  // over-corrected it: measured, 18.4% of advances then closed on a cohort the AI itself had booked
+  // dead, and 95% of those died the same turn — the army marching toward a corpse while a living
+  // foe stood elsewhere. The freeze fix is the FALLBACK, not the default.
+  const advanceOn = unbooked.length > 0 ? unbooked : live
   let bestTile: { x: number; y: number } | null = null
   let bestResult = Infinity
   let bestTargetId = ''
-  for (const p of live) {
+  for (const p of advanceOn) {
     const now = chebyshev(self.x, self.y, p.x, p.y)
     for (const m of moves) {
       const d = chebyshev(m.x, m.y, p.x, p.y)
@@ -225,7 +231,7 @@ function planUnit(s: BattleState, self: Combatant, shadowHp: Record<string, numb
     decision: 'HOLD',
     detail: moves.length === 0
       ? 'Holds: no legal move at all — every neighbouring tile is blocked by terrain cost or by an ally.'
-      : `Holds: none of ${moves.length} legal move(s) closes on any of ${live.length} living cohort(s), and no shot was available.`,
+      : `Holds: none of ${moves.length} legal move(s) closes on any of ${advanceOn.length} cohort(s) worth closing on, and no shot was available.`,
     rules: [...advanceRules, 'UNIT_HOLDS_WHEN_BOXED_IN'],
     weighed: [...weighed],
     consideredPositions: positions.length,

@@ -198,7 +198,7 @@ export const AI_RULES: AiRule[] = [
     id: 'UNIT_ADVANCE_TOWARD_ANY_FOE',
     scope: 'unit',
     name: 'Closes on whichever cohort it can actually approach',
-    effect: 'The advance walks every (living cohort × legal tile) pair, keeps only tiles that strictly reduce the Chebyshev distance to THAT cohort, and takes the pair with the SMALLEST RESULTING distance.',
+    effect: 'The advance walks every (cohort × legal tile) pair, keeps only tiles that strictly reduce the Chebyshev distance to THAT cohort, and takes the pair with the SMALLEST RESULTING distance. The cohorts considered are the UNBOOKED ones, falling back to every living cohort only when all of them are already booked.',
     why: 'It used to fix on the nearest cohort and give up if no tile closed on THAT one — a cohort walled off from the nearest stood still while another was open. It also used the within-turn kill ledger here, so once every foe was booked as dead the whole remaining army froze in place for the turn; if the dice then under-rolled, the player survived against an army that had not moved. Note the effect minimises the RESULTING distance, not the reduction: those two differ whenever the cohorts stand at different distances, and this text said "largest reduction" until it was checked against the code.',
   },
   {
