@@ -1,6 +1,6 @@
 import { emptyPool, hydratePool } from '../logic/barracksPool'
 import { useState, useCallback } from 'react'
-import { Ranks, type SoldierType, type BarracksPool, type RecruitPool } from '../logic/types'
+import { type BarracksPool, type RecruitPool } from '../logic/types'
 import { batchDurationDays, batchSlots, newBatchId, type TrainingBatch } from '../logic/batches'
 import { blendIn, startingXpOf, type RecruitSourceId } from '../logic/recruitSources'
 
