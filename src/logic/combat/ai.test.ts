@@ -7,8 +7,12 @@ import { describe, it, expect } from 'vitest'
 import { buildBattle, applyCommand } from './engine'
 import { planEnemyTurn, chooseEnemyCommands } from './ai'
 import { AI_RULES, AI_RULE_BY_ID } from './aiRules'
+import { replayEnemyTurns, syntheticCohorts } from './aiReplay'
+import { Registry } from '../registry'
 import type { BattleState, Combatant, Side, TerrainType } from './types'
 import { RankNumber, type Rank, type SoldierType } from '../types'
+
+Registry.init()
 
 const plains = (w: number, h: number): Record<string, TerrainType[]> => {
   const o: Record<string, TerrainType[]> = {}
@@ -201,5 +205,44 @@ describe('determinism survives the trace', () => {
     const b = planEnemyTurn(build())
     expect(a.commands).toEqual(b.commands)
     expect(a.trace).toEqual(b.trace)
+  })
+})
+
+describe('the replay the admin runs', () => {
+  it('terminates on every difficulty and returns a trace per enemy turn', () => {
+    for (const d of ['BANDIT_RAID', 'RIVAL_BARON', 'INVASION'] as const) {
+      const r = replayEnemyTurns(syntheticCohorts(4, 40), d, 4242, 10)
+      expect(r.turns.length).toBeGreaterThan(0)
+      expect(r.turns.length).toBeLessThanOrEqual(10)
+      expect(r.playerCohorts).toBe(4)
+      expect(r.enemyCohorts).toBeGreaterThan(0)
+      for (const t of r.turns) expect(t.units.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('cannot hang, even at the smallest cap', () => {
+    // The guard, not the battle, is what bounds this. An AI that held every cohort every turn
+    // would otherwise loop until the tab died — and that is exactly the failure this tool exists
+    // to find, so it has to survive meeting it.
+    const r = replayEnemyTurns(syntheticCohorts(1, 10), 'INVASION', 7, 1)
+    expect(r.turns.length).toBeLessThanOrEqual(1)
+  })
+
+  it('is exactly reproducible from its seed — otherwise the admin would be guessing', () => {
+    const a = replayEnemyTurns(syntheticCohorts(3, 30), 'RIVAL_BARON', 909, 6)
+    const b = replayEnemyTurns(syntheticCohorts(3, 30), 'RIVAL_BARON', 909, 6)
+    expect(a).toEqual(b)
+  })
+
+  it('different seeds really do give different battles', () => {
+    const a = replayEnemyTurns(syntheticCohorts(3, 30), 'RIVAL_BARON', 1, 6)
+    const b = replayEnemyTurns(syntheticCohorts(3, 30), 'RIVAL_BARON', 2, 6)
+    expect(a).not.toEqual(b)
+  })
+
+  it('survives a lone cohort against the hardest mission', () => {
+    const r = replayEnemyTurns(syntheticCohorts(1, 1), 'INVASION', 31337, 20)
+    expect(r.outcome.length).toBeGreaterThan(0)
+    for (const t of r.turns) for (const u of t.units) expect(u.detail.length).toBeGreaterThan(10)
   })
 })
