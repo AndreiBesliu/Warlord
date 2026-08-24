@@ -1048,3 +1048,21 @@ Antetele: `pvp.ts` vorbea de „a TREIA copie... identică în toate trei locuri
 eliminat-o pe a treia demult. `engine.ts` spunea că PvP-ul rulează în Cloud Function „later" — e
 live de luni. Ambele rescrise; toate cinci au acum același bloc, iar **copia server e GENERATĂ din
 cea de joc**, deci identitatea e prin construcție, nu prin disciplină.
+
+## 2026-08-24 — `createPvpBattle` scria peste datele apelantului
+
+**Model:** Claude Opus 5 (constatare din auditul de stivuire, verificată acum)
+
+`placePvpArmy` scrie `x`/`y` direct pe obiectele primite, iar `acceptWarlordChallenge` păstrează
+aceleași tablouri și le salvează ca **înregistrarea publică a ce a trimis fiecare jucător**. Deci
+santinela `-1,-1` pe care `sanitizeDeploy` o scrie intenționat dispărea până la salvare, iar
+„deploy"-ul înceta să fie o consemnare a trimiterii și devenea o copie a poziției de start.
+
+Clonare la intrare. Testul e dovedit roșu fără ea.
+
+**Neschimbat, fiindcă e o decizie de design, nu un defect:** `PVP_MAX_COMBATANTS = 12` e exact
+`PVP_WIDTH`, deci `floor(i / 12)` e mereu 0 și **al doilea rând de start nu e atins niciodată** —
+orice armată PvP se desfășoară ca o singură linie, de la margine la margine. Comentariul („două
+rânduri țin 24 de tile-uri") justifică de ce 12 e sigur, nu susține că se folosesc două rânduri.
+Consecința tactică — zero adâncime, zero flancare, ranguri perfect față în față — e o alegere de
+joc, deci o las lui Andrei.

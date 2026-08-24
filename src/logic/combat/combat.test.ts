@@ -388,6 +388,43 @@ describe('pvp: sanitizeDeploy', () => {
   })
 })
 
+describe('pvp: createPvpBattle leaves its arguments alone', () => {
+  const deploy = (side: 'PLAYER' | 'ENEMY', ids: string[]) => {
+    const cs: DeployCombatantClaim[] = ids.map((id) => ({
+      unitId: id, type: 'LIGHT_INF_SWORD', hp: 30, morale: 100,
+      buckets: [{ r: 'TRAINED', count: 30, avgXP: 20 }],
+    }))
+    const res = sanitizeDeploy({ unitIds: ids, combatants: cs }, side)
+    if (!res.ok) throw new Error(res.error)
+    return res.combatants
+  }
+
+  it('does not write spawn positions onto the combatants it was handed', () => {
+    // `acceptWarlordChallenge` keeps these arrays and stores them as the public record of what
+    // each player submitted. `placePvpArmy` used to write x/y straight onto them, so the record
+    // silently stopped being the submission and became the opening position instead — the -1
+    // sentinel `sanitizeDeploy` writes on purpose was gone by the time it was saved.
+    const a = deploy('PLAYER', ['a1', 'a2', 'a3'])
+    const b = deploy('ENEMY', ['b1', 'b2'])
+    const before = JSON.stringify([a, b])
+    createPvpBattle(a, b, 4242)
+    expect(JSON.stringify([a, b])).toBe(before)
+    expect(a.every((c) => c.x === -1 && c.y === -1)).toBe(true)
+  })
+
+  it('and still places them properly inside the battle it returns', () => {
+    const a = deploy('PLAYER', ['a1', 'a2', 'a3'])
+    const b = deploy('ENEMY', ['b1', 'b2'])
+    const s = createPvpBattle(a, b, 4242)
+    for (const c of s.combatants) {
+      expect(c.x).toBeGreaterThanOrEqual(0)
+      expect(c.y).toBeGreaterThanOrEqual(0)
+    }
+    const tiles = s.combatants.map((c) => `${c.x},${c.y}`)
+    expect(new Set(tiles).size).toBe(tiles.length)
+  })
+})
+
 describe('pvp: createPvpBattle + defender write-back', () => {
   const deploySide = (side: 'PLAYER' | 'ENEMY', ids: string[]) => {
     const cs: DeployCombatantClaim[] = ids.map((id) => ({
