@@ -1030,3 +1030,21 @@ suprafață n-ar însemna nimic; garanția e cipul opac de sub ele (`bg-black/80
 unealta asta și nu se repară mutându-le pe tokeni.
 
 `npx tsc --noEmit` verde · 646 teste verzi · `npm run build` verde.
+
+## 2026-08-24 — Gardul copiei-server: din regulă scrisă în regulă APLICATĂ
+
+**Model:** Claude Opus 5
+
+Motorul de luptă există în DOUĂ copii, fiindcă PvP-ul e server-authoritative. Regula „ține-le
+identice" era scrisă în două `CLAUDE.md` de luni de zile și **nu o verifica nimic**.
+
+Verificată azi manual pentru prima oară: toate cele cinci fișiere raportau DIFERIT — 832 de linii
+în `engine.ts`. S-a dovedit a fi CRLF contra LF (jocul e submodul pe Windows, copia din functions
+nu). **Nimic nu divergase.** Ratarea aia e chiar motivul pentru care există acum un test: o
+verificare care țipă la fiecare rulare e mai rea decât niciuna, fiindcă primul lucru pe care-l
+înveți e s-o ignori.
+
+Antetele: `pvp.ts` vorbea de „a TREIA copie... identică în toate trei locurile" — submodulul a
+eliminat-o pe a treia demult. `engine.ts` spunea că PvP-ul rulează în Cloud Function „later" — e
+live de luni. Ambele rescrise; toate cinci au acum același bloc, iar **copia server e GENERATĂ din
+cea de joc**, deci identitatea e prin construcție, nu prin disciplină.
