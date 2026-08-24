@@ -870,3 +870,31 @@ dar înseamnă că **nu e o simulare de balans** și rezultatul nu se citește c
 aceeași urmă — dacă urma ar depinde de altceva decât de stare, replay-ul din admin ar minți.
 
 `npx tsc --noEmit` verde · 631 teste verzi (31 fișiere) · `npm run build` verde.
+
+## 2026-08-24 — Urma nu mai creditează reguli care au format o opțiune RESPINSĂ
+
+**Model:** Claude Opus 5 (constatare proprie, la recitirea codului scris cu o oră înainte)
+
+Prima versiune aduna regulile declanșate într-un singur set peste TOATE candidatele, apoi îl
+atașa câștigătorului. Deci un arcaș care alegea focul de la distanță era creditat și cu
+„arcașii nu vor contact" — o regulă care acționase asupra unei opțiuni pe care tocmai o
+respinsese. Exact tipul de minciună plauzibilă pe care urma asta există ca s-o prevină.
+
+Acum sunt două liste: `rules` = ce a format acțiunea LUATĂ; `weighed` = ce s-a declanșat cântărind
+opțiuni care au pierdut. Verificat pe un arcaș cu un dușman în față și altul la distanță 3:
+
+```
+decision: ATTACK  "Strikes P1 from where it stands, range 3; expects 5 killed (score 0.216)."
+rules:    …, UNIT_RANGED_PREFERS_DISTANCE, UNIT_TIES_KEEP_THE_EARLIER
+weighed:  UNIT_RANGED_AVOIDS_MELEE        ← penalizarea pe care a respins-o, unde îi e locul
+```
+
+Reparat pe drum și o căutare stătută: `rec.target.distance` recitea mutătorul din starea NOUĂ
+prin `find(...)!` de două ori, fiindcă `self` fusese citit înainte de `applyCommand`. O singură
+căutare, fără aserțiune non-null.
+
+**Testul e neconditionat, deliberat.** Îl scrisesem cu `if (distance > 1)`, ceea ce l-ar fi făcut
+să treacă exact în ziua în care arcașul ar începe să aleagă ținta de melee — adică fix când
+trebuie să pice.
+
+`npx tsc --noEmit` verde · 640 teste verzi (31 fișiere).

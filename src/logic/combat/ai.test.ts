@@ -246,3 +246,38 @@ describe('the replay the admin runs', () => {
     for (const t of r.turns) for (const u of t.units) expect(u.detail.length).toBeGreaterThan(10)
   })
 })
+
+describe('the trace does not credit rules that shaped a REJECTED option', () => {
+  // An archer with a foe in its face and another at range. The distant shot wins. If the fired
+  // rules were pooled across every candidate — as they were at first — the trace would cite
+  // "archers do not want to be in contact" on a decision that was never in contact. A rule cited
+  // on the chosen action when it shaped a rejected one is exactly the plausible-looking lie this
+  // whole trace exists to prevent.
+  const s = enemyTurn(
+    [mk('P0', 'PLAYER', 'LIGHT_INF_SPEAR', 40, 5, 2), mk('P1', 'PLAYER', 'LIGHT_INF_SPEAR', 40, 5, 6)],
+    [mk('E0', 'ENEMY', 'LIGHT_ARCHER', 30, 5, 3)],
+  )
+  const t = planEnemyTurn(s).trace.units.find(u => u.id === 'E0')!
+
+  it('cites what chose the action', () => {
+    expect(t.decision).toMatch(/ATTACK/)
+    expect(t.rules).toContain('UNIT_SCORE_DAMAGE_SHARE')
+  })
+
+  it('and keeps the rest in `weighed`, never in `rules`', () => {
+    expect(t.rules.filter(r => t.weighed.includes(r))).toEqual([])
+  })
+
+  it('the melee penalty is weighed, not credited', () => {
+    // Unconditional on purpose. Wrapped in `if (distance > 1)` this would keep passing the day
+    // the archer started choosing the melee target, which is precisely when it should fail.
+    expect(t.target?.distance).toBeGreaterThan(1)
+    expect(t.rules).not.toContain('UNIT_RANGED_AVOIDS_MELEE')
+    expect(t.weighed).toContain('UNIT_RANGED_AVOIDS_MELEE')
+    expect(t.rules).toContain('UNIT_RANGED_PREFERS_DISTANCE')
+  })
+
+  it('every rule in either list is a real rule', () => {
+    for (const id of [...t.rules, ...t.weighed]) expect(AI_RULE_BY_ID[id], id).toBeTruthy()
+  })
+})

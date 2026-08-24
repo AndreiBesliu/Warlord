@@ -37,7 +37,10 @@ export interface AiUnitTrace {
   decision: AiDecision
   /** One sentence a human can read without opening the code. */
   detail: string
+  /** What decided the action taken. */
   rules: AiRuleId[]
+  /** Fired while weighing options that LOST. Cited separately so the decisive list stays honest. */
+  weighed: AiRuleId[]
   moveTo?: { x: number; y: number }
   target?: { id: string; name: string; distance: number }
   expectedKills?: number
@@ -62,6 +65,7 @@ interface Candidate {
   attackTargetId: string
   expectedKills: number
   moved: boolean
+  /** The rules that shaped THIS candidate — not every rule that fired anywhere. */
   rules: AiRuleId[]
   consideredPositions: number
   consideredShots: number
@@ -72,6 +76,7 @@ interface UnitPlan {
   decision: AiDecision
   detail: string
   rules: AiRuleId[]
+  weighed: AiRuleId[]
   consideredPositions: number
   consideredShots: number
   advanceTargetId?: string
@@ -93,7 +98,7 @@ function planUnit(s: BattleState, self: Combatant, shadowHp: Record<string, numb
     return {
       candidate: null, decision: 'HOLD', consideredPositions: 0, consideredShots: 0,
       detail: 'No living enemy cohort remains — nothing to do.',
-      rules: ['UNIT_NO_LIVING_FOE'],
+      rules: ['UNIT_NO_LIVING_FOE'], weighed: [],
     }
   }
   const unbooked = live.filter((c) => (shadowHp[c.id] ?? c.hp) > 0)
@@ -103,55 +108,63 @@ function planUnit(s: BattleState, self: Combatant, shadowHp: Record<string, numb
     ...legalMoves(s, self.id).map((t) => ({ x: t.x, y: t.y, move: { kind: 'MOVE', id: self.id, to: { x: t.x, y: t.y } } as Command, moved: true })),
   ]
 
-  const fired = new Set<AiRuleId>(['UNIT_STATS_WITH_OVERRIDE', 'UNIT_POSITIONS_STAND_OR_MOVE'])
+  // `base` is what is true of the cohort however it decides. `weighed` collects rules that fired
+  // while evaluating options that LOST — kept, because the user asked for everything the AI does,
+  // but kept SEPARATE, because a rule cited on the chosen action when it shaped a rejected one is
+  // exactly the kind of plausible-looking lie this whole trace exists to prevent.
+  const base: AiRuleId[] = ['UNIT_STATS_WITH_OVERRIDE', 'UNIT_POSITIONS_STAND_OR_MOVE']
+  const weighed = new Set<AiRuleId>()
   let shots = 0
   let best: Candidate | null = null
 
   for (const pos of positions) {
     const bonus = isRanged ? TERRAIN[terrainAt(s, pos.x, pos.y)].rangeBonus : 0
-    if (bonus) fired.add('UNIT_TERRAIN_RANGE_BONUS')
     const range = st.range + bonus
     for (const t of unbooked) {
       const d = chebyshev(pos.x, pos.y, t.x, t.y)
       if (d < 1 || d > range) continue
-      if (d >= 2 && !hasLineOfSight(s, pos.x, pos.y, t.x, t.y)) { fired.add('UNIT_NEEDS_LINE_OF_SIGHT'); continue }
+      if (d >= 2 && !hasLineOfSight(s, pos.x, pos.y, t.x, t.y)) { weighed.add('UNIT_NEEDS_LINE_OF_SIGHT'); continue }
       shots++
+      const mine: AiRuleId[] = ['UNIT_SCORE_DAMAGE_SHARE', 'UNIT_THREAT_WEIGHT']
+      if (bonus) mine.push('UNIT_TERRAIN_RANGE_BONUS')
       const isMelee = d <= 1
       const expected = estimateKills(s, self, t, { isMelee, allowCharge: true, aX: pos.x, aY: pos.y, aMoved: pos.moved })
       const effHp = Math.max(1, shadowHp[t.id] ?? t.hp)
       const threat = 1 + resolveStats(t.type as SoldierType, t.loadoutWeapon, t.statsOverride).atk / 20
       let score = (expected / effHp) * threat
-      fired.add('UNIT_SCORE_DAMAGE_SHARE')
-      fired.add('UNIT_THREAT_WEIGHT')
-      if (expected >= effHp) { score *= 2; fired.add('UNIT_SECURE_THE_KILL') }
+      if (expected >= effHp) { score *= 2; mine.push('UNIT_SECURE_THE_KILL') }
       if (isRanged) {
-        if (isMelee) { score *= 0.5; fired.add('UNIT_RANGED_AVOIDS_MELEE') }
-        else { score *= 1 + 0.05 * d; fired.add('UNIT_RANGED_PREFERS_DISTANCE') }
+        if (isMelee) { score *= 0.5; mine.push('UNIT_RANGED_AVOIDS_MELEE') }
+        else { score *= 1 + 0.05 * d; mine.push('UNIT_RANGED_PREFERS_DISTANCE') }
       }
       // Strictly greater, so a tie keeps whatever was found first: standing still beats moving,
       // and the earlier target wins. That tie-break IS the determinism.
       if (!best || score > best.score + 1e-9) {
+        if (best) for (const r of best.rules) weighed.add(r)
         best = {
           score, move: pos.move, attackTargetId: t.id, expectedKills: expected, moved: pos.moved,
-          rules: [], consideredPositions: positions.length, consideredShots: 0,
+          rules: mine, consideredPositions: positions.length, consideredShots: 0,
         }
+      } else {
+        for (const r of mine) weighed.add(r)
       }
     }
   }
 
   if (best) {
-    fired.add('UNIT_TIES_KEEP_THE_EARLIER')
+    const decisive = [...base, ...best.rules, 'UNIT_TIES_KEEP_THE_EARLIER' as AiRuleId]
     const t = combatantById(s, best.attackTargetId)!
-    const fromX = best.move ? (best.move as { to: { x: number; y: number } }).to.x : self.x
-    const fromY = best.move ? (best.move as { to: { x: number; y: number } }).to.y : self.y
-    const dist = chebyshev(fromX, fromY, t.x, t.y)
+    const atX = best.move ? (best.move as { to: { x: number; y: number } }).to.x : self.x
+    const atY = best.move ? (best.move as { to: { x: number; y: number } }).to.y : self.y
+    const dist = chebyshev(atX, atY, t.x, t.y)
     return {
-      candidate: { ...best, rules: [...fired], consideredPositions: positions.length, consideredShots: shots },
+      candidate: { ...best, rules: decisive, consideredPositions: positions.length, consideredShots: shots },
       decision: best.move ? 'MOVE_AND_ATTACK' : 'ATTACK',
       detail: best.move
-        ? `Steps to (${fromX},${fromY}) and strikes ${t.name} at range ${dist}; expects ${best.expectedKills} killed (score ${best.score.toFixed(3)}).`
+        ? `Steps to (${atX},${atY}) and strikes ${t.name} at range ${dist}; expects ${best.expectedKills} killed (score ${best.score.toFixed(3)}).`
         : `Strikes ${t.name} from where it stands, range ${dist}; expects ${best.expectedKills} killed (score ${best.score.toFixed(3)}).`,
-      rules: [...fired],
+      rules: decisive,
+      weighed: [...weighed].filter((r) => !decisive.includes(r)),
       consideredPositions: positions.length,
       consideredShots: shots,
     }
@@ -159,9 +172,7 @@ function planUnit(s: BattleState, self: Combatant, shadowHp: Record<string, numb
 
   // No shot from anywhere: close. Toward WHICHEVER living cohort it can actually approach —
   // not only the nearest, and not only the ones still unbooked.
-  fired.add('UNIT_ADVANCE_WHEN_NO_SHOT')
-  fired.add('UNIT_ADVANCE_TOWARD_ANY_FOE')
-  fired.add('UNIT_ADVANCE_MUST_CLOSE')
+  const advanceRules: AiRuleId[] = [...base, 'UNIT_ADVANCE_WHEN_NO_SHOT', 'UNIT_ADVANCE_TOWARD_ANY_FOE', 'UNIT_ADVANCE_MUST_CLOSE']
   const moves = legalMoves(s, self.id)
   let bestTile: { x: number; y: number } | null = null
   let bestResult = Infinity
@@ -183,26 +194,27 @@ function planUnit(s: BattleState, self: Combatant, shadowHp: Record<string, numb
     return {
       candidate: {
         score: 0, move: { kind: 'MOVE', id: self.id, to: bestTile }, attackTargetId: '',
-        expectedKills: 0, moved: true, rules: [...fired],
+        expectedKills: 0, moved: true, rules: advanceRules,
         consideredPositions: positions.length, consideredShots: shots,
       },
       decision: 'ADVANCE',
       detail: `No shot from any of ${positions.length} position(s); advances to (${bestTile.x},${bestTile.y}), closing on ${t.name} to range ${bestResult}.`,
-      rules: [...fired],
+      rules: advanceRules,
+      weighed: [...weighed],
       consideredPositions: positions.length,
       consideredShots: shots,
       advanceTargetId: bestTargetId,
     }
   }
 
-  fired.add('UNIT_HOLDS_WHEN_BOXED_IN')
   return {
     candidate: null,
     decision: 'HOLD',
     detail: moves.length === 0
       ? 'Holds: no legal move at all — every neighbouring tile is blocked by terrain cost or by an ally.'
       : `Holds: none of ${moves.length} legal move(s) closes on any of ${live.length} living cohort(s), and no shot was available.`,
-    rules: [...fired],
+    rules: [...advanceRules, 'UNIT_HOLDS_WHEN_BOXED_IN'],
+    weighed: [...weighed],
     consideredPositions: positions.length,
     consideredShots: shots,
   }
@@ -247,7 +259,7 @@ export function planEnemyTurn(state: BattleState): { commands: Command[]; trace:
       units.push({
         id: e.id, name: e.name, from: { x: e.x, y: e.y }, decision: 'SKIPPED',
         detail: 'Fell or routed earlier in this same turn, after the order was fixed.',
-        rules: ['TURN_SKIP_DEAD_OR_ROUTED'], consideredPositions: 0, consideredShots: 0,
+        rules: ['TURN_SKIP_DEAD_OR_ROUTED'], weighed: [], consideredPositions: 0, consideredShots: 0,
       })
       continue
     }
@@ -255,7 +267,7 @@ export function planEnemyTurn(state: BattleState): { commands: Command[]; trace:
     const plan = planUnit(s, self, shadowHp)
     const rec: AiUnitTrace = {
       id: self.id, name: self.name, from: { x: self.x, y: self.y },
-      decision: plan.decision, detail: plan.detail, rules: plan.rules,
+      decision: plan.decision, detail: plan.detail, rules: plan.rules, weighed: plan.weighed,
       consideredPositions: plan.consideredPositions, consideredShots: plan.consideredShots,
     }
 
@@ -270,7 +282,14 @@ export function planEnemyTurn(state: BattleState): { commands: Command[]; trace:
       cmds.push({ kind: 'ATTACK', id: self.id, targetId: c.attackTargetId })
       shadowHp[c.attackTargetId] = (shadowHp[c.attackTargetId] ?? 0) - c.expectedKills
       const t = combatantById(s, c.attackTargetId)
-      rec.target = { id: c.attackTargetId, name: t?.name ?? c.attackTargetId, distance: t ? chebyshev(s.combatants.find(x => x.id === self.id)!.x, s.combatants.find(x => x.id === self.id)!.y, t.x, t.y) : -1 }
+      // `self` was read BEFORE the move was applied, and `applyCommand` returns a new state, so
+      // it is stale by now. Re-read the mover from the state the attack will actually happen in.
+      const mover = combatantById(s, self.id)
+      rec.target = {
+        id: c.attackTargetId,
+        name: t?.name ?? c.attackTargetId,
+        distance: t && mover ? chebyshev(mover.x, mover.y, t.x, t.y) : -1,
+      }
       rec.expectedKills = c.expectedKills
       rec.score = c.score
       if (!turnRules.includes('TURN_BOOK_THE_KILL')) turnRules.push('TURN_BOOK_THE_KILL')
