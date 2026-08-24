@@ -810,3 +810,63 @@ explicit și scrie de ce. Din trei locuri cu aceeași decizie, doar ăsta greșe
   părți, iar 12 < 24. Nimic din reparație nu atinge copia server ⇒ **fără deploy de functions.**
 
 `npx tsc --noEmit` verde · 617 teste verzi (30 fișiere) · `npm run build` verde.
+
+## 2026-08-24 — AI-ul inamic își spune fiecare decizie și fiecare regulă
+
+**Model:** Claude Opus 5
+**Prompt:** „dar, pe masura ce dezvolti AI-ul inamic, vreau sa loghezi fiecare aspect. fiecare lucru
+pe care il face sau regula pe care o are" + „vreau ca log-ul sa apara undeva in admin"
+
+### Regulile trăiesc în cod, nu într-un document
+`logic/combat/aiRules.ts`: 21 de reguli, fiecare cu **id stabil**, `effect` (aritmetica, nu o
+parafrază — „×2" se poate verifica, „preferă loviturile decisive" nu) și `why`. Planificatorul
+**citează id-ul** când regula se declanșează. Consecința care contează: o regulă care nu mai
+funcționează apare ca regulă pe care n-o mai citează nimeni, iar un comportament fără regulă apare
+ca decizie fără citare. Niciuna nu e vizibilă când descrierea e proză într-un wiki.
+
+### Planificatorul întoarce o urmă
+`planEnemyTurn(state) → { commands, trace }`; `chooseEnemyCommands` e același lucru fără urmă, deci
+nu există două implementări care să divergă. Pentru fiecare cohortă: decizia, propoziția care o
+explică, regulile declanșate, ținta, distanța, ucișii așteptați, scorul, câte poziții și câte
+focuri a cântărit.
+
+**Ce lipsea cel mai tare:** tăcerea. „N-a emis nicio comandă" și „n-a fost niciodată luată în
+considerare" arătau identic din afară. Acum fiecare ramură care nu produce o comandă se numește pe
+sine — inclusiv `HOLD` cu motivul exact („niciuna dintre cele N mutări legale nu apropie de vreuna
+dintre cele M cohorte vii").
+
+### Trei defecte reparate pe drum (din auditul de dimineață, verificate de mine la sursă)
+1. **Îngheţul.** Registrul de „cine e deja revendicat în tura asta" era ȘI lista pe care mergea
+   ÎNAINTAREA, iar garda stătea deasupra ambelor ramuri. Când ultima cohortă vie era revendicată de
+   primul inamic, tot restul armatei returna null — nici atac, nici pas. Dacă zarul dădea sub medie,
+   jucătorul supraviețuia în fața unei armate care nu se mișcase. Acum sunt **două liste**: `live`
+   pentru înaintare, `unbooked` pentru tras.
+2. **Înaintarea fixată pe cea mai apropiată.** O cohortă zidită de ai ei față de cea mai apropiată
+   ținta renunța, deși alta era deschisă. Acum cântărește **orice cohortă vie**.
+3. **`statsOverride` ignorat.** Planifica din alt profil de statistici decât aplica motorul, deci
+   putea pune la coadă un foc pe care reducer-ul îl refuza — cohorta se muta și apoi nu făcea
+   nimic, fără ca motivul să apară undeva. Latent azi, real din clipa în care un mod dă override.
+
+**Păstrat deliberat, documentat ca regulă:** `UNIT_ADVANCE_MUST_CLOSE` — doar un pas care scurtează
+strict distanța. Acceptarea pașilor egali lasă o cohortă blocată să se legene între două tile-uri
+tură după tură, ceea ce se citește ca AI stricat, nu ca AI prudent.
+
+### În admin
+`OurDaysApp/src/warlordAdmin/AiInspector.tsx`, secțiunea **Enemy AI**. Fiindcă AI-ul e o funcție
+PURĂ de stare, adminul nu are nevoie de niciun cablaj de date de pe dispozitivul cuiva: rulează
+același planificator peste aceeași stare și obține aceeași urmă. Regulile se randează din tabelul
+jocului, deci nu pot fi descrise acolo și să se comporte altfel aici. Plus: alegi misiune/seed/
+cohorte, rulezi, și vezi tură cu tură ce a decis fiecare cohortă; poți da clic pe un id de regulă
+și filtrezi doar cohortele care au citat-o; fiecare regulă arată de câte ori s-a declanșat sau că
+nu s-a declanșat deloc în replay-ul curent.
+
+**Limită scrisă în UI, nu ascunsă:** partea jucătorului stă pe loc în replay. E deliberat (lasă
+regulile de înaintare și de alegere a țintei să se vadă fără alegerile unui al doilea AI amestecate)
+dar înseamnă că **nu e o simulare de balans** și rezultatul nu se citește ca atare.
+
+### Verificat
+`logic/combat/ai.test.ts`, 14 teste. **Dovedite roșii fără reparații: 4 pică** (îngheţul ×2,
+înaintarea, profilul de statistici). Plus determinismul: aceeași stare dă aceleași comenzi ȘI
+aceeași urmă — dacă urma ar depinde de altceva decât de stare, replay-ul din admin ar minți.
+
+`npx tsc --noEmit` verde · 631 teste verzi (31 fișiere) · `npm run build` verde.
