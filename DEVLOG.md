@@ -720,3 +720,27 @@ prima fuziune scrie `NaN` în rezervor și în fiecare unitate completată de-ac
 `npx tsc --noEmit` verde · 596 teste verzi (27 fișiere) · `npm run build` verde.
 
 **Task Completed:** 2026-08-24
+
+## 2026-08-24 — Fântâna de XP: raportată de o săptămână, NU se reproduce
+
+**Model:** Claude Opus 5
+
+Am probat numeric bucla „completezi → desființezi → repeți" ținută ca defect DESCHIS. **Nu se
+reproduce.** Ca raportul să fie corect trebuiau două lucruri adevărate simultan; doar unul a fost
+vreodată:
+
+1. Completarea trebuia să CREEZE experiență. Crea — `xpBonus = floor(avgXP * 0.10)` se adăuga
+   deasupra. Între timp `reinforceBuckets` a fost rescris ca **transfer**: veteranii sunt
+   debitați întâi și elevii primesc exact cât s-a debitat, iar cei 10% sunt un **plafon** pe cât
+   dau veteranii, nu XP nou.
+2. Desființarea trebuia s-o păstreze. Făcea invers — slotul de forma mediei pierdea XP la fiecare
+   fuziune, exact bug-ul închis azi.
+
+Deci bucla PIERDEA experiență, iar raportul avea semnul invers.
+
+`logic/xpConservation.test.ts`: peste 2000 de cazuri aleatorii `reinforceBuckets` nu întoarce
+niciodată mai mult decât a primit; peste 500 de cicluri complete, totalul nu urcă niciodată peste
+punctul de plecare. Testul există ca reparația de azi (scoaterea pierderii) să nu poată deveni
+tăcut o fântână.
+
+`npx tsc --noEmit` verde · 598 teste verzi.
