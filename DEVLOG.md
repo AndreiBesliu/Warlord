@@ -1130,3 +1130,52 @@ minterul primește 5 și previzualizează **×1,16** — nu promite ×1,50. Aia 
 Contrast în ambele teme pe tot textul nou: cel mai slab 5,64.
 
 `npx tsc --noEmit` verde · 660 teste verzi (31 fișiere) · `npm run build` verde.
+
+## 2026-08-25 — Un save stricat nu mai e o fundătură
+
+**Model:** Claude Opus 5 (descoperit accidental: un save plantat cu un tip de clădire necunoscut,
+în timpul altei verificări)
+
+### Ce se întâmpla, măsurat
+Un save cu UN tip de clădire necunoscut ducea jocul de sine stătător la **pagină complet goală** —
+`#root` cu zero copii, niciun text, niciun buton. Iar `Reset` și `Load` ale jocului trăiesc
+ÎNĂUNTRUL arborelui care tocmai murise, deci erau inaccesibile. Reload-ul rehidratează același
+save și moare din nou. **Nu e un ecran alb, e o buclă.**
+
+Gazda are ErrorBoundary, dar singura ei ofertă e `window.location.reload()` — care pentru un crash
+cauzat de stare PERSISTATĂ e un buton ce nu poate face ce spune. Exact lucrul pe care regulile
+repo-ului îl numesc singurul inacceptabil.
+
+### `GameBoundary`
+Regula pe care o urmează: **nimic nu se distruge înainte să fie oferit înapoi.** Save-ul e al
+jucătorului; o gardă care începe cu „ia-o de la capăt" e o gardă care mănâncă domenii. Se citește
+în `componentDidCatch`, ÎNAINTE ca altceva să atingă storage-ul — un crash în timpul unei scrieri e
+fix momentul când copia contează cel mai mult.
+
+Ordinea ofertelor: Reload (cât timp mai poate fi răspunsul) → **Copiază save-ul** (cu clipboard +
+`textarea` de rezervă, fiindcă în WebView-ul Capacitor clipboard-ul asincron nu e mereu acolo, plus
+textul vizibil ca ultimă plasă) → abia apoi ștergerea, sub avertisment, **și numai unde garda chiar
+deține save-ul**.
+
+**A doua oară nu mai minte.** Un marcaj în `sessionStorage` pus înainte de reload: dacă montarea
+următoare crapă iar, mesajul devine „reload-ul n-a ajutat — problema e în domeniul salvat", iar
+butonul principal Reload DISPARE.
+
+**Scăpare din propriul design, prinsă înainte de livrare:** `componentDidMount` se declanșează și
+când garda montează afișând eroarea — e garda care montează, nu jocul — deci ștergerea
+necondiționată ar fi șters chiar marcajul pe care `componentDidCatch` tocmai îl citise, iar bucla
+pe care marcajul o rupe ar fi supraviețuit. Acum se curăță doar când jocul chiar a randat.
+
+### În gazdă: `external`, și de ce
+`warlordCloud` trage cea mai nouă dintre (cloud, local) în localStorage ÎNAINTE ca jocul să
+hidrateze — localStorage e un **cache write-through**, nu sursa. Deci acolo o ștergere locală ar fi
+anulată la următoarea încărcare, iar dacă rev-ul local ar fi înainte, un domeniu gol ar putea fi
+promovat peste cel real. Garda oferă tot save-ul înapoi, dar **nu** oferă să șteargă ceva ce nu
+poate șterge.
+
+### Verificat pe viu, ciclul întreg
+save stricat → ecran de recuperare cu save-ul intact (16.354 caractere, oferit) · Reload → al
+doilea mesaj cinstit, Reload retrogradat, marcaj păstrat · save bun → jocul pornește și marcajul se
+curăță singur.
+
+`npx tsc --noEmit` verde · 660 teste verzi · `npm run build` verde.
