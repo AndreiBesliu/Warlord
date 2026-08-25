@@ -639,7 +639,7 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
       econ.setWallet(w => w - upkeep)
       notes.push(`Upkeep ${fmtCopper(upkeep)}`)
       if (postWallet - upkeep < 0) {
-        notes.push('⚠ Nu poți plăti upkeep-ul!')
+        notes.push('⚠ The treasury cannot cover the upkeep')
       }
     }
 
@@ -650,9 +650,9 @@ export function useGameState(saveKey = 'warlord_save', opts?: GameStatePersistOp
     if (foodNeeded > 0) {
       const foodConsumed = Math.min(foodNeeded, foodHave)
       econ.setResources(prev => ({ ...prev, FOOD: Math.max(0, (prev.FOOD ?? 0) - foodNeeded) }))
-      notes.push(`Hrană: -${foodConsumed}/${foodNeeded}`)
+      notes.push(`Food -${foodConsumed}/${foodNeeded}`)
       if (foodShortage) {
-        notes.push(`⚠ Hrană insuficientă! Lipsesc ${foodNeeded - foodConsumed} unități`)
+        notes.push(`⚠ The army goes hungry — ${foodNeeded - foodConsumed} short`)
       }
     }
 

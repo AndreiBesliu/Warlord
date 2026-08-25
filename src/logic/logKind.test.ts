@@ -56,3 +56,52 @@ describe('stripTimestamp removes the clock, not the content', () => {
     expect(stripTimestamp('Training queue full.')).toBe('Training queue full.')
   })
 })
+
+// ── Three defects found on 2026-08-25, each measured on a real line before it was fixed ──
+
+describe('DEFECT: the day rule was unreachable', () => {
+  // Every day summary carries arrows, and the economy rule matched arrows while sitting ABOVE
+  // the day rule — so a day line was always filed under Economy and the "Days" chip counted no
+  // days at all. Only the arrow-less catch-up line ever reached it, which is why the existing
+  // test above passed while the common case did not.
+  for (const line of [
+    'DAY 1675 — Nature → +1 Wood | House → +320 Wood',
+    '8/25/2026, 9:31:25 PM — DAY 1675 — Nature → +1 Wood',
+  ]) {
+    it(`files "${line.slice(0, 30)}…" under day, not economy`, () => {
+      expect(logKind(line)).toBe('day')
+    })
+  }
+})
+
+describe('DEFECT: the fallback pretended to be a category', () => {
+  it('an unclassifiable line goes to `other`', () => {
+    // It used to return 'day', so the Days chip doubled as the bucket for everything nobody had
+    // written a rule for. A count under a label that does not describe it is worse than no count.
+    expect(logKind('Something nobody wrote a rule for')).toBe('other')
+  })
+
+  it('and `other` is a real chip, so the miss is visible rather than hidden', () => {
+    expect(LOG_KINDS.map((k) => k.kind)).toContain('other')
+  })
+
+  it('a rout is battle news, and used to land in that fallback', () => {
+    expect(logKind('The Second Host routs')).toBe('campaign')
+  })
+})
+
+describe('DEFECT: substring collisions filed ordinary words under Army', () => {
+  it('opportunity and community are not units', () => {
+    // `/unit/` with no boundary matches inside both words.
+    expect(logKind('An opportunity in the market')).not.toBe('military')
+    expect(logKind('Community festival held')).not.toBe('military')
+  })
+
+  it('while the PREFIXES the list was written for still match', () => {
+    // The boundary belongs at the start only: a full \b…\b would break promot/conver/casualt.
+    expect(logKind('Promoted 12 to VETERAN')).toBe('military')
+    expect(logKind('Converted 20 to HEAVY_CAV')).toBe('military')
+    expect(logKind('Casualties: 12')).toBe('campaign')
+    expect(logKind('Units disbanded')).toBe('military')
+  })
+})

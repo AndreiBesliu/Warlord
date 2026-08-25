@@ -1179,3 +1179,35 @@ doilea mesaj cinstit, Reload retrogradat, marcaj păstrat · save bun → jocul 
 curăță singur.
 
 `npx tsc --noEmit` verde · 660 teste verzi · `npm run build` verde.
+
+## 2026-08-25 — Filtrele din log numărau lucrurile greșite
+
+**Model:** Claude Opus 5 · pornit de la „Warnings 257 · Economy 0" din captura save-ului LIVE
+
+N-am putut diagnostica cele 257 fără log-ul lui, dar căutându-le am găsit trei defecte în
+clasificator, fiecare măsurat pe o linie reală. Rostul cipurilor e să răspundă „ce s-a întâmplat
+cu economia mea" fără să citești fiecare rând; un cip cu număr greșit e mai rău decât niciun cip,
+fiindcă e crezut.
+
+1. **Regula de zi era INACCESIBILĂ.** Orice rezumat de zi conține săgeți, iar regula de economie
+   prindea săgeata și stătea DEASUPRA celei de zi. Deci `DAY 1675 — Nature → +1 Wood` ajungea la
+   Economy, iar cipul „Days" nu număra nicio zi. Doar linia de recuperare offline (`⏳`, fără
+   săgeți) ajungea vreodată acolo — de-aia testul existent trecea în timp ce cazul obișnuit nu.
+2. **Rezerva se dădea drept categorie.** Orice nemeciuit întorcea `'day'`, deci același cip era și
+   găleata pentru tot ce n-avea regulă — o rută de legiune, de pildă. Acum e `'other'`, cu cip
+   propriu: un număr care începe să urce acolo e semnalul că a apărut un tip de linie fără casă.
+3. **Coliziuni de subșir.** `/unit/` prindea în „opportunity" și „community" și le trimitea la
+   Army. Listele sunt PREFIXE intenționat (`promot` → promote/promotion), deci granița se pune
+   doar la ÎNCEPUT: `\b(?:unit|promot)`, niciodată `\b…\b`, care ar rupe prefixele.
+
+Plus: `rout`, `march`, `legion`, `cohort` lipseau de la bătălii; `food`, `treasury`, `wallet`,
+`harvest`, `crew`, `post` de la economie.
+
+**Și singurele trei șiruri în română dintr-un UI decis englezesc** (`⚠ Nu poți plăti upkeep-ul!`,
+`Hrană: -x/y`, `⚠ Hrană insuficientă!`) — traduse. Tiparul `nu po[țt]i` RĂMÂNE în clasificator
+dinadins: log-urile deja salvate ale jucătorilor conțin liniile vechi și trebuie să se clasifice
+la fel mai departe.
+
+Cele șase teste noi sunt **dovedite roșii** pe clasificatorul vechi.
+
+`npx tsc --noEmit` verde · 667 teste verzi · `npm run build` verde.
