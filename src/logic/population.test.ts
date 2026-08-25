@@ -3,7 +3,7 @@ import {
   CREW_SIZE, STARTING_SOULS, assignBlocker, creditsADayOfWork, crewLevelAt, crewLevelFor,
   crewLevelMult, crewPresent, crewSizeOf, describeRecord, emptyPopulation, emptyRecord,
   addRecord, growthFromHarvest, handsAt, hydratePopulation, idleHands, levyBlocker,
-  staffMultOf, totalCrewPosts, type PopulationState,
+  fillPlan, staffMultOf, staffMultWith, totalCrewPosts, type PopulationState,
 } from './population'
 import { POP_MAX_CREW, POP_MAX_STAFF_BONUS, GameConfig } from './config'
 import { simulateEconomyDay } from './economy'
@@ -523,5 +523,78 @@ describe('the forecast is a hand-copied projection, so it has to be pinned to it
     expect(f.peopleGrown).toBe(after.peopleGrown)
     expect(f.peopleFoodSpent).toBe(after.peopleFoodSpent)
     expect(f.growthBlocked).toBe(after.growthBlocked)
+  })
+})
+
+describe('pricing a hand count that has not happened yet', () => {
+  const types = Object.keys(CREW_SIZE) as Building['type'][]
+
+  it('agrees exactly with the maths the day itself runs', () => {
+    // A split, not a second formula. If these ever disagree, the card promises a multiplier the
+    // tick will not pay — which is the failure mode a preview exists to avoid.
+    for (const t of types) {
+      const b = build(t)
+      for (let h = 0; h <= crewSizeOf(t); h++) {
+        expect(staffMultWith(b, pop(500), h), `${t} at ${h}`)
+          .toBe(staffMultOf(b, pop(500, { [b.id]: h })))
+      }
+    }
+  })
+
+  it('an empty house is exactly 1.00 — posting stays a bonus, never a requirement', () => {
+    for (const t of types) expect(staffMultWith(build(t), pop(500), 0)).toBe(1)
+  })
+
+  it('and a full house is worth strictly more than an empty one', () => {
+    for (const t of types) {
+      const b = build(t)
+      expect(staffMultWith(b, pop(500), crewSizeOf(t)), t).toBeGreaterThan(staffMultWith(b, pop(500), 0))
+    }
+  })
+})
+
+describe('fillPlan: one press, and it says what it could not do', () => {
+  const types = Object.keys(CREW_SIZE) as Building['type'][]
+  const allow = () => null
+
+  it('THE SILENTLY-DOES-NOTHING TEST: every crewed house can be filled in one press', () => {
+    // A fill that renders permanently disabled, or returns 0, or previews the same multiplier, is
+    // a control that looks like a feature and is not one. This is the assertion that catches it.
+    for (const t of types) {
+      const b = build(t)
+      const crew = crewSizeOf(t)
+      const plan = fillPlan(crew, 500, allow)
+      expect(plan.n, t).toBe(crew)
+      expect(plan.n, t).toBeGreaterThan(0)
+      expect(plan.why).toBeNull()
+      expect(staffMultWith(b, pop(500), plan.n)).toBeGreaterThan(staffMultWith(b, pop(500), 0))
+    }
+  })
+
+  it('never moves more hands than are free', () => {
+    expect(fillPlan(24, 5, allow).n).toBe(5)
+    expect(fillPlan(3, 100, allow).n).toBe(3)
+    expect(fillPlan(0, 100, allow).n).toBe(0)
+    expect(fillPlan(10, 0, allow).n).toBe(0)
+  })
+
+  it('stops short at the largest press the oracle allows, and names what stopped it', () => {
+    // The oracle refuses anything above 6 — the plan must find 6, not give up at 10.
+    const capAt = (d: number) => (d > 6 ? 'The Iron Hearth is sworn to at most 6 hands' : null)
+    const plan = fillPlan(10, 100, capAt)
+    expect(plan.n).toBe(6)
+    expect(plan.why).toMatch(/sworn/)
+  })
+
+  it('when nothing at all is allowed it moves nobody and gives the reason', () => {
+    const plan = fillPlan(10, 100, () => 'This house is sealed')
+    expect(plan.n).toBe(0)
+    expect(plan.why).toBe('This house is sealed')
+  })
+
+  it('asks the oracle at most once per hand, so a bulk press cannot be expensive', () => {
+    let calls = 0
+    fillPlan(24, 500, (d) => { calls++; return d > 24 ? 'no' : null })
+    expect(calls).toBeLessThanOrEqual(25)
   })
 })

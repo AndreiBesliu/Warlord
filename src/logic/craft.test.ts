@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   availableCraftPoints, channelsOf, contextFor, craftBlocker, craftChannelsFor, craftFaults,
-  outOfKeeping, sharesOf, spentPoints, standingOf, validateDesign, type CraftDesign,
+  assignRefusal, outOfKeeping, sharesOf, spentPoints, standingOf, validateDesign, type CraftDesign,
 } from './craft'
 import {
   CRAFT_FLOOR, clampCraftChannels, isMonotone, isProportional, rebateOf, type CraftDemand,
 } from './craftPalette'
 import { CRAFT_CHANNEL_CAP, GameConfig } from './config'
-import { emptyRecord, hydratePopulation, type PopulationState } from './population'
+import { assignBlocker, emptyRecord, hydratePopulation, type PopulationState } from './population'
 import { simulateEconomyDay } from './economy'
 import { makeEmptyInventories } from './helpers'
 import { Registry } from './registry'
@@ -301,5 +301,40 @@ describe('what a save may carry', () => {
   it('the days kept survive, and a save from before oaths existed reads as none', () => {
     expect(standingOf(hydratePopulation({ population: { souls: 1, at: {}, kept: { S: 14 } } }), smelter())).toBe(14)
     expect(standingOf(hydratePopulation(null), smelter())).toBe(0)
+  })
+})
+
+describe('assignRefusal: the oath guards the WRITE, not just the button', () => {
+  // `whyNotAssign` composed the oath check with `assignBlocker` and fed only `disabled`, while the
+  // write path ran `assignBlocker` alone — which is blind to crafts. So a house sworn to a MAX_HANDS
+  // ceiling was held by a disabled button and nothing else, and the updater carried a comment
+  // claiming it repeated "the same check". This is the trap the repo already paid for with legions:
+  // a check made against the render snapshot is not an invariant. It matters more now than it did,
+  // because a bulk "post N hands" control would drive straight through the gap.
+  //
+  // MAX_HANDS specifically: it is MONOTONE, so it refuses AT the control. MIN_HANDS is proportional
+  // and never refuses anything — it only puts the craft to sleep.
+  const capped = design({ demands: [{ kind: 'CAP_STUDY', pct: 0 }, { kind: 'MAX_HANDS', hands: 8 }] })
+  const b = smelter()
+  const at8 = () => pop({ at: { S: 8 }, craft: { S: capped } })
+
+  it('refuses a move that would break a sworn ceiling', () => {
+    const why = assignRefusal(b, 1, at8(), [b], false)
+    expect(why).toBeTruthy()
+    expect(String(why)).toMatch(/hand/i)
+  })
+
+  it('and the guard the write path used ALONE does not — which is the whole bug', () => {
+    // Kept as a test so the composition cannot be quietly "simplified" back to one call.
+    expect(assignBlocker(b, 1, at8(), [b])).toBeNull()
+  })
+
+  it('still allows a move the oath does not touch', () => {
+    expect(assignRefusal(b, -1, at8(), [b], false)).toBeNull()
+  })
+
+  it('a MIN_HANDS oath refuses nothing, because it only suspends', () => {
+    const floor = design({ demands: [{ kind: 'CAP_STUDY', pct: 0 }, { kind: 'MIN_HANDS', hands: 8 }] })
+    expect(assignRefusal(b, -1, pop({ at: { S: 8 }, craft: { S: floor } }), [b], false)).toBeNull()
   })
 })

@@ -1066,3 +1066,67 @@ orice armată PvP se desfășoară ca o singură linie, de la margine la margine
 rânduri țin 24 de tile-uri") justifică de ce 12 e sigur, nu susține că se folosesc două rânduri.
 Consecința tactică — zero adâncime, zero flancare, ranguri perfect față în față — e o alegere de
 joc, deci o las lui Andrei.
+
+## 2026-08-25 — 370 de suflete nefolosite: jumătate din venit, invizibil
+
+**Model:** Claude Opus 5 · pornit de la o captură din save-ul LIVE al lui Andrei (ziua 1675):
+`👥 370 · 370 idle`. Niciun om repartizat vreodată.
+
+### Ce costă, măsurat
+Simulat un domeniu întreg pe aceleași clădiri și resurse, cu și fără echipe:
+**61.000 → 91.500 aramă/zi, +50,0%** la nivel de echipă 1, urcând spre ×2 cu vechimea. 138 de
+posturi în tot domeniul: cu 370 de suflete le umpli de două ori și-ți rămân 232 pentru armată.
+
+O casă goală **nu e stricată** — produce la 1,00×. Deci nimic nu țipă; pierzi jumătate, tăcut.
+
+### De ce n-avea cum să afle — și n-a fost ignoranță
+Două cauze care se compun, ambele verificate:
+
+1. **Toată explicația trăia într-un `title` de hover.** Cipul arăta `👥 370 · 370 idle`; cele cinci
+   rânduri care spun ce înseamnă — inclusiv „Recruiting takes them out of this pool for good" —
+   erau accesibile doar cu mouse-ul. Jocul se livrează prin Capacitor pe Android. Element verificat:
+   `isInteractive: null`, `tabIndex: -1`, `aria-label: null` — nici clicabil, nici focusabil.
+2. **Umplerea întregului domeniu costa 138 de clicuri.** `CrewRow` avea exact două butoane, `+` și
+   `−`, fiecare ±1. Nicio umplere, niciun maxim, niciun slider, niciun shift. Iar `assign` accepta
+   deja un delta oarecare — motorul suporta mutarea în bloc, lipsea doar controlul. **Asta**, nu
+   necunoașterea, e explicația suficientă pentru un designer care a specificat el mecanica.
+
+### Bugul găsit pe drum, reparat primul
+`whyNotAssign` compunea verificarea jurământului cu `assignBlocker` și hrănea **doar** `disabled`;
+calea de scriere rula `assignBlocker` singur, care nu știe nimic despre meșteșuguri. O casă jurată
+la `MAX_HANDS` era ținută de un buton dezactivat **și de nimic altceva** — iar updater-ul purta un
+comentariu care susținea că repetă „aceeași verificare". Exact capcana pe care repo-ul a plătit-o
+deja cu legiunile. Un buton de umplere în bloc ar fi trecut drept prin ea.
+
+`assignRefusal` în `craft.ts` e acum singurul judecător, folosit și de mesaj, și de scriere.
+(`MIN_HANDS` e proporțională și nu refuză nimic — doar adoarme meșteșugul; `MAX_HANDS` e monotonă
+și chiar refuză. Testul e scris pe cea corectă, cu un test care păstrează dovada că garda veche
+NU refuza.)
+
+### Livrat
+- `staffMultWith(b, pop, hands)` — prețuiește o ipoteză cu **aceeași** funcție pe care o rulează
+  ziua. `staffMultOf` e acum ea, întrebată despre azi. Un card nu poate promite ce tick-ul nu plătește.
+- `fillPlan(room, free, whyNot)` — caută în jos prin **oracolul de refuz al apelantului**, nu prin
+  reguli proprii: un control în bloc care judecă singur e un al doilea regulament, iar cele două
+  se contrazic la prima schimbare. Cel mult 24 de sondaje.
+- `CrewRow`: buton **`Post N`** cu numărul PE el (a pune 5 când 16 încap trebuie să fie un act
+  declarat, nu o trunchiere descoperită după), plus linia care spune prețul:
+  `nobody working — ×1.00 → ×1.50 with 14 more · 370 free`.
+- Umplerea parțială își spune motivul într-un `role="status"` vizibil, nu într-un `title`.
+- `ResourceBar`: `0/37 posted` devine **vizibil** lângă „idle"; iar cipul de clădiri fără intrări
+  zicea tot „idle" — două înțelesuri, aceeași bară, trei centimetri distanță. Acum „starved".
+
+### Ce NU face, deliberat
+Niciun „încadrează tot domeniul". Nicio repartizare automată — nici la tick, nici la hidratare,
+nici ca migrare peste save-ul lui. Cele 370 de suflete rămân nefolosite până apasă el. Felia face
+prețul lizibil și apăsarea ieftină; **alegerea rămâne a lui**, fiindcă tensiunea armată-contra-
+economie e chiar lucrul pe care l-a cerut. Niciun număr nou de balans.
+
+### Verificat pe viu
+370 de suflete, 4 clădiri, nimeni repartizat → bara `370 idle · 0/37 posted`; o apăsare pe
+`Post 14` → `356 idle · 14/37 posted`, cardul trece pe `×1.50 the day · fully crewed`, scris în
+save. **Cazul de raritate e cinstit:** cu 5 suflete, casa mică se umple complet (×1,50) iar
+minterul primește 5 și previzualizează **×1,16** — nu promite ×1,50. Aia E alegerea, acum lizibilă.
+Contrast în ambele teme pe tot textul nou: cel mai slab 5,64.
+
+`npx tsc --noEmit` verde · 660 teste verzi (31 fișiere) · `npm run build` verde.

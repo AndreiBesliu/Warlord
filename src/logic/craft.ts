@@ -52,7 +52,7 @@ import {
   type CraftChannels, type CraftDemand, type CraftPrim, type CraftProof,
 } from './craftPalette'
 import {
-  crewSizeOf, emptyRecord, handsAt, postedHands, totalCrewPosts,
+  assignBlocker, crewSizeOf, emptyRecord, handsAt, postedHands, totalCrewPosts,
   type CrewRecord, type PopulationState,
 } from './population'
 import type { Building } from './types'
@@ -577,4 +577,28 @@ export function postedElsewhere(
   pop: PopulationState | null | undefined, b: Building, buildings: Building[],
 ): number {
   return Math.max(0, postedHands(pop, buildings) - handsAt(pop, b))
+}
+
+/**
+ * The one judge for moving hands, used by BOTH the message and the write.
+ *
+ * They used to be different. `whyNotAssign` composed the oath check with `assignBlocker` and fed
+ * only the `disabled` prop, while the write path ran `assignBlocker` alone — which knows nothing
+ * about crafts. So a sworn house was protected by a disabled button and by nothing else, and the
+ * updater carried a comment claiming it repeated "the same check", which it did not.
+ *
+ * That is the exact trap this codebase already paid for once with legions: a check made against
+ * the render snapshot is not an invariant. The oath comes first because it is the more surprising
+ * refusal of the two, so it is the one worth saying.
+ */
+export function assignRefusal(
+  b: Building,
+  delta: number,
+  pop: PopulationState,
+  buildings: Building[],
+  hasNoItemToMake: boolean,
+): string | null {
+  const hands = handsAt(pop, b) + Math.floor(delta || 0)
+  return craftBlocker(craftAt(pop, b), { b, hands }, pop, hasNoItemToMake)
+    ?? assignBlocker(b, delta, pop, buildings)
 }

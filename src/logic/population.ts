@@ -339,9 +339,48 @@ export function staffRatioOf(b: Building, pop: PopulationState | null | undefine
  * the "I recruited my own workers" spiral.
  */
 export function staffMultOf(b: Building, pop: PopulationState | null | undefined): number {
+  return staffMultWith(b, pop, handsAt(pop, b))
+}
+
+/**
+ * What the day WOULD be multiplied by with a given hand count — the same maths the tick runs,
+ * asked a hypothetical question.
+ *
+ * It is a split rather than a second formula on purpose: a preview that says "post 14 more and
+ * this house works at 1.50" has to be computed by the thing that will actually pay it, or the
+ * number on the card becomes a promise nobody keeps. `staffMultOf` is now this function asked
+ * about today.
+ */
+export function staffMultWith(
+  b: Building, pop: PopulationState | null | undefined, hands: number,
+): number {
+  const crew = crewSizeOf(b.type)
+  const ratio = crew <= 0 ? 0 : Math.min(1, Math.max(0, hands) / crew)
   const { staffBonus } = GameConfig.population()
-  const worth = staffBonus * crewLevelMult(crewLevelAt(pop, b)) * staffRatioOf(b, pop)
+  const worth = staffBonus * crewLevelMult(crewLevelAt(pop, b)) * ratio
   return Math.min(1 + POP_MAX_STAFF_BONUS, 1 + worth)
+}
+
+/**
+ * How many hands a single "fill this house" press may move, and what stopped it short.
+ *
+ * It searches DOWNWARD through the caller's own refusal oracle rather than reimplementing the
+ * rules: a bulk control that judged for itself would be a second rulebook, and the two would
+ * disagree the first time either changed. Bounded by the crew size, so at most 24 probes.
+ *
+ * `why` is non-null exactly when the fill can only partly succeed — that sentence belongs next to
+ * the button, because a control that moves fewer hands than its label says, silently, is worse
+ * than one that refuses.
+ */
+export function fillPlan(
+  room: number, free: number, whyNot: (delta: number) => string | null,
+): { n: number; why: string | null } {
+  const want = Math.max(0, Math.min(Math.floor(room), Math.floor(free)))
+  if (want <= 0) return { n: 0, why: whyNot(1) }
+  for (let n = want; n > 0; n--) {
+    if (!whyNot(n)) return { n, why: n < want ? whyNot(n + 1) : null }
+  }
+  return { n: 0, why: whyNot(want) }
 }
 
 // ── Growth ────────────────────────────────────────────────────────────────────────────

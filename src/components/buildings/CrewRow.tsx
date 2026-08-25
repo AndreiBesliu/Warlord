@@ -1,4 +1,4 @@
-import { crewLine, describeRecord, type PopulationState } from '../../logic/population'
+import { crewLine, describeRecord, fillPlan, staffMultWith, type PopulationState } from '../../logic/population'
 import type { Building } from '../../logic/types'
 
 // The one control that posts hands, rendered in both places a building is looked at (the
@@ -49,6 +49,12 @@ export default function CrewRow({ building, population, whyNot, onAssign, contra
   }
 
   const full = hands >= crew
+  // The largest press this house will accept right now, decided by the SAME oracle the single
+  // steps use — never by a rule of its own. `why` is set only when it must stop short.
+  const plan = fillPlan(crew - hands, idle, whyNot)
+  // Priced by the function the day itself runs, so the card cannot promise what the tick will
+  // not pay. This is the whole point of the row: an empty house says 1.00 and looks harmless.
+  const after = plan.n > 0 ? staffMultWith(building, population, hands + plan.n) : mult
   // A crew's level is its own, not the building's — a mine knows its seams even after the
   // hands come off, which is why the badge stays when `hands` is 0.
   const skill = level > 1
@@ -60,6 +66,22 @@ export default function CrewRow({ building, population, whyNot, onAssign, contra
       {step(-1)}
       <span className={`font-mono text-xs ${ink}`}>{hands}/{crew}</span>
       {step(1)}
+      {!full && (
+        <button
+          type="button"
+          disabled={!plan.n}
+          title={plan.why ?? `Post ${plan.n} here`}
+          aria-label={`Post ${plan.n} hands at the ${building.type.replace(/_/g, ' ').toLowerCase()}`}
+          onClick={() => onAssign(plan.n)}
+          className={`px-2 min-h-[28px] text-[11px] rounded border font-mono disabled:cursor-not-allowed ${
+            plan.n ? btn : `${dim} ${contrast ? 'border-wl-contrast-ink/15 bg-black/10' : 'border-wl-line bg-wl-panel'}`
+          }`}
+        >
+          {/* The COUNT is on the button. Posting six when nine are free has to be a stated act,
+              not a silent clamp discovered afterwards. */}
+          Post {plan.n || Math.max(0, Math.min(crew - hands, idle))}
+        </button>
+      )}
       {skill && (
         <span
           className={`px-1.5 py-0.5 rounded font-mono text-[11px] ${
@@ -71,10 +93,16 @@ export default function CrewRow({ building, population, whyNot, onAssign, contra
         </span>
       )}
       <span className={`text-[11px] ${dim}`}>
-        {mult > 1 ? `×${mult.toFixed(2)} the day` : 'nobody working'}
+        {mult > 1 ? `×${mult.toFixed(2)} the day` : 'nobody working — ×1.00'}
+        {plan.n > 0 && after > mult ? ` → ×${after.toFixed(2)} with ${plan.n} more` : ''}
         {full ? ' · fully crewed' : ` · ${idle} free`}
         {level === 1 && nextAt !== null && days > 0 ? ` · ${days}/${nextAt} days to L2` : ''}
       </span>
+      {/* A partial fill has to SAY so, here rather than in a `title`: the game ships inside a
+          Capacitor app, where a tooltip never fires at all. */}
+      {plan.why && plan.n > 0 && (
+        <span role="status" className="basis-full text-[11px] text-wl-bad-ink">{plan.why}</span>
+      )}
       {/* The house's account of itself. Shares, not totals: a total only says how long you
           have been playing, and shares of one day are rival with each other. */}
       <span className={`basis-full text-[11px] ${dim}`}>

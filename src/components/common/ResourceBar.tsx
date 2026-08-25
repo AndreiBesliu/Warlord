@@ -78,7 +78,14 @@ export default function ResourceBar({ wallet, resources, inv, buildings, units, 
         >
           <span aria-hidden>👥</span>
           <span className="font-mono text-wl-ink">{population.souls}</span>
+          {/* Visible, not in the `title`: this ships inside a Capacitor app, where a tooltip
+              never fires at all, and the unused posts are the whole reason to open a building. */}
           <span className="text-wl-muted text-[11px]">{idle} idle</span>
+          {posts > 0 && posted < posts && (
+            <span className="text-[11px] text-wl-warn" title={`${posts - posted} posts stand empty — a full crew works its house at up to ×2 the day`}>
+              {posted}/{posts} posted
+            </span>
+          )}
           <Delta n={f.peopleGrown} />
         </span>
       )}
@@ -132,7 +139,9 @@ export default function ResourceBar({ wallet, resources, inv, buildings, units, 
             .map((l) => `${l.type} wants ${l.itemsWanted} ${l.outputItem} but has no inputs — the output is lost, not stored`)
             .join('\n')}
         >
-          ⚠ {f.blocked.length} idle
+          {/* NOT "idle": the souls chip in this same bar already uses that word for unposted
+              people. Two meanings, one bar, three centimetres apart. */}
+          ⚠ {f.blocked.length} starved
         </span>
       )}
     </div>

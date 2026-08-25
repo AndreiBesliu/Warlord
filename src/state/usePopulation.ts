@@ -3,7 +3,8 @@ import {
   addRecord, assignBlocker, emptyRecord, handsAt, hydratePopulation, idleHands,
   type CrewRecord, type PopulationState,
 } from '../logic/population'
-import type { CraftDesign } from '../logic/craft'
+import { assignRefusal, type CraftDesign } from '../logic/craft'
+import { hasNoItemToMake } from '../logic/economy'
 import type { Building } from '../logic/types'
 
 /**
@@ -54,7 +55,11 @@ export function usePopulation(saved?: unknown) {
       // render snapshot is not an invariant — this codebase already shipped a unit into two
       // legions that way. Refuses in silence: the button was disabled with the reason on it,
       // and a setState updater must not call another setState to log.
-      if (assignBlocker(b, n, p, buildings)) return p
+      //
+      // It has to be `assignRefusal`, not `assignBlocker`: the latter is blind to craft oaths, so
+      // for a sworn house this comment used to be false and the oath was held up by a disabled
+      // button alone.
+      if (assignRefusal(b, n, p, buildings, hasNoItemToMake(b.type))) return p
       const next = handsAt(p, b) + n
       const at = { ...p.at }
       if (next > 0) at[b.id] = next
