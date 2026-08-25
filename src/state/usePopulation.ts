@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  addRecord, assignBlocker, emptyRecord, handsAt, hydratePopulation, idleHands,
+  addRecord, emptyRecord, handsAt, hydratePopulation, idleHands,
   type CrewRecord, type PopulationState,
 } from '../logic/population'
 import { assignRefusal, type CraftDesign } from '../logic/craft'
